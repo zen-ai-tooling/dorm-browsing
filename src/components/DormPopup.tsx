@@ -1,0 +1,108 @@
+import { COMMUNITY_CORKBOARD, MOODS, type PopupPayload } from "@/data/dorm";
+
+const Shell = ({
+  accent,
+  title,
+  subtitle,
+  children,
+}: {
+  accent: string;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) => (
+  <div
+    className="pointer-events-none absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200"
+    role="status"
+    aria-live="polite"
+  >
+    <div
+      className="rounded-3xl border border-border/70 bg-card/95 p-4 shadow-xl backdrop-blur-sm"
+      style={{ boxShadow: `0 12px 40px -12px ${accent}80`, borderColor: `${accent}66` }}
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-bold tracking-wide text-foreground">{title}</h2>
+        {subtitle ? (
+          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
+            {subtitle}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 text-sm text-muted-foreground">{children}</div>
+      <p className="mt-3 text-[11px] italic text-muted-foreground/70">walk away to close</p>
+    </div>
+  </div>
+);
+
+export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
+  if (!payload) return null;
+
+  if (payload.kind === "songs") {
+    const room = payload.room;
+    return (
+      <Shell accent={room.accentColor} title={`${room.name} — Top 5`} subtitle={MOODS[room.mood].label}>
+        <ol className="space-y-1">
+          {room.songs.map((s, i) => (
+            <li key={s.title} className="flex gap-2">
+              <span className="w-4 shrink-0 tabular-nums opacity-50">{i + 1}</span>
+              <span className="font-medium text-foreground">{s.title}</span>
+              <span className="opacity-70">· {s.artist}</span>
+            </li>
+          ))}
+        </ol>
+      </Shell>
+    );
+  }
+
+  if (payload.kind === "bulletin") {
+    const room = payload.room;
+    return (
+      <Shell accent={room.accentColor} title={`${room.name} — Bulletin board`}>
+        <div className="flex gap-3">
+          <div
+            className="h-20 w-20 shrink-0 rounded-2xl"
+            style={{ background: `linear-gradient(135deg, ${room.accentColor}, ${room.accentColor}55)` }}
+            aria-label="pinned photo placeholder"
+          />
+          <ul className="space-y-1">
+            {room.bulletin.interests.map((i) => (
+              <li key={i}>· {i}</li>
+            ))}
+            <li className="font-semibold text-foreground">📌 {room.bulletin.event}</li>
+          </ul>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (payload.kind === "companion") {
+    const c = payload.room.companion;
+    return (
+      <Shell accent={payload.room.accentColor} title={c.name} subtitle={c.breed}>
+        <p>{c.blurb}</p>
+      </Shell>
+    );
+  }
+
+  if (payload.kind === "corkboard") {
+    return (
+      <Shell accent="#8d8090" title={COMMUNITY_CORKBOARD.title} subtitle="floor-wide">
+        <ul className="space-y-1">
+          {COMMUNITY_CORKBOARD.items.map((i) => (
+            <li key={i}>· {i}</li>
+          ))}
+        </ul>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell accent={payload.accent ?? "#8d8090"} title={payload.title}>
+      <ul className="space-y-1">
+        {payload.lines.map((l) => (
+          <li key={l}>· {l}</li>
+        ))}
+      </ul>
+    </Shell>
+  );
+};
