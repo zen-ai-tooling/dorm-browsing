@@ -172,7 +172,6 @@ export class DormScene extends Phaser.Scene {
     this.spawnPlayer();
     this.setupCamera();
     this.setupInput();
-    (window as unknown as Record<string, unknown>)['__dormScene'] = this;
   }
 
   // ---------- world ----------
