@@ -459,7 +459,7 @@ export class DormScene extends Phaser.Scene {
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2), "glow")
       .setTint(mood.glow)
       .setDepth(1)
-      .setScale(6)
+      .setScale(4.2)
       .setAlpha(room.isActive ? 0.22 : 0.07);
 
     if (room.isActive) {
@@ -473,7 +473,7 @@ export class DormScene extends Phaser.Scene {
         ease: "Sine.easeInOut",
       });
       this.spawnSoundCue(dx, dy - 10, mood.glow);
-      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 2), mood.glow);
+      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
     }
   }
 
@@ -484,20 +484,24 @@ export class DormScene extends Phaser.Scene {
         .image(x, y, "note")
         .setTint(tint)
         .setDepth(7)
-        .setScale(0.9)
+        .setScale(0.55)
         .setAlpha(0);
+      // rise, drift sideways, fade out — a continuous loop, never a static icon
       this.tweens.add({
         targets: note,
-        y: y - 46,
-        x: x + (i % 2 === 0 ? 16 : -14),
-        alpha: { from: 0.9, to: 0 },
-        duration: 2600,
-        delay: i * 800,
+        y: y - 52,
+        x: x + (i % 2 === 0 ? 18 : -16),
+        scale: 1,
+        angle: i % 2 === 0 ? 14 : -14,
+        alpha: { from: 0.95, to: 0 },
+        duration: 2400,
+        delay: i * 780,
         repeat: -1,
         ease: "Sine.easeOut",
       });
     }
   }
+
 
   private decorate(zones: Zone[]) {
     // personal rooms (generic from data)
