@@ -10,7 +10,7 @@ import {
 import { buildTextures } from "./textures";
 
 export const TILE = 32;
-const GRID_W = 80;
+const GRID_W = 88;
 const GRID_H = 40;
 
 const VOID = 0;
@@ -32,6 +32,18 @@ interface Zone extends Rect {
   kind: "hall" | "personal" | "common" | "outdoor";
 }
 
+const mix = (a: number, b: number, t: number) =>
+  Phaser.Display.Color.ObjectToColor(
+    Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.IntegerToColor(a),
+      Phaser.Display.Color.IntegerToColor(b),
+      100,
+      Math.round(t * 100),
+    ),
+  ).color;
+
+const NEUTRAL_WALL = 0xd6c7b6; // warm grey trim for hallway + common rooms
+
 const HALL: Zone = {
   id: "hall",
   label: "Hallway",
@@ -40,59 +52,60 @@ const HALL: Zone = {
   w: 66,
   h: 5,
   floor: 0xf3ece2,
-  wall: 0xd8cbba,
+  wall: NEUTRAL_WALL,
   kind: "hall",
 };
 
+/** tight footprints: sized to their contents, not cavernous */
 const PERSONAL_RECTS: Rect[] = [
-  { x: 4, y: 5, w: 18, h: 11 },
-  { x: 27, y: 5, w: 18, h: 11 },
-  { x: 50, y: 5, w: 18, h: 11 },
+  { x: 6, y: 7, w: 12, h: 9 },
+  { x: 27, y: 7, w: 12, h: 9 },
+  { x: 48, y: 7, w: 12, h: 9 },
 ];
 
 const COMMON: Zone[] = [
   {
     id: "lounge",
     label: "Common Lounge",
-    x: 4,
+    x: 6,
     y: 23,
-    w: 22,
-    h: 12,
+    w: 16,
+    h: 10,
     floor: 0xf6e7d7,
-    wall: 0xdcc4ab,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "study",
     label: "Study Lounge",
-    x: 30,
+    x: 28,
     y: 23,
-    w: 17,
-    h: 12,
-    floor: 0xe4edf3,
-    wall: 0xc0d2de,
+    w: 14,
+    h: 10,
+    floor: 0xe7eef3,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "kitchen",
     label: "Kitchenette",
-    x: 50,
+    x: 48,
     y: 23,
-    w: 13,
-    h: 12,
+    w: 12,
+    h: 10,
     floor: 0xfaeacd,
-    wall: 0xe3c99c,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "courtyard",
     label: "Courtyard",
     x: 69,
-    y: 5,
-    w: 9,
-    h: 30,
+    y: 7,
+    w: 16,
+    h: 21,
     floor: 0xcfe8bd,
-    wall: 0xb6d6a4,
+    wall: mix(NEUTRAL_WALL, 0x9fc48c, 0.45),
     kind: "outdoor",
   },
 ];
@@ -100,19 +113,19 @@ const COMMON: Zone[] = [
 /** doorway carve-outs: [tileX, tileY] pairs */
 const DOORWAYS: Array<[number, number]> = [
   // personal rooms -> hallway (bottom walls at y=16)
+  [11, 16],
   [12, 16],
-  [13, 16],
-  [35, 16],
-  [36, 16],
-  [58, 16],
-  [59, 16],
+  [32, 16],
+  [33, 16],
+  [53, 16],
+  [54, 16],
   // common rooms -> hallway (top walls at y=22)
+  [13, 22],
   [14, 22],
-  [15, 22],
-  [37, 22],
-  [38, 22],
-  [55, 22],
-  [56, 22],
+  [34, 22],
+  [35, 22],
+  [53, 22],
+  [54, 22],
   // courtyard <-> hallway (shared wall column x=68)
   [68, 18],
   [68, 19],
@@ -131,6 +144,7 @@ interface PropDef {
 }
 
 const t = (n: number) => n * TILE;
+
 
 export class DormScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
