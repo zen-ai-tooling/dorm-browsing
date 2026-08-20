@@ -505,48 +505,74 @@ export class DormScene extends Phaser.Scene {
 
   private decorate(zones: Zone[]) {
     // personal rooms (generic from data)
-    const doorXs = [12, 35, 58];
+    const doorXs = [11, 32, 53];
     ROOMS.forEach((room, i) => this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!));
 
     // zone labels
-    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 16);
-    this.label(t(HALL.x + 4), t(HALL.y) + 12, "Floor 3", "#8d8090", 15);
+    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 15);
+    this.label(t(HALL.x + 3), t(HALL.y) + 12, "Floor 3", "#8d8090", 15);
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
-    this.prop({ key: "couch", x: t(L.x + 5), y: t(L.y + 5), solid: true });
-    this.prop({ key: "couch", x: t(L.x + 15), y: t(L.y + 8.6), scale: 0.9, tint: 0xe9b7a6, solid: true });
-    this.prop({ key: "table", x: t(L.x + 10), y: t(L.y + 6.6), payload: { kind: "flavor", ...FLAVOR_PROPS.lounge } });
-    this.prop({ key: "tv", x: t(L.x + 16), y: t(L.y + 3.4), solid: true });
-    this.prop({ key: "record", x: t(L.x + 3), y: t(L.y + 9.4) });
-    this.prop({ key: "plant", x: t(L.x + 19.5), y: t(L.y + 2.5), scale: 1.1 });
+    this.prop({ key: "tv", x: t(L.x + 2.4), y: t(L.y + 1.8), solid: true });
+    this.prop({ key: "couch", x: t(L.x + 4.6), y: t(L.y + 4.6), solid: true });
+    this.prop({
+      key: "table",
+      x: t(L.x + 9.6),
+      y: t(L.y + 5.2),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
+    });
+    this.prop({ key: "couch", x: t(L.x + 12.4), y: t(L.y + 7.8), scale: 0.9, tint: 0xe9b7a6, solid: true });
+    this.prop({ key: "record", x: t(L.x + 2.2), y: t(L.y + 8.4) });
+    this.prop({ key: "plant", x: t(L.x + 14.2), y: t(L.y + 1.8), scale: 1.05 });
 
     // ---- Study Lounge ----
     const S = COMMON[1]!;
-    this.prop({ key: "desk", x: t(S.x + 5), y: t(S.y + 4.6), solid: true });
-    this.prop({ key: "desk", x: t(S.x + 12), y: t(S.y + 8.6), solid: true });
-    this.prop({ key: "shelf", x: t(S.x + 13.5), y: t(S.y + 3), payload: { kind: "flavor", ...FLAVOR_PROPS.study }, solid: true });
-    this.prop({ key: "plant", x: t(S.x + 2), y: t(S.y + 9.6) });
+    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 2.6), solid: true });
+    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 7.6), solid: true });
+    this.prop({
+      key: "shelf",
+      x: t(S.x + 11.4),
+      y: t(S.y + 2.4),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.study },
+      solid: true,
+    });
+    this.prop({ key: "plant", x: t(S.x + 11.6), y: t(S.y + 8.2) });
 
     // ---- Kitchenette ----
     const K = COMMON[2]!;
-    this.prop({ key: "counter", x: t(K.x + 6.5), y: t(K.y + 8.6), solid: true });
-    this.prop({ key: "fridge", x: t(K.x + 2), y: t(K.y + 3.6), payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen }, solid: true });
-    this.prop({ key: "table", x: t(K.x + 9), y: t(K.y + 4.5) });
+    this.prop({ key: "counter", x: t(K.x + 6), y: t(K.y + 8) , solid: true });
+    this.prop({
+      key: "fridge",
+      x: t(K.x + 1.9),
+      y: t(K.y + 2.6),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen },
+      solid: true,
+    });
+    this.prop({ key: "table", x: t(K.x + 8.6), y: t(K.y + 3.4) });
+    this.prop({ key: "plant", x: t(K.x + 10.4), y: t(K.y + 7.6), scale: 0.9 });
 
     // ---- Courtyard ----
     const C = COMMON[3]!;
-    this.prop({ key: "tree", x: t(C.x + 4.5), y: t(C.y + 6), solid: true });
-    this.prop({ key: "bench", x: t(C.x + 4.5), y: t(C.y + 12), payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard } });
-    this.prop({ key: "bench", x: t(C.x + 4.5), y: t(C.y + 20), scale: 0.95 });
-    this.prop({ key: "plant", x: t(C.x + 1.5), y: t(C.y + 24.5) });
-    this.prop({ key: "tree", x: t(C.x + 6), y: t(C.y + 26), scale: 0.8, solid: true });
+    this.prop({ key: "tree", x: t(C.x + 3), y: t(C.y + 3.4), solid: true });
+    this.prop({ key: "tree", x: t(C.x + 12.6), y: t(C.y + 16.6), scale: 0.85, solid: true });
+    this.prop({
+      key: "bench",
+      x: t(C.x + 6.6),
+      y: t(C.y + 11.6),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard },
+    });
+    this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
+    this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
+    this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
     // string lights across the courtyard
-    for (let i = 0; i < 14; i++) {
-      const lx = t(C.x + 1) + i * 20;
-      const ly = t(C.y + 2) + Math.sin(i * 0.9) * 6;
+    for (let i = 0; i < 16; i++) {
+      const lx = t(C.x + 0.6) + i * 30;
+      const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
+      if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2).setAlpha(0.9);
     }
+
 
     // ---- hallway shared props ----
     this.prop({
