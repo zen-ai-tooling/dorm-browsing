@@ -342,7 +342,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({
       key: "board",
       x: t(rect.x + rect.w - 3),
-      y: t(rect.y + 1.6),
+      y: t(rect.y + 2.2),
       payload: { kind: "bulletin", room },
     });
     this.prop({
@@ -653,7 +653,7 @@ export class DormScene extends Phaser.Scene {
 
   private checkProximity() {
     const HOVER = 110;
-    const OPEN = 58;
+    const OPEN = 70;
     let best: { payload: PopupPayload; d: number } | null = null;
     for (const it of this.interactives) {
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.sprite.x, it.sprite.y + 8);
