@@ -194,12 +194,14 @@ export class DormScene extends Phaser.Scene {
     const personal: Zone[] = ROOMS.map((room, i) => {
       const mood = MOODS[room.mood];
       const r = PERSONAL_RECTS[i]!;
+      const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
       return {
         ...r,
         id: room.id,
         label: room.name,
         floor: mood.wallpaper,
-        wall: mood.wall,
+        // personal rooms get accent-tinted wall trim
+        wall: mix(accent, 0xfaf3ea, 0.42),
         kind: "personal" as const,
       };
     });
@@ -221,43 +223,98 @@ export class DormScene extends Phaser.Scene {
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
   }
 
+  /** flooring pattern per zone kind — reinforces the wall boundary */
+  private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
+    g.fillStyle(z.floor, 1);
+    g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
+
+    if (z.kind === "personal") {
+      // two-tone checker wallpaper-flooring in the mood palette
+      const dark = mix(z.floor, 0x8a6f7c, 0.14);
+      for (let y = z.y; y < z.y + z.h; y++)
+        for (let x = z.x; x < z.x + z.w; x++) {
+          if ((x + y) % 2 !== 0) continue;
+          g.fillStyle(dark, 1);
+          g.fillRect(t(x), t(y), TILE, TILE);
+        }
+      // faint diagonal weave
+      g.lineStyle(1, 0xffffff, 0.16);
+      for (let i = 0; i < (z.w + z.h) * 2; i++) {
+        const ox = t(z.x) + i * 16 - t(z.h);
+        g.lineBetween(ox, t(z.y), ox + t(z.h), t(z.y + z.h));
+      }
+    } else if (z.kind === "outdoor") {
+      const dark = mix(z.floor, 0x5f8f52, 0.16);
+      for (let y = z.y; y < z.y + z.h; y++)
+        for (let x = z.x; x < z.x + z.w; x++) {
+          g.fillStyle(dark, (x * 7 + y * 13) % 3 === 0 ? 0.5 : 0.16);
+          g.fillRoundedRect(t(x) + 2, t(y) + 2, TILE - 4, TILE - 4, 10);
+        }
+    } else {
+      // hallway + common rooms: neutral wood planks
+      const seam = mix(z.floor, 0x9c8a76, 0.35);
+      const plank = mix(z.floor, 0xffffff, 0.35);
+      for (let y = z.y; y < z.y + z.h; y++) {
+        if ((y - z.y) % 2 === 0) {
+          g.fillStyle(plank, 0.5);
+          g.fillRect(t(z.x), t(y), t(z.w), TILE);
+        }
+        g.fillStyle(seam, 0.35);
+        g.fillRect(t(z.x), t(y), t(z.w), 1.5);
+        // staggered plank joints
+        for (let x = z.x + ((y - z.y) % 2 === 0 ? 0 : 2); x < z.x + z.w; x += 4) {
+          g.fillStyle(seam, 0.3);
+          g.fillRect(t(x), t(y) + 2, 1.5, TILE - 4);
+        }
+      }
+    }
+
+    // soft warm ambient wash
+    g.fillStyle(z.kind === "outdoor" ? 0xfff6c9 : 0xffe9c4, z.kind === "outdoor" ? 0.12 : 0.09);
+    g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
+    // inner shadow at the wall line so the floor reads as enclosed
+    g.fillStyle(0x2a2030, 0.09);
+    g.fillRect(t(z.x), t(z.y), t(z.w), 6);
+    g.fillRect(t(z.x), t(z.y), 6, t(z.h));
+    g.fillRect(t(z.x + z.w) - 6, t(z.y), 6, t(z.h));
+  }
+
   private paintFloor(zones: Zone[]) {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    // zone floors
-    for (const z of zones) {
-      g.fillStyle(z.floor, 1);
-      g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
-      // subtle tile grid
-      g.lineStyle(1, 0x000000, 0.045);
-      for (let x = z.x; x <= z.x + z.w; x++) {
-        g.lineBetween(t(x), t(z.y), t(x), t(z.y + z.h));
-      }
-      for (let y = z.y; y <= z.y + z.h; y++) {
-        g.lineBetween(t(z.x), t(y), t(z.x + z.w), t(y));
-      }
-      // soft warm ambient wash
-      g.fillStyle(z.kind === "outdoor" ? 0xfff6c9 : 0xffe9c4, z.kind === "outdoor" ? 0.14 : 0.1);
-      g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
-    }
-    // walls
+    for (const z of zones) this.paintZoneFloor(g, z);
+
+    // ---- walls: solid tiles, wainscot cap + baseboard shadow ----
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
         const zone = this.zoneNear(x, y, zones);
-        g.fillStyle(zone?.wall ?? 0xcfc4b6, 1);
-        g.fillRoundedRect(t(x) + 1, t(y) + 1, TILE - 2, TILE - 2, 6);
-        g.fillStyle(0xffffff, 0.18);
-        g.fillRoundedRect(t(x) + 3, t(y) + 3, TILE - 6, 8, 4);
+        const base = zone?.wall ?? NEUTRAL_WALL;
+        g.fillStyle(mix(base, 0x2a2030, 0.18), 1);
+        g.fillRect(t(x), t(y), TILE, TILE);
+        g.fillStyle(base, 1);
+        g.fillRect(t(x) + 1, t(y), TILE - 2, TILE - 5);
+        // wainscoting cap
+        g.fillStyle(mix(base, 0xffffff, 0.55), 1);
+        g.fillRect(t(x), t(y) + 3, TILE, 7);
+        g.fillStyle(mix(base, 0x2a2030, 0.28), 0.5);
+        g.fillRect(t(x), t(y) + 10, TILE, 2);
+        // baseboard
+        g.fillStyle(mix(base, 0x2a2030, 0.35), 1);
+        g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
       }
     }
-    // doorway thresholds
+
+    // ---- doorway thresholds ----
     for (const [x, y] of DOORWAYS) {
       g.fillStyle(0xf6efe4, 1);
       g.fillRect(t(x), t(y), TILE, TILE);
-      g.fillStyle(0xd9cbb8, 0.6);
-      g.fillRect(t(x), t(y), TILE, 4);
-      g.fillRect(t(x), t(y) + TILE - 4, TILE, 4);
+      g.fillStyle(0xd9cbb8, 0.75);
+      g.fillRect(t(x), t(y), TILE, 5);
+      g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
+      g.fillStyle(0x2a2030, 0.07);
+      g.fillRect(t(x), t(y) + 5, TILE, TILE - 10);
     }
+
     g.generateTexture("floormap", GRID_W * TILE, GRID_H * TILE);
     g.destroy();
     this.add.image(0, 0, "floormap").setOrigin(0, 0).setDepth(0);
