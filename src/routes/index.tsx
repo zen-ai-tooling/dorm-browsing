@@ -1,24 +1,53 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { ClientOnly } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const DormGame = lazy(() => import("@/components/DormGame"));
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Dorm Vibes — Walk a 2D Dorm Floor" },
+      {
+        name: "description",
+        content:
+          "Wander a cozy top-down dorm floor and discover each room's Top 5 songs, bulletin board, and companion — all through proximity, no clicking.",
+      },
+      { property: "og:title", content: "Dorm Vibes — Walk a 2D Dorm Floor" },
+      {
+        property: "og:description",
+        content: "A MySpace-inspired social floor you walk around instead of scroll.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="min-h-screen bg-background p-3 sm:p-5">
+      <h1 className="sr-only">Dorm Vibes — a walkable 2D dorm floor</h1>
+      <div className="h-[calc(100vh-1.5rem)] w-full sm:h-[calc(100vh-2.5rem)]">
+        <ClientOnly
+          fallback={
+            <div className="flex h-full w-full items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground">
+              Unlocking the floor…
+            </div>
+          }
+        >
+          <Suspense
+            fallback={
+              <div className="flex h-full w-full items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground">
+                Unlocking the floor…
+              </div>
+            }
+          >
+            <DormGame />
+          </Suspense>
+        </ClientOnly>
+      </div>
+    </main>
   );
 }
