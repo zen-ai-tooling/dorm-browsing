@@ -510,7 +510,7 @@ export class DormScene extends Phaser.Scene {
 
     // zone labels
     for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 15);
-    this.label(t(HALL.x + 2), t(HALL.y) + 60, "Floor 3", "#a29aa8", 14);
+    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#a29aa8", 14);
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
