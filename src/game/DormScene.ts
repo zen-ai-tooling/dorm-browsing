@@ -387,41 +387,49 @@ export class DormScene extends Phaser.Scene {
 
     // wallpaper accent band along the top wall (inside the room)
     const band = this.add
-      .rectangle(t(rect.x), t(rect.y), t(rect.w), TILE, accent, 0.18)
+      .rectangle(t(rect.x), t(rect.y), t(rect.w), TILE * 0.8, accent, 0.16)
       .setOrigin(0, 0)
       .setDepth(1);
     band.setStrokeStyle(0);
 
-    // poster
-    const poster = this.add
-      .rectangle(t(rect.x + rect.w / 2), t(rect.y) + 22, 96, 60, mood.posterAccent, 0.95)
-      .setDepth(2);
+    // area rug, tinted to the mood
+    this.add
+      .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
+      .setTint(mood.posterAccent)
+      .setAlpha(0.4)
+      .setScale(1.15)
+      .setDepth(1);
+
+    // poster on the top wall
+    const px = t(rect.x + rect.w / 2);
+    const poster = this.add.rectangle(px, t(rect.y) + 18, 84, 52, mood.posterAccent, 0.95).setDepth(2);
     poster.setStrokeStyle(4, 0xfffaf0, 0.9);
-    this.add.rectangle(t(rect.x + rect.w / 2), t(rect.y) + 22, 56, 26, 0xffffff, 0.5).setDepth(3);
+    this.add.rectangle(px, t(rect.y) + 18, 48, 22, 0xffffff, 0.5).setDepth(3);
 
     // decor furniture
-    this.prop({ key: "bed", x: t(rect.x + rect.w - 3.2), y: t(rect.y + rect.h - 3), solid: true });
-    this.prop({ key: "desk", x: t(rect.x + rect.w / 2 + 1), y: t(rect.y + rect.h - 2.5), solid: true });
+    this.prop({ key: "bed", x: t(rect.x + 9.2), y: t(rect.y + 6.6), solid: true });
+    this.prop({ key: "desk", x: t(rect.x + 2.6), y: t(rect.y + 7.4), solid: true });
 
     // interactive objects
     this.prop({
       key: "speaker",
       x: t(rect.x + 2),
-      y: t(rect.y + 2.6),
+      y: t(rect.y + 2.2),
       payload: { kind: "songs", room },
     });
     this.prop({
       key: "board",
-      x: t(rect.x + rect.w - 3),
-      y: t(rect.y + 2.2),
+      x: t(rect.x + 9.3),
+      y: t(rect.y + 1.8),
       payload: { kind: "bulletin", room },
     });
     this.prop({
       key: room.companion.type === "plant" ? "plant" : "pet",
       x: t(rect.x + 2),
-      y: t(rect.y + rect.h - 2.5),
+      y: t(rect.y + 4.9),
       payload: { kind: "companion", room },
     });
+
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
