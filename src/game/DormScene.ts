@@ -321,10 +321,11 @@ export class DormScene extends Phaser.Scene {
   }
 
   private zoneNear(x: number, y: number, zones: Zone[]): Zone | undefined {
-    return zones.find(
-      (z) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h,
-    );
+    const hit = (z: Zone) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h;
+    // rooms own their trim colour; the hallway only claims walls nobody else touches
+    return zones.find((z) => z.kind !== "hall" && hit(z)) ?? zones.find(hit);
   }
+
 
   private buildColliders() {
     this.walls = this.physics.add.staticGroup();
