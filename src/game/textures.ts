@@ -2,515 +2,542 @@ import * as Phaser from "phaser";
 
 type G = Phaser.GameObjects.Graphics;
 
+/* ---------------------------------------------------------------
+ * PIXEL-ART RULES (16-bit interior tileset)
+ *  - one art pixel = P canvas px; nothing is ever drawn off that grid
+ *  - hard edges only: no rounded rects, no blur, no gradients
+ *  - 3-tone flat shading: base / shadow / highlight bands
+ *  - 1px ink outline around every silhouette
+ *  - depth faked with dithering, never with soft alpha ramps
+ * ------------------------------------------------------------- */
+
+/** canvas px per art pixel */
+export const P = 2;
+
+const INK = 0x241c26;
+
 const make = (scene: Phaser.Scene, key: string, w: number, h: number, draw: (g: G) => void) => {
   if (scene.textures.exists(key)) return;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
   draw(g);
-  g.generateTexture(key, w, h);
+  g.generateTexture(key, w * P, h * P);
   g.destroy();
 };
 
-/* ---------------------------------------------------------------
- * Shared art language for every sprite in the dorm:
- *  - one outline colour + one stroke weight
- *  - rounded corners everywhere (radius >= 3)
- *  - a soft contact shadow ellipse under every free-standing prop
- *  - one warm highlight pass on top faces, one cool shade pass below
- * ------------------------------------------------------------- */
-const INK = 0x4a3f52; // single outline colour
-const STROKE = 2; // single stroke weight
-const INK_A = 0.55; // single outline alpha
-
-/** soft contact shadow so props sit ON the floor */
-const shadow = (g: G, cx: number, cy: number, w: number, h = Math.max(6, w * 0.16)) => {
-  g.fillStyle(0x2a2030, 0.1);
-  g.fillEllipse(cx, cy, w * 1.06, h * 1.25);
-  g.fillStyle(0x2a2030, 0.16);
-  g.fillEllipse(cx, cy, w, h);
+/** single flat pixel-aligned rect */
+const r = (g: G, x: number, y: number, w: number, h: number, c: number, a = 1) => {
+  g.fillStyle(c, a);
+  g.fillRect(Math.round(x) * P, Math.round(y) * P, Math.round(w) * P, Math.round(h) * P);
 };
 
-/** filled + outlined rounded box (the base shape of every prop) */
-const box = (g: G, x: number, y: number, w: number, h: number, r: number, color: number) => {
-  g.fillStyle(color, 1);
-  g.fillRoundedRect(x, y, w, h, r);
-  g.lineStyle(STROKE, INK, INK_A);
-  g.strokeRoundedRect(x, y, w, h, r);
+/** 1px ink outline (hard, pixel-perfect) */
+const line = (g: G, x: number, y: number, w: number, h: number, c = INK) => {
+  r(g, x, y, w, 1, c);
+  r(g, x, y + h - 1, w, 1, c);
+  r(g, x, y, 1, h, c);
+  r(g, x + w - 1, y, 1, h, c);
 };
 
-/** top-light highlight band */
-const lit = (g: G, x: number, y: number, w: number, h: number, r: number, a = 0.3) => {
-  g.fillStyle(0xffffff, a);
-  g.fillRoundedRect(x, y, w, h, r);
+/** checkerboard dither used for shade transitions and texture */
+const dither = (g: G, x: number, y: number, w: number, h: number, c: number, phase = 0) => {
+  for (let yy = 0; yy < h; yy++)
+    for (let xx = 0; xx < w; xx++) if ((xx + yy + phase) % 2 === 0) r(g, x + xx, y + yy, 1, 1, c);
 };
 
-/** lower shade band, gives volume without a gradient */
-const shade = (g: G, x: number, y: number, w: number, h: number, r: number, a = 0.14) => {
-  g.fillStyle(0x2a2030, a);
-  g.fillRoundedRect(x, y, w, h, r);
+/** base panel: fill + top highlight band + bottom shadow band + ink outline */
+const panel = (
+  g: G,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  base: number,
+  shade: number,
+  hi: number,
+) => {
+  r(g, x, y, w, h, base);
+  r(g, x + 1, y + 1, w - 2, 1, hi);
+  r(g, x + 1, y + h - 3, w - 2, 2, shade);
+  dither(g, x + 1, y + h - 4, w - 2, 1, shade);
+  line(g, x, y, w, h);
 };
 
-const SKIN = 0xf7d5b5;
-const SKIN_SHADE = 0xe7b795;
-const HAIR = 0x4a3550;
-const HAIR_LIT = 0x63466b;
-const SHIRT = 0x74c6d8;
-const SHIRT_SHADE = 0x53a8bd;
-const PANTS = 0x5d6b8a;
-const SHOE = 0x3d4763;
+/** tight hard-edged contact shadow (flat, no blur) */
+const foot = (g: G, cx: number, y: number, w: number) => {
+  r(g, cx - w / 2, y, w, 1, 0x2b2431, 0.3);
+  r(g, cx - w / 2 + 1, y + 1, w - 2, 1, 0x2b2431, 0.22);
+};
+
+/* ---------------- grounded warm-neutral palette ---------------- */
+const SKIN = 0xdfa982;
+const SKIN_SH = 0xba8362;
+const HAIR = 0x4a3745;
+const HAIR_HI = 0x66495a;
+const SHIRT = 0x6c9aa2;
+const SHIRT_SH = 0x4c757d;
+const PANTS = 0x4a5468;
+const PANTS_SH = 0x373f51;
+const SHOE = 0x2e3140;
+
+const WOOD = 0xa97f57;
+const WOOD_SH = 0x8b6543;
+const WOOD_HI = 0xc39a6d;
+const LINEN = 0xe8dcc6;
+const LINEN_SH = 0xc9bba1;
+const METAL = 0x8d8a94;
+const METAL_SH = 0x6c6975;
+const METAL_HI = 0xb2aeb8;
+const LEAF = 0x6f9a5f;
+const LEAF_SH = 0x53773f;
+const LEAF_HI = 0x8fb877;
+const CORAL = 0xc8765c;
+const TEAL = 0x5f8f92;
+const PLUM = 0x8b6b9c;
+const CREAM = 0xf0e4cd;
 
 /**
- * Chibi character, 32x42.
- * Big soft head (~55% of height), rounded silhouette, visible face,
- * two-tone cel shading and a grounded contact shadow.
+ * True pixel sprite: 16x21 art pixels (32x42 canvas px at P=2).
+ * Blocky readable silhouette, 1px ink outline, 2-3 tone shading, ~9 colours.
  */
 const drawChar = (g: G, dir: string, step: number) => {
-  const bob = step === 1 ? -1 : step === 2 ? 0 : 0;
-  const swing = step === 0 ? 0 : step === 1 ? 3 : -3;
-  const cx = 16;
-  const headY = 15 + bob;
-  const HR = 11; // head radius — deliberately large vs. the body
+  const bob = step === 1 ? -1 : 0;
+  const sw = step === 1 ? 1 : step === 2 ? -1 : 0;
+  const cx = 8;
 
-  // grounding shadow (squashes slightly on the up-step)
-  shadow(g, cx, 39.5, step === 1 ? 17 : 19, 5.5);
+  foot(g, cx, 19, 8);
 
   // legs
-  g.fillStyle(PANTS, 1);
-  g.fillRoundedRect(cx - 7 + swing, 32 + bob, 6.5, 8, 3.2);
-  g.fillRoundedRect(cx + 0.5 - swing, 32 + bob, 6.5, 8, 3.2);
-  g.fillStyle(SHOE, 1);
-  g.fillRoundedRect(cx - 7.5 + swing, 36 + bob, 7.5, 4.5, 2.2);
-  g.fillRoundedRect(cx + 0 - swing, 36 + bob, 7.5, 4.5, 2.2);
+  r(g, cx - 3 + sw, 15 + bob, 2, 4, PANTS);
+  r(g, cx + 1 - sw, 15 + bob, 2, 4, PANTS);
+  r(g, cx - 3 + sw, 17 + bob, 2, 1, PANTS_SH);
+  r(g, cx + 1 - sw, 17 + bob, 2, 1, PANTS_SH);
+  r(g, cx - 4 + sw, 19 + bob, 3, 1, SHOE);
+  r(g, cx + 1 - sw, 19 + bob, 3, 1, SHOE);
 
-  // torso — rounded pill, no straight silhouette
-  g.fillStyle(SHIRT, 1);
-  g.fillRoundedRect(cx - 8, 24 + bob, 16, 12, 6);
-  g.fillStyle(SHIRT_SHADE, 1);
-  g.fillRoundedRect(cx - 8, 30 + bob, 16, 6, 5); // cel shade, lower half
-  g.fillStyle(SHIRT, 1);
-  g.fillRoundedRect(cx - 8, 24 + bob, 16, 8, 6);
-  lit(g, cx - 6, 25 + bob, 12, 3.5, 2, 0.28);
-  g.lineStyle(STROKE - 0.5, INK, 0.45);
-  g.strokeRoundedRect(cx - 8, 24 + bob, 16, 12, 6);
+  // torso
+  r(g, cx - 4, 10 + bob, 8, 6, SHIRT);
+  r(g, cx - 4, 14 + bob, 8, 2, SHIRT_SH);
+  r(g, cx - 3, 10 + bob, 6, 1, 0x8ab6bd);
+  line(g, cx - 4, 10 + bob, 8, 6);
 
-  // arms (little rounded mitts, swing with the step)
-  g.fillStyle(SKIN, 1);
-  g.fillCircle(cx - 9.5, 30 + bob + (step === 1 ? -1.5 : 1), 3.2);
-  g.fillCircle(cx + 9.5, 30 + bob + (step === 1 ? 1 : -1.5), 3.2);
+  // arms
+  r(g, cx - 5, 11 + bob + (step === 1 ? -1 : 0), 1, 3, SHIRT_SH);
+  r(g, cx + 4, 11 + bob + (step === 2 ? -1 : 0), 1, 3, SHIRT_SH);
+  r(g, cx - 5, 14 + bob + (step === 1 ? -1 : 0), 1, 1, SKIN);
+  r(g, cx + 4, 14 + bob + (step === 2 ? -1 : 0), 1, 1, SKIN);
 
-  // head: skin base, cel shade at the jaw, then hair on top
-  g.fillStyle(SKIN, 1);
-  g.fillCircle(cx, headY, HR);
-  g.fillStyle(SKIN_SHADE, 0.9);
-  g.fillEllipse(cx, headY + 6.5, HR * 1.7, HR * 0.85);
-  g.fillStyle(SKIN, 1);
-  g.fillCircle(cx, headY - 1.2, HR - 0.4);
-  g.lineStyle(STROKE - 0.4, INK, 0.42);
-  g.strokeCircle(cx, headY, HR);
+  // head block (big, chibi) 10 wide
+  const hy = 2 + bob;
+  r(g, cx - 5, hy, 10, 9, SKIN);
+  r(g, cx - 5, hy + 7, 10, 2, SKIN_SH);
+  line(g, cx - 5, hy, 10, 9);
 
   // hair
-  g.fillStyle(HAIR, 1);
   if (dir === "up") {
-    g.fillCircle(cx, headY - 0.5, HR + 0.4);
-    g.fillStyle(HAIR_LIT, 0.7);
-    g.fillEllipse(cx, headY - 6, 14, 6);
+    r(g, cx - 5, hy, 10, 6, HAIR);
+    r(g, cx - 4, hy + 1, 8, 1, HAIR_HI);
+    line(g, cx - 5, hy, 10, 9);
   } else {
-    g.fillEllipse(cx, headY - 6.5, HR * 2.05, 13);
-    g.fillStyle(HAIR, 1);
-    if (dir === "left") g.fillEllipse(cx - 8.5, headY, 6.5, 15);
-    if (dir === "right") g.fillEllipse(cx + 8.5, headY, 6.5, 15);
-    if (dir === "down") {
-      g.fillEllipse(cx - 9.5, headY + 1, 5.5, 14);
-      g.fillEllipse(cx + 9.5, headY + 1, 5.5, 14);
-    }
-    g.fillStyle(HAIR_LIT, 0.75);
-    g.fillEllipse(cx - 2, headY - 8.5, 10, 4.5);
-  }
+    r(g, cx - 5, hy, 10, 3, HAIR);
+    r(g, cx - 4, hy + 1, 5, 1, HAIR_HI);
+    if (dir !== "right") r(g, cx - 5, hy + 3, 1, 4, HAIR);
+    if (dir !== "left") r(g, cx + 4, hy + 3, 1, 4, HAIR);
+    line(g, cx - 5, hy, 10, 9);
 
-  // face
-  if (dir !== "up") {
-    const off = dir === "left" ? -3.2 : dir === "right" ? 3.2 : 0;
-    const ey = headY + 1.5;
-    g.fillStyle(0x3b3140, 1);
-    if (dir === "down") {
-      g.fillEllipse(cx - 4, ey, 3.4, 4.2);
-      g.fillEllipse(cx + 4, ey, 3.4, 4.2);
-      g.fillStyle(0xffffff, 0.85);
-      g.fillCircle(cx - 4.8, ey - 1.1, 0.9);
-      g.fillCircle(cx + 3.2, ey - 1.1, 0.9);
-    } else {
-      g.fillEllipse(cx + off - 1.6, ey, 3.2, 4.2);
-      g.fillEllipse(cx + off + 3, ey, 3.2, 4.2);
-      g.fillStyle(0xffffff, 0.85);
-      g.fillCircle(cx + off - 2.2, ey - 1.1, 0.9);
-      g.fillCircle(cx + off + 2.4, ey - 1.1, 0.9);
-    }
-    // blush
-    g.fillStyle(0xf29a9a, 0.5);
-    g.fillEllipse(cx - 7 + off, ey + 4, 5, 3);
-    g.fillEllipse(cx + 7 + off, ey + 4, 5, 3);
-    // smile
-    g.lineStyle(1.5, 0x8c6a70, 0.95);
-    g.beginPath();
-    g.arc(cx + off, ey + 3.4, 2.8, Phaser.Math.DegToRad(25), Phaser.Math.DegToRad(155));
-    g.strokePath();
+    // face: 1px eyes, blush, mouth
+    const off = dir === "left" ? -1 : dir === "right" ? 1 : 0;
+    const ey = hy + 5;
+    r(g, cx - 3 + off, ey, 1, 2, INK);
+    r(g, cx + 2 + off, ey, 1, 2, INK);
+    r(g, cx - 4 + off, ey + 3, 2, 1, 0xd08a7c);
+    r(g, cx + 2 + off, ey + 3, 2, 1, 0xd08a7c);
+    r(g, cx - 1 + off, ey + 3, 2, 1, 0x9a6558);
   }
 };
 
 export const buildTextures = (scene: Phaser.Scene) => {
-  for (const dir of ["down", "up", "left", "right"]) {
-    for (const step of [0, 1, 2]) {
-      make(scene, `char-${dir}-${step}`, 32, 42, (g) => drawChar(g, dir, step));
-    }
-  }
+  for (const dir of ["down", "up", "left", "right"])
+    for (const step of [0, 1, 2])
+      make(scene, `char-${dir}-${step}`, 16, 21, (g) => drawChar(g, dir, step));
 
-  // soft radial glow
-  make(scene, "glow", 128, 128, (g) => {
-    for (let i = 16; i > 0; i--) {
-      g.fillStyle(0xffffff, 0.05);
-      g.fillCircle(64, 64, (i / 16) * 62);
-    }
+  /* ---- hard-edged dithered halo (replaces the old blur glow) ---- */
+  make(scene, "glow", 32, 32, (g) => {
+    r(g, 6, 6, 20, 20, 0xffffff, 0.5);
+    dither(g, 3, 3, 26, 26, 0xffffff, 0);
+    dither(g, 0, 0, 32, 32, 0xffffff, 1);
   });
 
-  make(scene, "note", 22, 26, (g) => {
-    g.fillStyle(0xffffff, 1);
-    g.fillEllipse(8, 19, 11, 9);
-    g.fillRoundedRect(12, 4, 3, 15, 1.5);
-    g.fillRoundedRect(12, 4, 9, 4.5, 2);
+  // pixel music note
+  make(scene, "note", 11, 13, (g) => {
+    r(g, 1, 8, 5, 4, INK);
+    r(g, 2, 9, 3, 2, 0xffffff);
+    r(g, 5, 1, 2, 8, INK);
+    r(g, 7, 1, 3, 2, INK);
+    r(g, 5, 2, 1, 5, 0xffffff);
   });
 
-  make(scene, "sparkle", 16, 16, (g) => {
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(8, 8, 3.2);
+  // pixel spark (string lights / sparkle)
+  make(scene, "sparkle", 8, 8, (g) => {
+    r(g, 3, 1, 2, 6, 0xffffff);
+    r(g, 1, 3, 6, 2, 0xffffff);
+    r(g, 2, 2, 4, 4, 0xffffff);
   });
 
-  /* ---------------- props: one consistent asset set ---------------- */
+  /* ---------------- props: one shared retro tileset ---------------- */
 
-  make(scene, "speaker", 44, 62, (g) => {
-    shadow(g, 22, 57, 32);
-    box(g, 6, 6, 32, 50, 8, 0x6d5e68);
-    shade(g, 6, 36, 32, 20, 8, 0.16);
-    lit(g, 10, 9, 24, 5, 3);
-    // woofer + tweeter, same rounding language
-    g.fillStyle(0xf7f0e8, 1);
-    g.fillCircle(22, 22, 9.5);
-    g.lineStyle(STROKE, INK, INK_A);
-    g.strokeCircle(22, 22, 9.5);
-    g.fillStyle(0xb8a6af, 1);
-    g.fillCircle(22, 22, 4.5);
-    g.fillStyle(0xf7f0e8, 1);
-    g.fillCircle(22, 42, 6.5);
-    g.lineStyle(STROKE, INK, INK_A);
-    g.strokeCircle(22, 42, 6.5);
-    g.fillStyle(0xb8a6af, 1);
-    g.fillCircle(22, 42, 2.8);
+  // speaker 22x31 — cabinet with grille dither + two drivers
+  make(scene, "speaker", 22, 31, (g) => {
+    foot(g, 11, 29, 16);
+    panel(g, 3, 2, 16, 26, 0x5f5560, 0x453d47, 0x7b6f7c);
+    dither(g, 5, 4, 12, 22, 0x4d4550);
+    // woofer
+    r(g, 6, 6, 10, 10, 0x2f2a33);
+    line(g, 6, 6, 10, 10);
+    r(g, 8, 8, 6, 6, 0x6d6672);
+    r(g, 9, 9, 4, 4, 0x2f2a33);
+    r(g, 8, 8, 3, 1, 0x8f8896);
+    // tweeter
+    r(g, 8, 19, 6, 6, 0x2f2a33);
+    line(g, 8, 19, 6, 6);
+    r(g, 10, 21, 2, 2, 0x6d6672);
   });
 
-  // corkboard with pinned notes
-  make(scene, "board", 68, 54, (g) => {
-    shadow(g, 34, 50, 46, 7);
-    box(g, 2, 2, 64, 44, 6, 0x9d7a52);
-    g.fillStyle(0xd9b98a, 1);
-    g.fillRoundedRect(7, 7, 54, 34, 4);
-    // cork speckle
-    g.fillStyle(0xc0a072, 0.5);
-    for (let i = 0; i < 22; i++)
-      g.fillCircle(10 + ((i * 37) % 48), 10 + ((i * 23) % 28), 1.1);
+  // bulletin board 34x27 — frame, cork dither, pinned notes with pin pixels
+  make(scene, "board", 34, 27, (g) => {
+    foot(g, 17, 25, 24);
+    panel(g, 1, 1, 32, 23, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 3, 3, 28, 19, 0xb9955f);
+    dither(g, 3, 3, 28, 19, 0xa5814f);
+    line(g, 3, 3, 28, 19);
     const notes: Array<[number, number, number, number, number]> = [
-      [10, 10, 17, 13, 0xfffdf7],
-      [31, 12, 20, 11, 0xfdf0c8],
-      [14, 26, 21, 12, 0xfde9e2],
-      [40, 25, 17, 13, 0xe6f1f6],
+      [5, 5, 8, 7, 0xf3ead2],
+      [15, 5, 9, 6, 0xe8d7a8],
+      [6, 13, 9, 7, 0xe9c9bd],
+      [17, 12, 8, 8, 0xc9dbe0],
     ];
     for (const [x, y, w, h, c] of notes) {
-      g.fillStyle(c, 1);
-      g.fillRoundedRect(x, y, w, h, 2);
-      g.lineStyle(1.2, INK, 0.3);
-      g.strokeRoundedRect(x, y, w, h, 2);
-      g.fillStyle(INK, 0.25);
-      g.fillRect(x + 3, y + 4, w - 7, 1.2);
-      g.fillRect(x + 3, y + 7, w - 10, 1.2);
-      g.fillStyle(0xe98d70, 1); // pin
-      g.fillCircle(x + w / 2, y + 1.5, 1.9);
+      r(g, x, y, w, h, c);
+      line(g, x, y, w, h, 0x4a3b36);
+      r(g, x + 2, y + 2, w - 4, 1, 0x8b7b70);
+      r(g, x + 2, y + 4, w - 5, 1, 0x8b7b70);
+      r(g, x + Math.floor(w / 2), y - 1, 1, 2, CORAL); // pin
     }
-    lit(g, 6, 4, 56, 3, 2, 0.25);
   });
 
-  make(scene, "plant", 44, 58, (g) => {
-    shadow(g, 22, 53, 28);
-    g.fillStyle(0x8ec98a, 1);
-    g.fillEllipse(22, 24, 17, 26);
-    g.fillEllipse(11, 30, 13, 19);
-    g.fillEllipse(33, 30, 13, 19);
-    g.fillStyle(0xacdda6, 0.85);
-    g.fillEllipse(20, 19, 9, 15);
-    g.lineStyle(STROKE - 0.5, INK, 0.35);
-    g.strokeEllipse(22, 24, 17, 26);
-    box(g, 10, 34, 24, 18, 6, 0xe4a68b);
-    shade(g, 10, 44, 24, 8, 6, 0.15);
-    lit(g, 13, 36, 18, 4, 2);
+  // potted plant 22x29
+  make(scene, "plant", 22, 29, (g) => {
+    foot(g, 11, 27, 14);
+    r(g, 10, 6, 2, 12, LEAF_SH);
+    const leaf = (x: number, y: number, w: number, h: number) => {
+      r(g, x, y, w, h, LEAF);
+      r(g, x, y + h - 1, w, 1, LEAF_SH);
+      r(g, x + 1, y, w - 2, 1, LEAF_HI);
+      line(g, x, y, w, h);
+    };
+    leaf(6, 2, 10, 5);
+    leaf(2, 7, 8, 4);
+    leaf(12, 8, 8, 4);
+    leaf(5, 12, 7, 4);
+    panel(g, 5, 18, 12, 9, 0xb87a5c, 0x94593f, 0xd0987a);
+    r(g, 5, 18, 12, 2, 0xc98a68);
   });
 
-  make(scene, "pet", 48, 44, (g) => {
-    shadow(g, 24, 40, 30);
-    g.fillStyle(0xf0a868, 1);
-    g.fillEllipse(26, 27, 30, 19);
-    g.fillStyle(0xd98c50, 0.55);
-    g.fillEllipse(26, 32, 26, 9);
-    g.fillStyle(0xf0a868, 1);
-    g.fillCircle(15, 19, 10.5);
-    g.fillTriangle(6, 13, 11, 2, 17, 12);
-    g.fillTriangle(15, 12, 21, 2, 25, 13);
-    g.lineStyle(STROKE - 0.6, INK, 0.35);
-    g.strokeCircle(15, 19, 10.5);
-    g.fillStyle(0x3b3140, 1);
-    g.fillEllipse(11.5, 19, 3, 3.8);
-    g.fillEllipse(18.5, 19, 3, 3.8);
-    g.fillStyle(0xffffff, 0.85);
-    g.fillCircle(10.8, 18.2, 0.8);
-    g.fillCircle(17.8, 18.2, 0.8);
-    g.fillStyle(0xf7cba7, 1);
-    g.fillCircle(15, 23, 2.6);
+  // cat 24x22
+  make(scene, "pet", 24, 22, (g) => {
+    foot(g, 12, 20, 16);
+    r(g, 6, 10, 15, 8, 0xd68b52);
+    r(g, 6, 16, 15, 2, 0xb46f3c);
+    r(g, 7, 10, 12, 1, 0xe6a771);
+    line(g, 6, 10, 15, 8);
+    r(g, 20, 6, 2, 6, 0xd68b52);
+    line(g, 20, 6, 2, 6);
+    // head
+    r(g, 2, 5, 10, 9, 0xd68b52);
+    r(g, 2, 12, 10, 2, 0xb46f3c);
+    r(g, 2, 3, 2, 3, 0xd68b52);
+    r(g, 9, 3, 2, 3, 0xd68b52);
+    line(g, 2, 5, 10, 9);
+    r(g, 4, 8, 1, 2, INK);
+    r(g, 8, 8, 1, 2, INK);
+    r(g, 6, 10, 2, 1, 0xe9b9a4);
+    r(g, 3, 11, 2, 1, 0xc4795a);
+    r(g, 8, 11, 2, 1, 0xc4795a);
   });
 
-  // proper little bed: frame, pillow, folded blanket
-  make(scene, "bed", 96, 72, (g) => {
-    shadow(g, 48, 67, 76, 9);
-    box(g, 2, 4, 92, 60, 9, 0xb98b62);
-    lit(g, 6, 7, 84, 4, 2, 0.25);
+  // bed 48x36 — headboard, pillow, blanket with fold lines
+  make(scene, "bed", 48, 36, (g) => {
+    foot(g, 24, 34, 40);
+    panel(g, 1, 2, 46, 30, WOOD, WOOD_SH, WOOD_HI); // frame
+    r(g, 1, 2, 5, 30, WOOD_SH); // headboard slab
+    r(g, 2, 4, 2, 26, WOOD_HI);
+    line(g, 1, 2, 5, 30);
     // mattress
-    g.fillStyle(0xfdf6ec, 1);
-    g.fillRoundedRect(7, 9, 82, 50, 7);
-    g.lineStyle(1.4, INK, 0.28);
-    g.strokeRoundedRect(7, 9, 82, 50, 7);
+    r(g, 6, 4, 40, 26, LINEN);
+    r(g, 6, 27, 40, 3, LINEN_SH);
+    line(g, 6, 4, 40, 26);
     // pillow
-    g.fillStyle(0xfffdf8, 1);
-    g.fillRoundedRect(11, 14, 26, 40, 8);
-    g.lineStyle(1.4, INK, 0.3);
-    g.strokeRoundedRect(11, 14, 26, 40, 8);
-    g.fillStyle(0x2a2030, 0.07);
-    g.fillRoundedRect(14, 20, 20, 28, 7);
-    // blanket + fold
-    g.fillStyle(0xa8cfe0, 1);
-    g.fillRoundedRect(40, 12, 46, 44, 7);
-    g.lineStyle(1.4, INK, 0.3);
-    g.strokeRoundedRect(40, 12, 46, 44, 7);
-    g.fillStyle(0xc9e6f2, 1);
-    g.fillRoundedRect(40, 12, 46, 12, 6);
-    g.fillStyle(0x82b2c8, 0.5);
-    g.fillRoundedRect(40, 24, 46, 3, 1.5);
-    g.fillRoundedRect(40, 40, 46, 3, 1.5);
+    r(g, 8, 7, 11, 20, CREAM);
+    r(g, 8, 24, 11, 3, LINEN_SH);
+    line(g, 8, 7, 11, 20);
+    r(g, 10, 9, 7, 1, 0xffffff);
+    // blanket + fold lines
+    r(g, 21, 6, 24, 23, TEAL);
+    r(g, 21, 26, 24, 3, 0x47747a);
+    r(g, 21, 6, 24, 2, 0x7fabad);
+    line(g, 21, 6, 24, 23);
+    for (const fy of [12, 18, 23]) r(g, 22, fy, 22, 1, 0x47747a);
+    dither(g, 22, 24, 22, 2, 0x47747a);
   });
 
-  make(scene, "desk", 92, 56, (g) => {
-    shadow(g, 46, 51, 74, 8);
-    box(g, 2, 12, 88, 34, 7, 0xc59b6d);
-    lit(g, 6, 15, 80, 5, 3);
-    shade(g, 2, 36, 88, 10, 7, 0.13);
+  // desk 46x28 with monitor + mug
+  make(scene, "desk", 46, 28, (g) => {
+    foot(g, 23, 26, 36);
+    panel(g, 1, 8, 44, 16, WOOD_HI, WOOD_SH, 0xd8b184);
+    r(g, 3, 22, 3, 4, WOOD_SH);
+    r(g, 40, 22, 3, 4, WOOD_SH);
     // monitor
-    box(g, 24, 0, 36, 18, 4, 0xf4f7f8);
-    g.fillStyle(0x8fb8c9, 1);
-    g.fillRoundedRect(27, 3, 30, 12, 3);
-    g.fillStyle(0xffffff, 0.35);
-    g.fillRoundedRect(29, 5, 12, 4, 2);
-    // mug
-    box(g, 68, 20, 12, 12, 4, 0xe98d70);
+    panel(g, 13, 0, 18, 10, METAL, METAL_SH, METAL_HI);
+    r(g, 15, 2, 14, 6, 0x3b5a63);
+    line(g, 15, 2, 14, 6);
+    r(g, 16, 3, 5, 1, 0x86b6bf);
+    r(g, 20, 10, 4, 2, METAL_SH);
+    // mug + papers
+    r(g, 35, 11, 5, 5, CORAL);
+    line(g, 35, 11, 5, 5);
+    r(g, 40, 13, 2, 1, CORAL);
+    r(g, 5, 13, 7, 4, CREAM);
+    line(g, 5, 13, 7, 4);
   });
 
-  make(scene, "couch", 116, 66, (g) => {
-    shadow(g, 58, 61, 96, 10);
-    box(g, 2, 6, 112, 46, 14, 0x8fbfc4);
-    lit(g, 8, 9, 100, 5, 3);
-    // cushions
-    for (const cxp of [12, 62]) {
-      g.fillStyle(0xb6dde0, 1);
-      g.fillRoundedRect(cxp, 18, 42, 28, 10);
-      g.lineStyle(1.4, INK, 0.3);
-      g.strokeRoundedRect(cxp, 18, 42, 28, 10);
+  // couch 58x33
+  make(scene, "couch", 58, 33, (g) => {
+    foot(g, 29, 31, 48);
+    panel(g, 1, 2, 56, 24, TEAL, 0x466c70, 0x7ea7aa);
+    r(g, 1, 8, 4, 18, 0x466c70); // arms
+    r(g, 53, 8, 4, 18, 0x466c70);
+    line(g, 1, 2, 56, 24);
+    for (const cxp of [6, 30]) {
+      r(g, cxp, 10, 22, 12, 0x6f9ea2);
+      r(g, cxp, 20, 22, 2, 0x466c70);
+      r(g, cxp + 1, 10, 20, 1, 0x8bb7ba);
+      line(g, cxp, 10, 22, 12);
     }
-    shade(g, 2, 42, 112, 10, 12, 0.12);
+    r(g, 5, 26, 4, 3, WOOD_SH);
+    r(g, 49, 26, 4, 3, WOOD_SH);
   });
 
-  make(scene, "table", 76, 50, (g) => {
-    shadow(g, 38, 45, 60, 8);
-    box(g, 3, 8, 70, 30, 12, 0xd9b489);
-    lit(g, 11, 11, 54, 5, 3);
-    shade(g, 3, 30, 70, 8, 11, 0.12);
-    box(g, 30, 14, 18, 12, 4, 0xfdf0c8); // book on top
+  // low table 38x25 with a book
+  make(scene, "table", 38, 25, (g) => {
+    foot(g, 19, 23, 30);
+    panel(g, 2, 5, 34, 12, WOOD_HI, WOOD_SH, 0xdcb689);
+    r(g, 5, 17, 3, 4, WOOD_SH);
+    r(g, 30, 17, 3, 4, WOOD_SH);
+    r(g, 14, 7, 10, 6, 0xd8c07e);
+    r(g, 14, 11, 10, 2, 0xb59d5c);
+    line(g, 14, 7, 10, 6);
+    r(g, 18, 7, 1, 6, 0x8d7743);
   });
 
-  make(scene, "tv", 92, 66, (g) => {
-    shadow(g, 46, 61, 70, 8);
-    box(g, 2, 2, 88, 46, 8, 0x6d6470);
-    g.fillStyle(0xa9d8e8, 1);
-    g.fillRoundedRect(8, 8, 76, 32, 5);
-    g.lineStyle(1.4, INK, 0.3);
-    g.strokeRoundedRect(8, 8, 76, 32, 5);
-    g.fillStyle(0xdaf1f8, 0.75);
-    g.fillRoundedRect(14, 13, 30, 11, 3);
-    box(g, 36, 46, 20, 8, 3, 0x574f5c); // stand
+  // tv 46x33
+  make(scene, "tv", 46, 33, (g) => {
+    foot(g, 23, 31, 34);
+    panel(g, 2, 1, 42, 22, 0x4c4650, 0x342f38, 0x6a6370);
+    r(g, 5, 4, 36, 15, 0x3d6470);
+    dither(g, 5, 4, 36, 15, 0x466f7c);
+    line(g, 5, 4, 36, 15);
+    r(g, 7, 6, 10, 4, 0x9dc6cf);
+    r(g, 19, 23, 8, 4, 0x342f38);
+    r(g, 15, 27, 16, 2, 0x4c4650);
+    line(g, 15, 27, 16, 2);
   });
 
-  make(scene, "shelf", 76, 70, (g) => {
-    shadow(g, 38, 65, 60, 8);
-    box(g, 2, 2, 72, 60, 6, 0xb98b62);
-    g.fillStyle(0x8f6a4a, 1);
-    g.fillRoundedRect(6, 28, 64, 4, 2);
+  // bookshelf 38x35
+  make(scene, "shelf", 38, 35, (g) => {
+    foot(g, 19, 33, 30);
+    panel(g, 1, 1, 36, 30, WOOD_SH, 0x6d4e33, WOOD);
+    r(g, 3, 3, 32, 12, 0x5d4130);
+    r(g, 3, 17, 32, 12, 0x5d4130);
+    const cols = [CORAL, TEAL, PLUM, 0xd8b25c, LEAF];
     for (let i = 0; i < 5; i++) {
-      const c = [0xe98d70, 0x8fbfc4, 0xb98ee0, 0xf2c66d, 0x8ec98a][i]!;
-      g.fillStyle(c, 1);
-      g.fillRoundedRect(9 + i * 12, 8, 9, 19, 2.5);
-      g.fillRoundedRect(11 + i * 12, 34, 8, 22, 2.5);
-      g.lineStyle(1.2, INK, 0.28);
-      g.strokeRoundedRect(9 + i * 12, 8, 9, 19, 2.5);
-      g.strokeRoundedRect(11 + i * 12, 34, 8, 22, 2.5);
+      const c = cols[i]!;
+      r(g, 4 + i * 6, 4, 4, 10, c);
+      r(g, 4 + i * 6, 12, 4, 2, INK, 0.25);
+      line(g, 4 + i * 6, 4, 4, 10);
+      r(g, 5 + i * 6, 18, 4, 10, cols[(i + 2) % 5]!);
+      line(g, 5 + i * 6, 18, 4, 10);
     }
-    lit(g, 6, 4, 64, 3, 2, 0.22);
+    r(g, 1, 15, 36, 2, WOOD);
+    r(g, 1, 29, 36, 2, WOOD);
   });
 
-  make(scene, "fridge", 60, 94, (g) => {
-    shadow(g, 30, 89, 44, 7);
-    box(g, 2, 2, 56, 84, 8, 0xf1f4f5);
-    lit(g, 6, 5, 48, 5, 3, 0.5);
-    shade(g, 2, 62, 56, 24, 8, 0.1);
-    g.fillStyle(0xdbe4e7, 1);
-    g.fillRoundedRect(6, 34, 48, 3, 1.5);
-    g.fillStyle(0xb9c6cb, 1);
-    g.fillRoundedRect(46, 12, 5, 16, 2.5);
-    g.fillRoundedRect(46, 44, 5, 16, 2.5);
-    box(g, 12, 46, 15, 11, 3, 0xf2c66d); // magnet note
+  // fridge 30x47
+  make(scene, "fridge", 30, 47, (g) => {
+    foot(g, 15, 45, 22);
+    panel(g, 2, 1, 26, 43, 0xdcd8d0, 0xb4b0a9, 0xf1eee7);
+    r(g, 3, 17, 24, 1, 0x9d9a94);
+    r(g, 22, 6, 2, 8, METAL_SH);
+    r(g, 22, 22, 2, 8, METAL_SH);
+    r(g, 6, 23, 8, 6, 0xd8b25c); // magnet note
+    line(g, 6, 23, 8, 6);
+    r(g, 7, 25, 6, 1, 0x8f7a3e);
+    dither(g, 3, 36, 24, 6, 0xc6c2bb);
   });
 
-  make(scene, "counter", 108, 56, (g) => {
-    shadow(g, 54, 51, 86, 8);
-    box(g, 2, 4, 104, 44, 7, 0xe8d3b6);
-    lit(g, 6, 7, 96, 5, 3, 0.45);
-    shade(g, 2, 36, 104, 12, 7, 0.11);
-    g.fillStyle(0xd3b78f, 1);
-    g.fillRoundedRect(52, 18, 3, 26, 1.5);
-    box(g, 14, 14, 18, 14, 4, 0x8fbfc4); // sink
+  // kitchen counter 54x28
+  make(scene, "counter", 54, 28, (g) => {
+    foot(g, 27, 26, 44);
+    panel(g, 1, 2, 52, 22, 0xd9c3a2, 0xb39c7b, 0xeeddbf);
+    r(g, 1, 6, 52, 1, 0xb39c7b);
+    r(g, 26, 8, 1, 14, 0xb39c7b);
+    r(g, 6, 8, 10, 7, METAL); // sink
+    r(g, 6, 13, 10, 2, METAL_SH);
+    line(g, 6, 8, 10, 7);
+    r(g, 10, 5, 1, 4, METAL_HI); // tap
+    r(g, 10, 5, 4, 1, METAL_HI);
+    r(g, 36, 9, 6, 8, LEAF_SH);
+    line(g, 36, 9, 6, 8);
   });
 
-  make(scene, "vending", 64, 98, (g) => {
-    shadow(g, 32, 93, 46, 7);
-    box(g, 2, 2, 60, 88, 8, 0xe98d70);
-    lit(g, 6, 5, 52, 5, 3, 0.3);
-    g.fillStyle(0x33404d, 1);
-    g.fillRoundedRect(8, 10, 34, 58, 5);
-    g.lineStyle(1.4, INK, 0.3);
-    g.strokeRoundedRect(8, 10, 34, 58, 5);
-    for (let r = 0; r < 3; r++)
+  // vending machine 32x49
+  make(scene, "vending", 32, 49, (g) => {
+    foot(g, 16, 47, 24);
+    panel(g, 1, 1, 30, 44, CORAL, 0x9c5541, 0xd8917a);
+    r(g, 3, 4, 19, 29, 0x2b323b); // window
+    line(g, 3, 4, 19, 29);
+    for (let row = 0; row < 4; row++)
       for (let c = 0; c < 3; c++) {
-        g.fillStyle([0xf2c66d, 0x8fbfc4, 0xb98ee0][(r + c) % 3]!, 1);
-        g.fillRoundedRect(12 + c * 10, 14 + r * 18, 8, 13, 2.5);
+        const col = [0xd8b25c, TEAL, PLUM, CREAM][(row + c) % 4]!;
+        r(g, 5 + c * 6, 6 + row * 7, 4, 5, col);
+        r(g, 5 + c * 6, 10 + row * 7, 4, 1, INK, 0.3);
       }
-    box(g, 46, 14, 11, 26, 3, 0xfdf3e6);
-    box(g, 46, 48, 11, 22, 3, 0x4b3a52);
-    shade(g, 2, 74, 60, 16, 8, 0.12);
+    r(g, 24, 5, 5, 12, CREAM); // keypad
+    line(g, 24, 5, 5, 12);
+    dither(g, 25, 6, 3, 10, 0xb9ae9a);
+    r(g, 24, 20, 5, 9, 0x33262b); // slot
+    line(g, 24, 20, 5, 9);
+    r(g, 4, 36, 24, 7, 0x9c5541); // tray
+    line(g, 4, 36, 24, 7);
   });
 
-  make(scene, "crate", 60, 52, (g) => {
-    shadow(g, 30, 47, 46, 7);
-    box(g, 2, 10, 56, 34, 6, 0xcfa574);
-    box(g, 5, 4, 50, 14, 5, 0xe4c39a);
-    lit(g, 9, 6, 42, 4, 2);
-    box(g, 14, 22, 15, 9, 3, 0x8fbfc4);
-    box(g, 33, 24, 13, 11, 3, 0xe98d70);
+  // lost & found crate 30x26
+  make(scene, "crate", 30, 26, (g) => {
+    foot(g, 15, 24, 22);
+    panel(g, 1, 5, 28, 17, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 3, 1, 24, 6, WOOD_HI);
+    line(g, 3, 1, 24, 6);
+    r(g, 1, 12, 28, 1, WOOD_SH);
+    r(g, 6, 8, 7, 4, TEAL);
+    line(g, 6, 8, 7, 4);
+    r(g, 16, 9, 6, 4, CORAL);
+    line(g, 16, 9, 6, 4);
+    dither(g, 2, 17, 26, 4, WOOD_SH);
   });
 
-  make(scene, "bench", 88, 48, (g) => {
-    shadow(g, 44, 43, 70, 8);
-    box(g, 3, 16, 82, 16, 6, 0xc99a68);
-    box(g, 3, 4, 82, 9, 4, 0xd6a875);
-    lit(g, 8, 6, 72, 3, 2);
-    g.fillStyle(0x8f6a4a, 1);
-    g.fillRoundedRect(10, 32, 6, 8, 2);
-    g.fillRoundedRect(72, 32, 6, 8, 2);
+  // bench 44x24
+  make(scene, "bench", 44, 24, (g) => {
+    foot(g, 22, 22, 34);
+    panel(g, 2, 8, 40, 8, WOOD, WOOD_SH, WOOD_HI);
+    panel(g, 2, 2, 40, 5, WOOD_HI, WOOD_SH, 0xd6ab7d);
+    r(g, 5, 16, 3, 5, WOOD_SH);
+    r(g, 36, 16, 3, 5, WOOD_SH);
+    for (let i = 0; i < 5; i++) r(g, 6 + i * 8, 9, 1, 6, WOOD_SH);
   });
 
-  make(scene, "tree", 112, 124, (g) => {
-    shadow(g, 56, 116, 64, 12);
-    box(g, 48, 62, 16, 50, 6, 0xb08055);
-    g.fillStyle(0x77bd80, 1);
-    g.fillCircle(56, 46, 36);
-    g.fillCircle(28, 60, 22);
-    g.fillCircle(84, 60, 22);
-    g.lineStyle(STROKE, INK, 0.3);
-    g.strokeCircle(56, 46, 36);
-    g.fillStyle(0x97d69c, 0.9);
-    g.fillCircle(46, 34, 18);
-    g.fillStyle(0x4f9a63, 0.28);
-    g.fillEllipse(56, 72, 58, 18);
+  // tree 56x62 — blocky canopy clusters, no soft circles
+  make(scene, "tree", 56, 62, (g) => {
+    foot(g, 28, 58, 26);
+    r(g, 24, 32, 8, 25, 0x7d5a3c);
+    r(g, 24, 32, 2, 25, 0x99724d);
+    line(g, 24, 32, 8, 25);
+    const blob = (x: number, y: number, w: number, h: number) => {
+      r(g, x, y, w, h, LEAF);
+      r(g, x + 1, y + 1, w - 2, 2, LEAF_HI);
+      r(g, x, y + h - 3, w, 3, LEAF_SH);
+      dither(g, x, y + h - 5, w, 2, LEAF_SH);
+      line(g, x, y, w, h);
+    };
+    blob(12, 4, 32, 22);
+    blob(4, 16, 18, 14);
+    blob(34, 16, 18, 14);
+    blob(18, 24, 20, 10);
   });
 
-  make(scene, "record", 56, 50, (g) => {
-    shadow(g, 28, 45, 44, 7);
-    box(g, 2, 6, 52, 36, 6, 0x8f7d86);
-    g.fillStyle(0x3b3140, 1);
-    g.fillCircle(24, 24, 13);
-    g.lineStyle(1.2, 0xffffff, 0.25);
-    g.strokeCircle(24, 24, 9);
-    g.fillStyle(0xf2c66d, 1);
-    g.fillCircle(24, 24, 4);
-    box(g, 40, 12, 10, 10, 3, 0xe98d70);
+  // record crate / turntable 28x25
+  make(scene, "record", 28, 25, (g) => {
+    foot(g, 14, 23, 22);
+    panel(g, 1, 3, 26, 18, 0x6a5f68, 0x4c434b, 0x877984);
+    r(g, 4, 6, 12, 12, 0x211d24);
+    line(g, 4, 6, 12, 12);
+    r(g, 8, 10, 4, 4, 0xd8b25c);
+    r(g, 9, 11, 2, 2, 0x211d24);
+    r(g, 5, 7, 1, 1, 0x7d7482);
+    r(g, 19, 6, 6, 8, CORAL);
+    line(g, 19, 6, 6, 8);
+    r(g, 18, 16, 8, 3, 0x4c434b);
   });
 
-  make(scene, "rug", 160, 104, (g) => {
-    g.fillStyle(0xffffff, 1);
-    g.fillEllipse(80, 52, 156, 100);
-    g.fillStyle(0x000000, 0.12);
-    g.fillEllipse(80, 52, 120, 74);
-    g.fillStyle(0x000000, 0.1);
-    g.fillEllipse(80, 52, 74, 44);
+  // woven rug 80x52 — pixel weave, hard edges
+  make(scene, "rug", 80, 52, (g) => {
+    r(g, 0, 0, 80, 52, 0xc0a98c);
+    line(g, 0, 0, 80, 52, 0x8d7659);
+    r(g, 2, 2, 76, 48, 0xcdb797);
+    dither(g, 2, 2, 76, 48, 0xbca384);
+    r(g, 6, 6, 68, 40, 0xb99a78);
+    line(g, 6, 6, 68, 40, 0x8d7659);
+    dither(g, 8, 8, 64, 36, 0xc8ab88, 1);
+    r(g, 16, 14, 48, 24, 0xa98a6b);
+    line(g, 16, 14, 48, 24, 0x8d7659);
+    dither(g, 18, 16, 44, 20, 0xbb9d7c);
+    // fringe
+    for (let i = 0; i < 40; i += 2) {
+      r(g, i, 0, 1, 2, 0x8d7659);
+      r(g, 80 - i - 1, 50, 1, 2, 0x8d7659);
+    }
   });
 
-  make(scene, "lockdoor", 68, 94, (g) => {
-    shadow(g, 34, 89, 48, 7);
-    box(g, 2, 2, 64, 86, 8, 0x6f6a74);
-    g.fillStyle(0x565161, 1);
-    g.fillRoundedRect(8, 8, 52, 74, 6);
-    lit(g, 12, 10, 44, 4, 2, 0.18);
-    g.fillStyle(0xbdb6c4, 1);
-    g.fillRoundedRect(28, 40, 12, 14, 3);
-    g.fillCircle(34, 40, 6);
-    g.fillStyle(0x565161, 1);
-    g.fillCircle(34, 40, 3);
+  // locked door 34x47
+  make(scene, "lockdoor", 34, 47, (g) => {
+    foot(g, 17, 45, 24);
+    panel(g, 1, 1, 32, 44, 0x6a6070, 0x4b4453, 0x857c8c);
+    r(g, 4, 4, 26, 38, 0x574f60);
+    line(g, 4, 4, 26, 38);
+    r(g, 6, 6, 22, 15, 0x4b4453);
+    r(g, 6, 24, 22, 15, 0x4b4453);
+    dither(g, 6, 6, 22, 15, 0x574f60);
+    dither(g, 6, 24, 22, 15, 0x574f60);
+    r(g, 24, 21, 3, 5, METAL_HI); // handle
+    line(g, 24, 21, 3, 5);
   });
 
-  // sticker icons (single shared set, tinted at use site)
+  /* ---- sticker icons, 12x12 pixel glyphs (tinted at use site) ---- */
   const stickers: Record<string, (g: G) => void> = {
     "music-note": (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillCircle(8, 17, 5);
-      g.fillRoundedRect(12, 4, 2.6, 14, 1.3);
+      r(g, 2, 7, 4, 3, 0xffffff);
+      r(g, 5, 2, 2, 6, 0xffffff);
+      r(g, 7, 2, 3, 2, 0xffffff);
     },
     skateboard: (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillRoundedRect(2, 8, 20, 6, 3);
-      g.fillCircle(7, 17, 3);
-      g.fillCircle(17, 17, 3);
+      r(g, 1, 5, 10, 2, 0xffffff);
+      r(g, 2, 7, 2, 2, 0xffffff);
+      r(g, 8, 7, 2, 2, 0xffffff);
     },
     book: (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillRoundedRect(3, 4, 18, 16, 3);
-      g.fillStyle(0x000000, 0.25);
-      g.fillRoundedRect(11.5, 4, 1.5, 16, 0.7);
+      r(g, 2, 2, 8, 8, 0xffffff);
+      r(g, 5, 2, 2, 8, 0x000000, 0.35);
     },
     pottery: (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillEllipse(12, 14, 16, 12);
-      g.fillRoundedRect(6, 4, 12, 5, 2);
+      r(g, 3, 2, 6, 2, 0xffffff);
+      r(g, 2, 4, 8, 6, 0xffffff);
     },
     vinyl: (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillCircle(12, 12, 10);
-      g.fillStyle(0x000000, 0.3);
-      g.fillCircle(12, 12, 3);
+      r(g, 3, 1, 6, 10, 0xffffff);
+      r(g, 1, 3, 10, 6, 0xffffff);
+      r(g, 5, 5, 2, 2, 0x000000, 0.4);
     },
     sneaker: (g) => {
-      g.fillStyle(0xffffff, 1);
-      g.fillRoundedRect(3, 10, 18, 8, 3);
-      g.fillRoundedRect(3, 5, 9, 8, 3);
+      r(g, 2, 3, 4, 5, 0xffffff);
+      r(g, 2, 6, 9, 3, 0xffffff);
     },
   };
-  for (const [k, d] of Object.entries(stickers)) make(scene, `sticker-${k}`, 24, 24, d);
+  for (const [k, d] of Object.entries(stickers)) make(scene, `sticker-${k}`, 12, 12, d);
 };

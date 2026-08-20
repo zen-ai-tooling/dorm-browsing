@@ -42,7 +42,7 @@ const mix = (a: number, b: number, t: number) =>
     ),
   ).color;
 
-const NEUTRAL_WALL = 0xd6c7b6; // warm grey trim for hallway + common rooms
+const NEUTRAL_WALL = 0x8a6f56; // muted warm-neutral trim for hallway + common rooms
 
 const HALL: Zone = {
   id: "hall",
@@ -51,7 +51,7 @@ const HALL: Zone = {
   y: 17,
   w: 66,
   h: 5,
-  floor: 0xf3ece2,
+  floor: 0xc9b59b,
   wall: NEUTRAL_WALL,
   kind: "hall",
 };
@@ -71,7 +71,7 @@ const COMMON: Zone[] = [
     y: 23,
     w: 16,
     h: 10,
-    floor: 0xf6e7d7,
+    floor: 0xc4ac90,
     wall: NEUTRAL_WALL,
     kind: "common",
   },
@@ -82,7 +82,7 @@ const COMMON: Zone[] = [
     y: 23,
     w: 14,
     h: 10,
-    floor: 0xe7eef3,
+    floor: 0xb3aea4,
     wall: NEUTRAL_WALL,
     kind: "common",
   },
@@ -93,7 +93,7 @@ const COMMON: Zone[] = [
     y: 23,
     w: 12,
     h: 10,
-    floor: 0xfaeacd,
+    floor: 0xcbb794,
     wall: NEUTRAL_WALL,
     kind: "common",
   },
@@ -104,8 +104,8 @@ const COMMON: Zone[] = [
     y: 7,
     w: 16,
     h: 21,
-    floor: 0xcfe8bd,
-    wall: mix(NEUTRAL_WALL, 0x9fc48c, 0.45),
+    floor: 0x8fa876,
+    wall: mix(NEUTRAL_WALL, 0x5e7a4c, 0.4),
     kind: "outdoor",
   },
 ];
@@ -199,9 +199,9 @@ export class DormScene extends Phaser.Scene {
         ...r,
         id: room.id,
         label: room.name,
-        floor: mood.wallpaper,
+        floor: mix(mood.wallpaper, 0xb59774, 0.55),
         // personal rooms get accent-tinted wall trim
-        wall: mix(accent, 0xfaf3ea, 0.42),
+        wall: mix(accent, 0x7a6250, 0.45),
         kind: "personal" as const,
       };
     });
@@ -223,96 +223,104 @@ export class DormScene extends Phaser.Scene {
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
   }
 
-  /** flooring pattern per zone kind — reinforces the wall boundary */
+  /** per-tile pixel texture: plank grain, woven tile, grass tufts — hard edges only */
   private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
+    const PX = 2; // art-pixel size, matches the sprite tileset
+    const px = (x: number, y: number, w: number, h: number, c: number) => {
+      g.fillStyle(c, 1);
+      g.fillRect(x * PX, y * PX, w * PX, h * PX);
+    };
+    const U = TILE / PX; // art pixels per tile (16)
+
     g.fillStyle(z.floor, 1);
     g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
 
-    if (z.kind === "personal") {
-      // two-tone checker wallpaper-flooring in the mood palette
-      const dark = mix(z.floor, 0x8a6f7c, 0.14);
-      for (let y = z.y; y < z.y + z.h; y++)
-        for (let x = z.x; x < z.x + z.w; x++) {
-          if ((x + y) % 2 !== 0) continue;
-          g.fillStyle(dark, 1);
-          g.fillRect(t(x), t(y), TILE, TILE);
-        }
-      // faint diagonal weave
-      g.lineStyle(1, 0xffffff, 0.16);
-      for (let i = 0; i < (z.w + z.h) * 2; i++) {
-        const ox = t(z.x) + i * 16 - t(z.h);
-        g.lineBetween(ox, t(z.y), ox + t(z.h), t(z.y + z.h));
-      }
-    } else if (z.kind === "outdoor") {
-      const dark = mix(z.floor, 0x5f8f52, 0.16);
-      for (let y = z.y; y < z.y + z.h; y++)
-        for (let x = z.x; x < z.x + z.w; x++) {
-          g.fillStyle(dark, (x * 7 + y * 13) % 3 === 0 ? 0.5 : 0.16);
-          g.fillRoundedRect(t(x) + 2, t(y) + 2, TILE - 4, TILE - 4, 10);
-        }
-    } else {
-      // hallway + common rooms: neutral wood planks
-      const seam = mix(z.floor, 0x9c8a76, 0.35);
-      const plank = mix(z.floor, 0xffffff, 0.35);
-      for (let y = z.y; y < z.y + z.h; y++) {
-        if ((y - z.y) % 2 === 0) {
-          g.fillStyle(plank, 0.5);
-          g.fillRect(t(z.x), t(y), t(z.w), TILE);
-        }
-        g.fillStyle(seam, 0.35);
-        g.fillRect(t(z.x), t(y), t(z.w), 1.5);
-        // staggered plank joints
-        for (let x = z.x + ((y - z.y) % 2 === 0 ? 0 : 2); x < z.x + z.w; x += 4) {
-          g.fillStyle(seam, 0.3);
-          g.fillRect(t(x), t(y) + 2, 1.5, TILE - 4);
+    const dark = mix(z.floor, 0x3d3128, 0.22);
+    const darker = mix(z.floor, 0x3d3128, 0.34);
+    const light = mix(z.floor, 0xf6ead6, 0.3);
+
+    for (let ty = z.y; ty < z.y + z.h; ty++) {
+      for (let tx = z.x; tx < z.x + z.w; tx++) {
+        const ox = tx * U;
+        const oy = ty * U;
+        const alt = (tx + ty) % 2 === 0;
+
+        if (z.kind === "personal") {
+          // woven square tile: 1px grout + dithered weave, alternating phase
+          if (alt) px(ox, oy, U, U, mix(z.floor, 0x3d3128, 0.1));
+          for (let yy = 2; yy < U - 1; yy += 2)
+            for (let xx = alt ? 2 : 3; xx < U - 1; xx += 2) px(ox + xx, oy + yy, 1, 1, light);
+          px(ox, oy, U, 1, dark);
+          px(ox, oy, 1, U, dark);
+        } else if (z.kind === "outdoor") {
+          // grass: flat base + scattered 1px tufts, hard edged
+          const seed = (tx * 73856093) ^ (ty * 19349663);
+          for (let i = 0; i < 7; i++) {
+            const sx = Math.abs((seed >> (i * 3)) % U);
+            const sy = Math.abs((seed >> (i * 2 + 5)) % U);
+            px(ox + sx, oy + sy, 1, 2, i % 3 === 0 ? light : dark);
+          }
+        } else {
+          // wood planks: staggered joints + per-plank grain lines
+          const stagger = ty % 2 === 0 ? 0 : U / 2;
+          if (ty % 2 === 0) px(ox, oy, U, U, mix(z.floor, 0xf6ead6, 0.12));
+          px(ox, oy, U, 1, darker); // plank seam
+          px(ox, oy + 1, U, 1, light);
+          px(ox + 2, oy + 5 + (tx % 2) * 2, U - 6, 1, dark);
+          px(ox + 4, oy + 11 - (ty % 2) * 2, U - 8, 1, dark);
+          px(ox + ((stagger + 4) % U), oy + 2, 1, U - 2, darker); // joint
         }
       }
     }
-
-    // soft warm ambient wash
-    g.fillStyle(z.kind === "outdoor" ? 0xfff6c9 : 0xffe9c4, z.kind === "outdoor" ? 0.12 : 0.09);
-    g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
-    // inner shadow at the wall line so the floor reads as enclosed
-    g.fillStyle(0x2a2030, 0.09);
-    g.fillRect(t(z.x), t(z.y), t(z.w), 6);
-    g.fillRect(t(z.x), t(z.y), 6, t(z.h));
-    g.fillRect(t(z.x + z.w) - 6, t(z.y), 6, t(z.h));
   }
 
   private paintFloor(zones: Zone[]) {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
     for (const z of zones) this.paintZoneFloor(g, z);
 
-    // ---- walls: solid tiles, wainscot cap + baseboard shadow ----
+    // ---- walls: flat 3-tone pixel bands, hard edges ----
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
         const zone = this.zoneNear(x, y, zones);
         const base = zone?.wall ?? NEUTRAL_WALL;
-        g.fillStyle(mix(base, 0x2a2030, 0.18), 1);
-        g.fillRect(t(x), t(y), TILE, TILE);
+        const shade = mix(base, 0x2b2027, 0.32);
+        const deep = mix(base, 0x2b2027, 0.52);
+        const hi = mix(base, 0xfaf0e0, 0.4);
+        const bx = t(x);
+        const by = t(y);
         g.fillStyle(base, 1);
-        g.fillRect(t(x) + 1, t(y), TILE - 2, TILE - 5);
-        // wainscoting cap
-        g.fillStyle(mix(base, 0xffffff, 0.55), 1);
-        g.fillRect(t(x), t(y) + 3, TILE, 7);
-        g.fillStyle(mix(base, 0x2a2030, 0.28), 0.5);
-        g.fillRect(t(x), t(y) + 10, TILE, 2);
-        // baseboard
-        g.fillStyle(mix(base, 0x2a2030, 0.35), 1);
-        g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
+        g.fillRect(bx, by, TILE, TILE);
+        g.fillStyle(hi, 1);
+        g.fillRect(bx, by + 2, TILE, 4); // trim rail highlight
+        g.fillStyle(shade, 1);
+        g.fillRect(bx, by + 6, TILE, 2);
+        g.fillStyle(deep, 1);
+        g.fillRect(bx, by + TILE - 6, TILE, 6); // baseboard
+        g.fillStyle(shade, 1);
+        g.fillRect(bx, by + TILE - 8, TILE, 2);
+        // 2px dither band above the baseboard: fakes volume without any blur
+        for (let i = 0; i < TILE; i += 4) {
+          g.fillStyle(shade, 1);
+          g.fillRect(bx + i, by + TILE - 10, 2, 2);
+        }
+        g.fillStyle(deep, 1);
+        g.fillRect(bx, by, 2, TILE); // 1 art-pixel seam between wall blocks
       }
     }
 
-    // ---- doorway thresholds ----
+    // ---- doorway thresholds: pixel stone sill ----
     for (const [x, y] of DOORWAYS) {
-      g.fillStyle(0xf6efe4, 1);
+      g.fillStyle(0xbfae95, 1);
       g.fillRect(t(x), t(y), TILE, TILE);
-      g.fillStyle(0xd9cbb8, 0.75);
-      g.fillRect(t(x), t(y), TILE, 5);
-      g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
-      g.fillStyle(0x2a2030, 0.07);
-      g.fillRect(t(x), t(y) + 5, TILE, TILE - 10);
+      g.fillStyle(0x8f7f68, 1);
+      g.fillRect(t(x), t(y), TILE, 2);
+      g.fillRect(t(x), t(y) + TILE - 2, TILE, 2);
+      for (let i = 0; i < TILE; i += 8) {
+        g.fillStyle(0xd3c3a9, 1);
+        g.fillRect(t(x) + i, t(y) + 6, 6, 2);
+        g.fillRect(t(x) + i + 2, t(y) + 18, 6, 2);
+      }
     }
 
     g.generateTexture("floormap", GRID_W * TILE, GRID_H * TILE);
@@ -340,17 +348,17 @@ export class DormScene extends Phaser.Scene {
 
   // ---------- decor & interactives ----------
 
-  private label(x: number, y: number, text: string, color = "#6b5f6e", size = 14) {
+  private label(x: number, y: number, text: string, color = "#33272c", size = 14) {
     return this.add
       .text(x, y, text, {
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: "ui-monospace, Menlo, monospace",
         fontSize: `${size}px`,
         color,
         fontStyle: "600",
       })
       .setOrigin(0.5)
       .setDepth(2)
-      .setAlpha(0.85);
+      .setAlpha(0.95);
   }
 
   private prop(def: PropDef) {
@@ -372,10 +380,19 @@ export class DormScene extends Phaser.Scene {
         .image(def.x, def.y + 6, "glow")
         .setDepth(1)
         .setAlpha(0)
-        .setScale(0.75)
-        .setTint(0xfff3c4);
+        .setScale(1.1)
+        .setTint(0xf2d79a);
       this.interactives.push({ sprite: s, ring, payload: def.payload });
-      this.tweens.add({ targets: s, y: def.y - 2, duration: 1800, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+      // 2px stepped bob — reads as sprite animation, not a smooth CSS float
+      this.tweens.add({
+        targets: s,
+        y: def.y - 2,
+        duration: 1800,
+        yoyo: true,
+        repeat: -1,
+        ease: "Stepped",
+        easeParams: [2],
+      });
     }
     return s;
   }
@@ -385,26 +402,26 @@ export class DormScene extends Phaser.Scene {
     const mood = MOODS[room.mood];
     const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
 
-    // wallpaper accent band along the top wall (inside the room)
-    const band = this.add
-      .rectangle(t(rect.x), t(rect.y), t(rect.w), TILE * 0.8, accent, 0.16)
+    // accent trim strip along the top wall — accent as trim, not as base tone
+    this.add
+      .rectangle(t(rect.x), t(rect.y), t(rect.w), 4, accent, 1)
       .setOrigin(0, 0)
       .setDepth(1);
-    band.setStrokeStyle(0);
 
-    // area rug, tinted to the mood
+    // woven area rug, accent-tinted (opaque pixels, no soft blend)
     this.add
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
-      .setTint(mood.posterAccent)
-      .setAlpha(0.4)
-      .setScale(1.15)
+      .setTint(mix(mood.posterAccent, 0xbca584, 0.55))
+      .setScale(0.85)
       .setDepth(1);
 
-    // poster on the top wall
+    // pixel poster on the top wall: ink frame, flat accent field, 2-tone motif
     const px = t(rect.x + rect.w / 2);
-    const poster = this.add.rectangle(px, t(rect.y) + 18, 84, 52, mood.posterAccent, 0.95).setDepth(2);
-    poster.setStrokeStyle(4, 0xfffaf0, 0.9);
-    this.add.rectangle(px, t(rect.y) + 18, 48, 22, 0xffffff, 0.5).setDepth(3);
+    const py = t(rect.y) + 18;
+    this.add.rectangle(px, py, 80, 48, 0x241c26, 1).setDepth(2);
+    this.add.rectangle(px, py, 74, 42, mix(mood.posterAccent, 0x8b7a63, 0.35), 1).setDepth(3);
+    this.add.rectangle(px, py - 6, 48, 18, 0xefe2c9, 1).setDepth(4);
+    this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
 
     // decor furniture
     this.prop({ key: "bed", x: t(rect.x + 9.2), y: t(rect.y + 6.6), solid: true });
@@ -434,8 +451,9 @@ export class DormScene extends Phaser.Scene {
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
     const dy = t(16) + TILE / 2;
-    this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, accent, 0.55).setDepth(4);
-    this.label(dx, dy - 24, room.name, "#5a4f5e", 13).setDepth(5);
+    this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
+    this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
+    this.label(dx, dy - 46, room.name, "#241c26", 13).setDepth(5);
 
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
@@ -447,30 +465,28 @@ export class DormScene extends Phaser.Scene {
         .setTint(0xfffdf5);
     });
 
+    // presence: hard-edged dithered pixel halo over the doorway lamp
     const glow = this.add
-      .image(dx, dy, "glow")
+      .image(dx, dy - 2, "glow")
       .setTint(mood.glow)
       .setDepth(3)
-      .setScale(1.5)
-      .setAlpha(room.isActive ? 0.5 : 0.12);
-
-    // room-interior ambience glow (shared texture, one instance)
-    const ambience = this.add
-      .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2), "glow")
-      .setTint(mood.glow)
-      .setDepth(1)
-      .setScale(4.2)
-      .setAlpha(room.isActive ? 0.22 : 0.07);
+      .setScale(0.9)
+      .setAlpha(room.isActive ? 0.4 : 0.1);
+    // pixel lamp above the door
+    this.add.rectangle(dx, dy - 34, 8, 6, 0x241c26, 1).setDepth(5);
+    this.add
+      .rectangle(dx, dy - 33, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
+      .setDepth(6);
 
     if (room.isActive) {
       this.tweens.add({
-        targets: [glow, ambience],
-        alpha: { from: 0.5, to: 0.22 },
-        scale: "+=0.35",
+        targets: [glow],
+        alpha: { from: 0.55, to: 0.22 },
         duration: mood.pulseMs,
         yoyo: true,
         repeat: -1,
-        ease: "Sine.easeInOut",
+        ease: "Stepped",
+        easeParams: [3],
       });
       this.spawnSoundCue(dx, dy - 10, mood.glow);
       this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
@@ -509,8 +525,8 @@ export class DormScene extends Phaser.Scene {
     ROOMS.forEach((room, i) => this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!));
 
     // zone labels
-    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 15);
-    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#a29aa8", 14);
+    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#3a2f34", 15);
+    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#6b5c50", 14);
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
@@ -570,7 +586,7 @@ export class DormScene extends Phaser.Scene {
       const lx = t(C.x + 0.6) + i * 30;
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
-      this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2).setAlpha(0.9);
+      this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
     }
 
 
@@ -583,7 +599,7 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "corkboard" },
       label: COMMUNITY_CORKBOARD.title,
     });
-    this.label(t(24), t(HALL.y) - 4, "Community corkboard", "#8d8090", 12);
+    this.label(t(24), t(HALL.y) - 4, "Community corkboard", "#4a3d43", 12);
 
     this.prop({
       key: "vending",
@@ -598,7 +614,7 @@ export class DormScene extends Phaser.Scene {
       y: t(HALL.y) + 34,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lostFound },
     });
-    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#9a93a3", 12);
+    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#4a3d43", 12);
 
     // locked "more rooms coming" door on the hallway's south wall
     this.prop({
@@ -607,7 +623,7 @@ export class DormScene extends Phaser.Scene {
       y: t(22) + 6,
       payload: { kind: "flavor", ...FLAVOR_PROPS.locked },
     }).setAlpha(0.75);
-    this.label(t(65.5), t(22) - 26, "304", "#9a93a3", 12);
+    this.label(t(65.5), t(22) - 26, "304", "#4a3d43", 12);
 
     void zones;
   }
@@ -631,7 +647,7 @@ export class DormScene extends Phaser.Scene {
   private setupCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
-    cam.setBackgroundColor("#e9eef2");
+    cam.setBackgroundColor("#2b2431");
     cam.startFollow(this.player, true, 0.16, 0.16);
     cam.setZoom(1.6);
   }
