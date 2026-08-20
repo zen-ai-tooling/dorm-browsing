@@ -27,7 +27,6 @@ const DormGame = () => {
         scene: [DormScene],
       });
       game.scene.start("dorm", { onPopup: (p: PopupPayload | null) => setPopup(p) });
-      (window as unknown as { __dormGame?: unknown }).__dormGame = game;
     })();
 
     return () => {
