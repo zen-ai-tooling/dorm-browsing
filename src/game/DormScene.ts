@@ -616,16 +616,17 @@ export class DormScene extends Phaser.Scene {
 
   private spawnPlayer() {
     this.player = this.physics.add
-      .sprite(t(13) + 16, t(19) + 16, "char-down-0")
+      .sprite(t(12) + 16, t(19) + 16, "char-down-0")
       .setDepth(1000);
-    this.player.setScale(1.15);
+    this.player.setScale(1.1);
     this.player.setOrigin(0.5, 0.85);
-    this.player.body!.setSize(18, 12);
-    this.player.body!.setOffset(5, 24);
+    this.player.body!.setSize(18, 11);
+    this.player.body!.setOffset(7, 30);
     this.physics.add.collider(this.player, this.walls);
     this.physics.world.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
     this.player.setCollideWorldBounds(true);
   }
+
 
   private setupCamera() {
     const cam = this.cameras.main;
