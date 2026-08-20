@@ -10,7 +10,7 @@ import {
 import { buildTextures } from "./textures";
 
 export const TILE = 32;
-const GRID_W = 80;
+const GRID_W = 88;
 const GRID_H = 40;
 
 const VOID = 0;
@@ -32,6 +32,18 @@ interface Zone extends Rect {
   kind: "hall" | "personal" | "common" | "outdoor";
 }
 
+const mix = (a: number, b: number, t: number) =>
+  Phaser.Display.Color.ObjectToColor(
+    Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.IntegerToColor(a),
+      Phaser.Display.Color.IntegerToColor(b),
+      100,
+      Math.round(t * 100),
+    ),
+  ).color;
+
+const NEUTRAL_WALL = 0xd6c7b6; // warm grey trim for hallway + common rooms
+
 const HALL: Zone = {
   id: "hall",
   label: "Hallway",
@@ -40,59 +52,60 @@ const HALL: Zone = {
   w: 66,
   h: 5,
   floor: 0xf3ece2,
-  wall: 0xd8cbba,
+  wall: NEUTRAL_WALL,
   kind: "hall",
 };
 
+/** tight footprints: sized to their contents, not cavernous */
 const PERSONAL_RECTS: Rect[] = [
-  { x: 4, y: 5, w: 18, h: 11 },
-  { x: 27, y: 5, w: 18, h: 11 },
-  { x: 50, y: 5, w: 18, h: 11 },
+  { x: 6, y: 7, w: 12, h: 9 },
+  { x: 27, y: 7, w: 12, h: 9 },
+  { x: 48, y: 7, w: 12, h: 9 },
 ];
 
 const COMMON: Zone[] = [
   {
     id: "lounge",
     label: "Common Lounge",
-    x: 4,
+    x: 6,
     y: 23,
-    w: 22,
-    h: 12,
+    w: 16,
+    h: 10,
     floor: 0xf6e7d7,
-    wall: 0xdcc4ab,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "study",
     label: "Study Lounge",
-    x: 30,
+    x: 28,
     y: 23,
-    w: 17,
-    h: 12,
-    floor: 0xe4edf3,
-    wall: 0xc0d2de,
+    w: 14,
+    h: 10,
+    floor: 0xe7eef3,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "kitchen",
     label: "Kitchenette",
-    x: 50,
+    x: 48,
     y: 23,
-    w: 13,
-    h: 12,
+    w: 12,
+    h: 10,
     floor: 0xfaeacd,
-    wall: 0xe3c99c,
+    wall: NEUTRAL_WALL,
     kind: "common",
   },
   {
     id: "courtyard",
     label: "Courtyard",
     x: 69,
-    y: 5,
-    w: 9,
-    h: 30,
+    y: 7,
+    w: 16,
+    h: 21,
     floor: 0xcfe8bd,
-    wall: 0xb6d6a4,
+    wall: mix(NEUTRAL_WALL, 0x9fc48c, 0.45),
     kind: "outdoor",
   },
 ];
@@ -100,19 +113,19 @@ const COMMON: Zone[] = [
 /** doorway carve-outs: [tileX, tileY] pairs */
 const DOORWAYS: Array<[number, number]> = [
   // personal rooms -> hallway (bottom walls at y=16)
+  [11, 16],
   [12, 16],
-  [13, 16],
-  [35, 16],
-  [36, 16],
-  [58, 16],
-  [59, 16],
+  [32, 16],
+  [33, 16],
+  [53, 16],
+  [54, 16],
   // common rooms -> hallway (top walls at y=22)
+  [13, 22],
   [14, 22],
-  [15, 22],
-  [37, 22],
-  [38, 22],
-  [55, 22],
-  [56, 22],
+  [34, 22],
+  [35, 22],
+  [53, 22],
+  [54, 22],
   // courtyard <-> hallway (shared wall column x=68)
   [68, 18],
   [68, 19],
@@ -131,6 +144,7 @@ interface PropDef {
 }
 
 const t = (n: number) => n * TILE;
+
 
 export class DormScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -180,12 +194,14 @@ export class DormScene extends Phaser.Scene {
     const personal: Zone[] = ROOMS.map((room, i) => {
       const mood = MOODS[room.mood];
       const r = PERSONAL_RECTS[i]!;
+      const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
       return {
         ...r,
         id: room.id,
         label: room.name,
         floor: mood.wallpaper,
-        wall: mood.wall,
+        // personal rooms get accent-tinted wall trim
+        wall: mix(accent, 0xfaf3ea, 0.42),
         kind: "personal" as const,
       };
     });
@@ -207,53 +223,109 @@ export class DormScene extends Phaser.Scene {
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
   }
 
+  /** flooring pattern per zone kind — reinforces the wall boundary */
+  private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
+    g.fillStyle(z.floor, 1);
+    g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
+
+    if (z.kind === "personal") {
+      // two-tone checker wallpaper-flooring in the mood palette
+      const dark = mix(z.floor, 0x8a6f7c, 0.14);
+      for (let y = z.y; y < z.y + z.h; y++)
+        for (let x = z.x; x < z.x + z.w; x++) {
+          if ((x + y) % 2 !== 0) continue;
+          g.fillStyle(dark, 1);
+          g.fillRect(t(x), t(y), TILE, TILE);
+        }
+      // faint diagonal weave
+      g.lineStyle(1, 0xffffff, 0.16);
+      for (let i = 0; i < (z.w + z.h) * 2; i++) {
+        const ox = t(z.x) + i * 16 - t(z.h);
+        g.lineBetween(ox, t(z.y), ox + t(z.h), t(z.y + z.h));
+      }
+    } else if (z.kind === "outdoor") {
+      const dark = mix(z.floor, 0x5f8f52, 0.16);
+      for (let y = z.y; y < z.y + z.h; y++)
+        for (let x = z.x; x < z.x + z.w; x++) {
+          g.fillStyle(dark, (x * 7 + y * 13) % 3 === 0 ? 0.5 : 0.16);
+          g.fillRoundedRect(t(x) + 2, t(y) + 2, TILE - 4, TILE - 4, 10);
+        }
+    } else {
+      // hallway + common rooms: neutral wood planks
+      const seam = mix(z.floor, 0x9c8a76, 0.35);
+      const plank = mix(z.floor, 0xffffff, 0.35);
+      for (let y = z.y; y < z.y + z.h; y++) {
+        if ((y - z.y) % 2 === 0) {
+          g.fillStyle(plank, 0.5);
+          g.fillRect(t(z.x), t(y), t(z.w), TILE);
+        }
+        g.fillStyle(seam, 0.35);
+        g.fillRect(t(z.x), t(y), t(z.w), 1.5);
+        // staggered plank joints
+        for (let x = z.x + ((y - z.y) % 2 === 0 ? 0 : 2); x < z.x + z.w; x += 4) {
+          g.fillStyle(seam, 0.3);
+          g.fillRect(t(x), t(y) + 2, 1.5, TILE - 4);
+        }
+      }
+    }
+
+    // soft warm ambient wash
+    g.fillStyle(z.kind === "outdoor" ? 0xfff6c9 : 0xffe9c4, z.kind === "outdoor" ? 0.12 : 0.09);
+    g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
+    // inner shadow at the wall line so the floor reads as enclosed
+    g.fillStyle(0x2a2030, 0.09);
+    g.fillRect(t(z.x), t(z.y), t(z.w), 6);
+    g.fillRect(t(z.x), t(z.y), 6, t(z.h));
+    g.fillRect(t(z.x + z.w) - 6, t(z.y), 6, t(z.h));
+  }
+
   private paintFloor(zones: Zone[]) {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    // zone floors
-    for (const z of zones) {
-      g.fillStyle(z.floor, 1);
-      g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
-      // subtle tile grid
-      g.lineStyle(1, 0x000000, 0.045);
-      for (let x = z.x; x <= z.x + z.w; x++) {
-        g.lineBetween(t(x), t(z.y), t(x), t(z.y + z.h));
-      }
-      for (let y = z.y; y <= z.y + z.h; y++) {
-        g.lineBetween(t(z.x), t(y), t(z.x + z.w), t(y));
-      }
-      // soft warm ambient wash
-      g.fillStyle(z.kind === "outdoor" ? 0xfff6c9 : 0xffe9c4, z.kind === "outdoor" ? 0.14 : 0.1);
-      g.fillRect(t(z.x), t(z.y), t(z.w), t(z.h));
-    }
-    // walls
+    for (const z of zones) this.paintZoneFloor(g, z);
+
+    // ---- walls: solid tiles, wainscot cap + baseboard shadow ----
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
         const zone = this.zoneNear(x, y, zones);
-        g.fillStyle(zone?.wall ?? 0xcfc4b6, 1);
-        g.fillRoundedRect(t(x) + 1, t(y) + 1, TILE - 2, TILE - 2, 6);
-        g.fillStyle(0xffffff, 0.18);
-        g.fillRoundedRect(t(x) + 3, t(y) + 3, TILE - 6, 8, 4);
+        const base = zone?.wall ?? NEUTRAL_WALL;
+        g.fillStyle(mix(base, 0x2a2030, 0.18), 1);
+        g.fillRect(t(x), t(y), TILE, TILE);
+        g.fillStyle(base, 1);
+        g.fillRect(t(x) + 1, t(y), TILE - 2, TILE - 5);
+        // wainscoting cap
+        g.fillStyle(mix(base, 0xffffff, 0.55), 1);
+        g.fillRect(t(x), t(y) + 3, TILE, 7);
+        g.fillStyle(mix(base, 0x2a2030, 0.28), 0.5);
+        g.fillRect(t(x), t(y) + 10, TILE, 2);
+        // baseboard
+        g.fillStyle(mix(base, 0x2a2030, 0.35), 1);
+        g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
       }
     }
-    // doorway thresholds
+
+    // ---- doorway thresholds ----
     for (const [x, y] of DOORWAYS) {
       g.fillStyle(0xf6efe4, 1);
       g.fillRect(t(x), t(y), TILE, TILE);
-      g.fillStyle(0xd9cbb8, 0.6);
-      g.fillRect(t(x), t(y), TILE, 4);
-      g.fillRect(t(x), t(y) + TILE - 4, TILE, 4);
+      g.fillStyle(0xd9cbb8, 0.75);
+      g.fillRect(t(x), t(y), TILE, 5);
+      g.fillRect(t(x), t(y) + TILE - 5, TILE, 5);
+      g.fillStyle(0x2a2030, 0.07);
+      g.fillRect(t(x), t(y) + 5, TILE, TILE - 10);
     }
+
     g.generateTexture("floormap", GRID_W * TILE, GRID_H * TILE);
     g.destroy();
     this.add.image(0, 0, "floormap").setOrigin(0, 0).setDepth(0);
   }
 
   private zoneNear(x: number, y: number, zones: Zone[]): Zone | undefined {
-    return zones.find(
-      (z) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h,
-    );
+    const hit = (z: Zone) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h;
+    // rooms own their trim colour; the hallway only claims walls nobody else touches
+    return zones.find((z) => z.kind !== "hall" && hit(z)) ?? zones.find(hit);
   }
+
 
   private buildColliders() {
     this.walls = this.physics.add.staticGroup();
@@ -315,41 +387,49 @@ export class DormScene extends Phaser.Scene {
 
     // wallpaper accent band along the top wall (inside the room)
     const band = this.add
-      .rectangle(t(rect.x), t(rect.y), t(rect.w), TILE, accent, 0.18)
+      .rectangle(t(rect.x), t(rect.y), t(rect.w), TILE * 0.8, accent, 0.16)
       .setOrigin(0, 0)
       .setDepth(1);
     band.setStrokeStyle(0);
 
-    // poster
-    const poster = this.add
-      .rectangle(t(rect.x + rect.w / 2), t(rect.y) + 22, 96, 60, mood.posterAccent, 0.95)
-      .setDepth(2);
+    // area rug, tinted to the mood
+    this.add
+      .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
+      .setTint(mood.posterAccent)
+      .setAlpha(0.4)
+      .setScale(1.15)
+      .setDepth(1);
+
+    // poster on the top wall
+    const px = t(rect.x + rect.w / 2);
+    const poster = this.add.rectangle(px, t(rect.y) + 18, 84, 52, mood.posterAccent, 0.95).setDepth(2);
     poster.setStrokeStyle(4, 0xfffaf0, 0.9);
-    this.add.rectangle(t(rect.x + rect.w / 2), t(rect.y) + 22, 56, 26, 0xffffff, 0.5).setDepth(3);
+    this.add.rectangle(px, t(rect.y) + 18, 48, 22, 0xffffff, 0.5).setDepth(3);
 
     // decor furniture
-    this.prop({ key: "bed", x: t(rect.x + rect.w - 3.2), y: t(rect.y + rect.h - 3), solid: true });
-    this.prop({ key: "desk", x: t(rect.x + rect.w / 2 + 1), y: t(rect.y + rect.h - 2.5), solid: true });
+    this.prop({ key: "bed", x: t(rect.x + 9.2), y: t(rect.y + 6.6), solid: true });
+    this.prop({ key: "desk", x: t(rect.x + 2.6), y: t(rect.y + 7.4), solid: true });
 
     // interactive objects
     this.prop({
       key: "speaker",
       x: t(rect.x + 2),
-      y: t(rect.y + 2.6),
+      y: t(rect.y + 2.2),
       payload: { kind: "songs", room },
     });
     this.prop({
       key: "board",
-      x: t(rect.x + rect.w - 3),
-      y: t(rect.y + 2.2),
+      x: t(rect.x + 9.3),
+      y: t(rect.y + 1.8),
       payload: { kind: "bulletin", room },
     });
     this.prop({
       key: room.companion.type === "plant" ? "plant" : "pet",
       x: t(rect.x + 2),
-      y: t(rect.y + rect.h - 2.5),
+      y: t(rect.y + 4.9),
       payload: { kind: "companion", room },
     });
+
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
@@ -379,7 +459,7 @@ export class DormScene extends Phaser.Scene {
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2), "glow")
       .setTint(mood.glow)
       .setDepth(1)
-      .setScale(6)
+      .setScale(4.2)
       .setAlpha(room.isActive ? 0.22 : 0.07);
 
     if (room.isActive) {
@@ -393,7 +473,7 @@ export class DormScene extends Phaser.Scene {
         ease: "Sine.easeInOut",
       });
       this.spawnSoundCue(dx, dy - 10, mood.glow);
-      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 2), mood.glow);
+      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
     }
   }
 
@@ -404,65 +484,95 @@ export class DormScene extends Phaser.Scene {
         .image(x, y, "note")
         .setTint(tint)
         .setDepth(7)
-        .setScale(0.9)
+        .setScale(0.55)
         .setAlpha(0);
+      // rise, drift sideways, fade out — a continuous loop, never a static icon
       this.tweens.add({
         targets: note,
-        y: y - 46,
-        x: x + (i % 2 === 0 ? 16 : -14),
-        alpha: { from: 0.9, to: 0 },
-        duration: 2600,
-        delay: i * 800,
+        y: y - 52,
+        x: x + (i % 2 === 0 ? 18 : -16),
+        scale: 1,
+        angle: i % 2 === 0 ? 14 : -14,
+        alpha: { from: 0.95, to: 0 },
+        duration: 2400,
+        delay: i * 780,
         repeat: -1,
         ease: "Sine.easeOut",
       });
     }
   }
 
+
   private decorate(zones: Zone[]) {
     // personal rooms (generic from data)
-    const doorXs = [12, 35, 58];
+    const doorXs = [11, 32, 53];
     ROOMS.forEach((room, i) => this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!));
 
     // zone labels
-    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 16);
-    this.label(t(HALL.x + 4), t(HALL.y) + 12, "Floor 3", "#8d8090", 15);
+    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 15);
+    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#a29aa8", 14);
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
-    this.prop({ key: "couch", x: t(L.x + 5), y: t(L.y + 5), solid: true });
-    this.prop({ key: "couch", x: t(L.x + 15), y: t(L.y + 8.6), scale: 0.9, tint: 0xe9b7a6, solid: true });
-    this.prop({ key: "table", x: t(L.x + 10), y: t(L.y + 6.6), payload: { kind: "flavor", ...FLAVOR_PROPS.lounge } });
-    this.prop({ key: "tv", x: t(L.x + 16), y: t(L.y + 3.4), solid: true });
-    this.prop({ key: "record", x: t(L.x + 3), y: t(L.y + 9.4) });
-    this.prop({ key: "plant", x: t(L.x + 19.5), y: t(L.y + 2.5), scale: 1.1 });
+    this.prop({ key: "tv", x: t(L.x + 2.4), y: t(L.y + 1.8), solid: true });
+    this.prop({ key: "couch", x: t(L.x + 4.6), y: t(L.y + 4.6), solid: true });
+    this.prop({
+      key: "table",
+      x: t(L.x + 9.6),
+      y: t(L.y + 5.2),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
+    });
+    this.prop({ key: "couch", x: t(L.x + 12.4), y: t(L.y + 7.8), scale: 0.9, tint: 0xe9b7a6, solid: true });
+    this.prop({ key: "record", x: t(L.x + 2.2), y: t(L.y + 8.4) });
+    this.prop({ key: "plant", x: t(L.x + 14.2), y: t(L.y + 1.8), scale: 1.05 });
 
     // ---- Study Lounge ----
     const S = COMMON[1]!;
-    this.prop({ key: "desk", x: t(S.x + 5), y: t(S.y + 4.6), solid: true });
-    this.prop({ key: "desk", x: t(S.x + 12), y: t(S.y + 8.6), solid: true });
-    this.prop({ key: "shelf", x: t(S.x + 13.5), y: t(S.y + 3), payload: { kind: "flavor", ...FLAVOR_PROPS.study }, solid: true });
-    this.prop({ key: "plant", x: t(S.x + 2), y: t(S.y + 9.6) });
+    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 2.6), solid: true });
+    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 7.6), solid: true });
+    this.prop({
+      key: "shelf",
+      x: t(S.x + 11.4),
+      y: t(S.y + 2.4),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.study },
+      solid: true,
+    });
+    this.prop({ key: "plant", x: t(S.x + 11.6), y: t(S.y + 8.2) });
 
     // ---- Kitchenette ----
     const K = COMMON[2]!;
-    this.prop({ key: "counter", x: t(K.x + 6.5), y: t(K.y + 8.6), solid: true });
-    this.prop({ key: "fridge", x: t(K.x + 2), y: t(K.y + 3.6), payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen }, solid: true });
-    this.prop({ key: "table", x: t(K.x + 9), y: t(K.y + 4.5) });
+    this.prop({ key: "counter", x: t(K.x + 6), y: t(K.y + 8) , solid: true });
+    this.prop({
+      key: "fridge",
+      x: t(K.x + 1.9),
+      y: t(K.y + 2.6),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen },
+      solid: true,
+    });
+    this.prop({ key: "table", x: t(K.x + 8.6), y: t(K.y + 3.4) });
+    this.prop({ key: "plant", x: t(K.x + 10.4), y: t(K.y + 7.6), scale: 0.9 });
 
     // ---- Courtyard ----
     const C = COMMON[3]!;
-    this.prop({ key: "tree", x: t(C.x + 4.5), y: t(C.y + 6), solid: true });
-    this.prop({ key: "bench", x: t(C.x + 4.5), y: t(C.y + 12), payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard } });
-    this.prop({ key: "bench", x: t(C.x + 4.5), y: t(C.y + 20), scale: 0.95 });
-    this.prop({ key: "plant", x: t(C.x + 1.5), y: t(C.y + 24.5) });
-    this.prop({ key: "tree", x: t(C.x + 6), y: t(C.y + 26), scale: 0.8, solid: true });
+    this.prop({ key: "tree", x: t(C.x + 3), y: t(C.y + 3.4), solid: true });
+    this.prop({ key: "tree", x: t(C.x + 12.6), y: t(C.y + 16.6), scale: 0.85, solid: true });
+    this.prop({
+      key: "bench",
+      x: t(C.x + 6.6),
+      y: t(C.y + 11.6),
+      payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard },
+    });
+    this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
+    this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
+    this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
     // string lights across the courtyard
-    for (let i = 0; i < 14; i++) {
-      const lx = t(C.x + 1) + i * 20;
-      const ly = t(C.y + 2) + Math.sin(i * 0.9) * 6;
+    for (let i = 0; i < 16; i++) {
+      const lx = t(C.x + 0.6) + i * 30;
+      const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
+      if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2).setAlpha(0.9);
     }
+
 
     // ---- hallway shared props ----
     this.prop({
@@ -484,11 +594,11 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({
       key: "crate",
-      x: t(6),
-      y: t(HALL.y) + 30,
+      x: t(8),
+      y: t(HALL.y) + 34,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lostFound },
     });
-    this.label(t(6), t(HALL.y) + 6, "Lost & found", "#8d8090", 12);
+    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#9a93a3", 12);
 
     // locked "more rooms coming" door on the hallway's south wall
     this.prop({
@@ -506,16 +616,17 @@ export class DormScene extends Phaser.Scene {
 
   private spawnPlayer() {
     this.player = this.physics.add
-      .sprite(t(13) + 16, t(19) + 16, "char-down-0")
+      .sprite(t(12) + 16, t(19) + 16, "char-down-0")
       .setDepth(1000);
-    this.player.setScale(1.15);
+    this.player.setScale(1.1);
     this.player.setOrigin(0.5, 0.85);
-    this.player.body!.setSize(18, 12);
-    this.player.body!.setOffset(5, 24);
+    this.player.body!.setSize(18, 11);
+    this.player.body!.setOffset(7, 30);
     this.physics.add.collider(this.player, this.walls);
     this.physics.world.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
     this.player.setCollideWorldBounds(true);
   }
+
 
   private setupCamera() {
     const cam = this.cameras.main;
