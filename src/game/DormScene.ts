@@ -510,7 +510,7 @@ export class DormScene extends Phaser.Scene {
 
     // zone labels
     for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#6f6273", 15);
-    this.label(t(HALL.x + 3), t(HALL.y) + 12, "Floor 3", "#8d8090", 15);
+    this.label(t(HALL.x + 2), t(HALL.y) + 60, "Floor 3", "#a29aa8", 14);
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
@@ -594,11 +594,11 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({
       key: "crate",
-      x: t(6),
-      y: t(HALL.y) + 30,
+      x: t(8),
+      y: t(HALL.y) + 34,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lostFound },
     });
-    this.label(t(6), t(HALL.y) + 6, "Lost & found", "#8d8090", 12);
+    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#9a93a3", 12);
 
     // locked "more rooms coming" door on the hallway's south wall
     this.prop({
