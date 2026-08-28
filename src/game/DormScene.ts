@@ -589,7 +589,9 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
     this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.6), solid: true });
-    this.prop({ key: "couch", x: t(L.x + 10.8), y: t(L.y + 4.8), scale: 0.9, tint: 0xe9b7a6, solid: true });
+    // second couch renders as-authored: its texture is baked teal, and setTint
+    // multiplies, so a coral override would crush to mud
+    this.prop({ key: "couch", x: t(L.x + 10.8), y: t(L.y + 4.8), scale: 0.9, solid: true });
     // looser accent pieces off to the side
     this.prop({ key: "record", x: t(L.x + 13.8), y: t(L.y + 8.4) });
     this.prop({ key: "plant", x: t(L.x + 14.2), y: t(L.y + 1.8), scale: 1.05 });
