@@ -18,8 +18,10 @@ const DormGame = () => {
   const [shopOpen, setShopOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [inMyRoom, setInMyRoom] = useState(false);
+  const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const { coins, muted } = usePlayerState();
+
 
   useEffect(() => {
     hydratePlayerState();
