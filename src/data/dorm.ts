@@ -112,8 +112,9 @@ export const ROOMS: PersonRoom[] = [
     },
     nowWatching: { title: "The Bear", status: "Season 2, Episode 4" },
     layout: [
-      { itemId: "tv_basic", gx: 5, gy: 1 },
+      { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "tv_basic", gx: 9, gy: 3 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
       { itemId: "speaker_basic", gx: 1, gy: 2 },
       { itemId: "board_basic", gx: 9, gy: 1 },
@@ -149,7 +150,9 @@ export const ROOMS: PersonRoom[] = [
     },
     nowWatching: { title: "Perfect Days", status: "rewatching, third time" },
     layout: [
+      { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "tv_basic", gx: 9, gy: 3 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
       { itemId: "speaker_basic", gx: 1, gy: 2 },
       { itemId: "board_basic", gx: 9, gy: 1 },
@@ -186,7 +189,9 @@ export const ROOMS: PersonRoom[] = [
     },
     nowWatching: { title: "Boiler Room sets", status: "on in the background, always" },
     layout: [
+      { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "tv_basic", gx: 9, gy: 3 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
       { itemId: "speaker_basic", gx: 1, gy: 2 },
       { itemId: "board_basic", gx: 9, gy: 1 },

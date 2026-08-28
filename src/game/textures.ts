@@ -648,5 +648,144 @@ export const buildTextures = (scene: Phaser.Scene) => {
     panel(g, 0, 0, 26, 13, 0x33292f, 0x241c26, 0x4b3f47);
     r(g, 2, 2, 22, 2, 0x5d5060);
   });
+
+  /* ------------- iteration 12: poster item + lounge / hallway decor ------------- */
+
+  // wall poster 44x26 — ink frame, flat field, 2-tone motif.
+  // field authored in greyscale so setTint (multiply) yields clean accent hues.
+  const poster = (motif: (g: G) => void) => (g: G) => {
+    r(g, 0, 0, 44, 26, INK);
+    r(g, 2, 2, 40, 22, 0xd6cfc4);
+    dither(g, 2, 2, 40, 22, 0xc7c0b5);
+    line(g, 2, 2, 40, 22, 0x5a5350);
+    motif(g);
+  };
+  // default: banner block + rule bar
+  make(scene, "poster", 44, 26, poster((g) => {
+    r(g, 8, 5, 28, 9, 0xf2ece0);
+    line(g, 8, 5, 28, 9, 0x5a5350);
+    r(g, 10, 8, 24, 2, 0x8b847e);
+    r(g, 13, 18, 18, 3, 0x3f3a38);
+  }));
+  // band poster: silhouette figures + set list lines
+  make(scene, "poster-band", 44, 26, poster((g) => {
+    for (let i = 0; i < 4; i++) {
+      r(g, 7 + i * 8, 12 - (i % 2), 4, 8, 0x3f3a38);
+      r(g, 8 + i * 8, 9 - (i % 2), 2, 3, 0x3f3a38);
+    }
+    r(g, 7, 4, 30, 3, 0xf2ece0);
+    line(g, 7, 4, 30, 3, 0x5a5350);
+  }));
+  // movie poster: big letterbox frame + credits block
+  make(scene, "poster-film", 44, 26, poster((g) => {
+    r(g, 6, 4, 32, 13, 0x2f2b2a);
+    line(g, 6, 4, 32, 13, 0x5a5350);
+    r(g, 9, 7, 12, 7, 0xa39c93);
+    dither(g, 21, 7, 14, 7, 0x6d6763);
+    for (const ly of [19, 21]) r(g, 10, ly, 24, 1, 0x5a5350);
+  }));
+
+  // game console 22x13 — flat box, power dot, cable, disc slot
+  make(scene, "console", 22, 13, (g) => {
+    foot(g, 11, 11, 16);
+    panel(g, 2, 2, 18, 8, 0x3d3a45, 0x2a2830, 0x565261);
+    r(g, 4, 5, 11, 1, 0x211f26);
+    r(g, 17, 4, 2, 2, 0x7fd6b0);
+    r(g, 20, 8, 2, 1, 0x211f26);
+  });
+
+  // controller 12x9
+  make(scene, "controller", 12, 9, (g) => {
+    r(g, 1, 2, 10, 5, 0x4a4753);
+    r(g, 0, 3, 2, 4, 0x4a4753);
+    r(g, 10, 3, 2, 4, 0x4a4753);
+    line(g, 1, 2, 10, 5);
+    r(g, 3, 4, 2, 1, 0xcfc9d6);
+    r(g, 7, 4, 1, 1, CORAL);
+    r(g, 8, 5, 1, 1, TEAL);
+  });
+
+  // foosball table 62x38 — green field, ink rods, tiny players, goal boxes
+  make(scene, "foosball", 62, 38, (g) => {
+    foot(g, 31, 36, 48);
+    panel(g, 1, 4, 60, 27, WOOD_SH, 0x6d4e33, WOOD);
+    r(g, 4, 7, 54, 20, 0x4f7a4c);
+    line(g, 4, 7, 54, 20, 0x2d4a2c);
+    r(g, 30, 7, 1, 20, 0x6a9464);
+    for (const rx of [11, 22, 33, 44]) {
+      r(g, rx, 5, 1, 24, METAL_HI);
+      for (const py2 of [10, 17, 23]) {
+        r(g, rx - 1, py2, 3, 4, rx % 22 === 0 ? CORAL : CREAM);
+        line(g, rx - 1, py2, 3, 4);
+      }
+    }
+    r(g, 1, 13, 3, 8, 0x2f2a33);
+    r(g, 58, 13, 3, 8, 0x2f2a33);
+    r(g, 5, 31, 4, 5, WOOD_SH);
+    r(g, 53, 31, 4, 5, WOOD_SH);
+  });
+
+  // beanbag 28x20 — slumped blocky silhouette, greyscale for clean tinting
+  make(scene, "beanbag", 28, 20, (g) => {
+    foot(g, 14, 18, 20);
+    r(g, 3, 6, 22, 11, 0xc9c3ba);
+    r(g, 5, 3, 18, 4, 0xd8d2c9);
+    r(g, 3, 14, 22, 3, 0xa39d94);
+    line(g, 3, 6, 22, 11, 0x4c4740);
+    line(g, 5, 3, 18, 4, 0x4c4740);
+    dither(g, 6, 12, 16, 2, 0xb5afa6);
+    r(g, 8, 5, 6, 1, 0xe6e0d6);
+  });
+
+  // snack shelf 28x24 — two shelves of chip bags and cups
+  make(scene, "snackshelf", 28, 24, (g) => {
+    foot(g, 14, 22, 20);
+    panel(g, 1, 1, 26, 20, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 3, 3, 22, 7, 0x6d5138);
+    r(g, 3, 12, 22, 7, 0x6d5138);
+    const cols = [CORAL, 0xd8b25c, TEAL, PLUM];
+    cols.forEach((c, i) => {
+      r(g, 4 + i * 5, 4, 4, 5, c);
+      line(g, 4 + i * 5, 4, 4, 5);
+      r(g, 5 + i * 5, 13, 3, 5, cols[(i + 1) % 4]!);
+      line(g, 5 + i * 5, 13, 3, 5);
+    });
+    r(g, 1, 10, 26, 2, WOOD_HI);
+  });
+
+  // floor lamp 20x44 — warm shade, thin pole, weighted base
+  make(scene, "lamp", 20, 44, (g) => {
+    foot(g, 10, 42, 12);
+    r(g, 4, 2, 12, 9, 0xe8c98b);
+    r(g, 5, 3, 10, 2, 0xf6e2ae);
+    r(g, 4, 9, 12, 2, 0xc9a86b);
+    line(g, 4, 2, 12, 9);
+    r(g, 9, 11, 2, 26, METAL_SH);
+    r(g, 9, 11, 1, 26, METAL_HI);
+    r(g, 5, 37, 10, 3, 0x4c4750);
+    line(g, 5, 37, 10, 3);
+  });
+
+  // bike 46x30 — side view, ink frame, spoked wheels
+  make(scene, "bike", 46, 30, (g) => {
+    foot(g, 23, 28, 34);
+    const wheel = (cx: number) => {
+      r(g, cx - 8, 12, 16, 14, INK);
+      r(g, cx - 6, 14, 12, 10, 0x8f8a83);
+      r(g, cx - 4, 16, 8, 6, 0x2f2a33);
+      r(g, cx - 1, 14, 2, 10, 0x8f8a83);
+      r(g, cx - 6, 18, 12, 2, 0x8f8a83);
+    };
+    wheel(9);
+    wheel(37);
+    r(g, 10, 12, 26, 2, TEAL);
+    r(g, 13, 6, 2, 7, TEAL);
+    r(g, 26, 5, 2, 8, TEAL);
+    r(g, 20, 8, 8, 2, TEAL);
+    r(g, 10, 4, 7, 2, 0x2f2a33); // handlebars
+    r(g, 25, 3, 6, 2, 0x33292f); // saddle
+    r(g, 20, 16, 5, 5, 0x4c4750); // crank
+  });
 };
+
 
