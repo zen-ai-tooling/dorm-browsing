@@ -2,6 +2,7 @@ import { useState } from "react";
 import { COMMUNITY_CORKBOARD, MOODS, type PopupPayload } from "@/data/dorm";
 import { DAILY_COIN_REWARD, promptForToday, todayKey } from "@/data/prompts";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
+import { GamePanel } from "./GamePanel";
 
 const Shell = ({
   accent,
@@ -23,21 +24,23 @@ const Shell = ({
     role="status"
     aria-live="polite"
   >
-    <div
-      className="rounded-3xl border border-border/70 bg-card/95 p-4 shadow-xl backdrop-blur-sm"
-      style={{ boxShadow: `0 12px 40px -12px ${accent}80`, borderColor: `${accent}66` }}
-    >
+    <GamePanel accent={accent} className="p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-bold tracking-wide text-foreground">{title}</h2>
+        <h2 className="font-display text-base font-bold tracking-wide text-panel-foreground">
+          {title}
+        </h2>
         {subtitle ? (
-          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: accent }}>
+          <span
+            className="font-display text-xs font-bold uppercase tracking-wider"
+            style={{ color: accent }}
+          >
             {subtitle}
           </span>
         ) : null}
       </div>
-      <div className="mt-2 text-sm text-muted-foreground">{children}</div>
-      <p className="mt-3 text-[11px] italic text-muted-foreground/70">walk away to close</p>
-    </div>
+      <div className="mt-2 font-body text-sm text-panel-muted">{children}</div>
+      <p className="mt-3 font-display text-xs text-panel-muted/80">walk away to close</p>
+    </GamePanel>
   </div>
 );
 
@@ -51,7 +54,7 @@ const CorkboardPopup = () => {
     return (
       <Shell accent="#8d8090" title={COMMUNITY_CORKBOARD.title} subtitle="floor-wide">
         {justAnswered ? (
-          <p className="font-semibold text-foreground">
+          <p className="font-display font-bold text-panel-foreground">
             “{justAnswered}” pinned · +{DAILY_COIN_REWARD} coins
           </p>
         ) : null}
@@ -66,7 +69,7 @@ const CorkboardPopup = () => {
 
   return (
     <Shell accent="#c9a227" title="Question of the day" subtitle={`+${DAILY_COIN_REWARD} coins`} interactive>
-      <p className="font-medium text-foreground">{prompt.question}</p>
+      <p className="font-body font-semibold text-panel-foreground">{prompt.question}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {prompt.options.map((opt) => (
           <button
@@ -76,7 +79,7 @@ const CorkboardPopup = () => {
               setJustAnswered(opt);
               playerActions.answerDaily();
             }}
-            className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
+            className="rounded-[3px] border-2 border-ink bg-panel px-3 py-1.5 font-display text-xs font-bold text-panel-foreground transition hover:bg-ink hover:text-panel"
           >
             {opt}
           </button>
@@ -96,9 +99,9 @@ export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
         <ol className="space-y-1">
           {room.songs.map((s, i) => (
             <li key={s.title} className="flex gap-2">
-              <span className="w-4 shrink-0 tabular-nums opacity-50">{i + 1}</span>
-              <span className="font-medium text-foreground">{s.title}</span>
-              <span className="opacity-70">· {s.artist}</span>
+              <span className="w-4 shrink-0 font-display tabular-nums opacity-60">{i + 1}</span>
+              <span className="font-semibold text-panel-foreground">{s.title}</span>
+              <span className="opacity-80">· {s.artist}</span>
             </li>
           ))}
         </ol>
@@ -112,15 +115,14 @@ export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
       <Shell accent={room.accentColor} title={`${room.name} — Bulletin board`}>
         <div className="flex gap-3">
           <div
-            className="h-20 w-20 shrink-0 rounded-2xl"
-            style={{ background: `linear-gradient(135deg, ${room.accentColor}, ${room.accentColor}55)` }}
+            className="pixel-corkboard h-20 w-20 shrink-0 rounded-[3px] border-2 border-ink"
             aria-label="pinned photo placeholder"
           />
           <ul className="space-y-1">
             {room.bulletin.interests.map((i) => (
               <li key={i}>· {i}</li>
             ))}
-            <li className="font-semibold text-foreground">📌 {room.bulletin.event}</li>
+            <li className="font-display font-bold text-panel-foreground">📌 {room.bulletin.event}</li>
           </ul>
         </div>
       </Shell>
