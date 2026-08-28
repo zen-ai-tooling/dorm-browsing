@@ -52,7 +52,8 @@ interface Blip {
 const play = (blips: Blip[]) => {
   if (muted) return;
   const c = getCtx();
-  if (!c || !master || c.state === "suspended") return;
+  if (!c || !master) return;
+  if (c.state === "suspended") void c.resume();
   const now = c.currentTime;
   for (const b of blips) {
     const at = now + (b.at ?? 0);
