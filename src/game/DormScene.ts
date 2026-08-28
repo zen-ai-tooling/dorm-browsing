@@ -652,7 +652,6 @@ export class DormScene extends Phaser.Scene {
   private enableDragging() {
     for (const p of this.placed) {
       p.sprite.setInteractive({ useHandCursor: true, draggable: true });
-      this.input.setDraggable(p.sprite, true);
       p.sprite.off("pointerdown");
       p.sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
         if (!this.editMode) return;
