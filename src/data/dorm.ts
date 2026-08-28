@@ -55,7 +55,10 @@ export interface PlacedItem {
   gx: number;
   /** footprint top-left tile y, relative to the room's own interior top-left */
   gy: number;
+  /** 90° steps; absent means 0 (backward compatible with saved layouts) */
+  rotation?: 0 | 90 | 180 | 270;
 }
+
 
 
 export interface PersonRoom {
