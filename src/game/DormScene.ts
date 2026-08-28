@@ -508,7 +508,7 @@ export class DormScene extends Phaser.Scene {
     this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
     this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
     this.label(dx, dy - 46, room.name, "#241c26", 13).setDepth(5);
-    if (room.roomNumber) this.placard(dx + 34, dy - 34, room.roomNumber);
+    if (room.roomNumber) this.placard(dx, dy - 22, room.roomNumber);
 
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
