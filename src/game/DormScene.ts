@@ -5,6 +5,7 @@ import {
   MOODS,
   ROOMS,
   type PersonRoom,
+  type PlacedItem,
   type PopupPayload,
 } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
@@ -261,6 +262,16 @@ export class DormScene extends Phaser.Scene {
             const sy = Math.abs((seed >> (i * 2 + 5)) % U);
             px(ox + sx, oy + sy, 1, 2, i % 3 === 0 ? light : dark);
           }
+        } else if (z.kind === "hall") {
+          // commercial fleck carpet: mottled tufts, no plank grain
+          const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
+          const tones = [dark, darker, light, mix(z.floor, 0x6b5748, 0.16)];
+          for (let i = 0; i < 26; i++) {
+            const sx = Math.abs((seed >> (i % 11)) * (i + 3)) % U;
+            const sy = Math.abs((seed >> ((i % 7) + 2)) * (i + 5)) % U;
+            const tone = tones[(seed + i) % tones.length]!;
+            px(ox + sx, oy + sy, 1 + ((seed + i) % 2), 1, tone);
+          }
         } else {
           // wood planks: staggered joints + seeded per-tile grain variation
           const stagger = ty % 2 === 0 ? 0 : U / 2;
@@ -352,14 +363,14 @@ export class DormScene extends Phaser.Scene {
       this.add
         .image(t(tx), cy, "runner")
         .setOrigin(0, 0.5)
-        .setTint(0xd6c3a4)
+        .setTint(0x9a6a55)
         .setDepth(1);
-    this.add.image(t(x0), cy, "runner-cap").setOrigin(1, 0.5).setTint(0xd6c3a4).setDepth(1);
+    this.add.image(t(x0), cy, "runner-cap").setOrigin(1, 0.5).setTint(0x9a6a55).setDepth(1);
     this.add
       .image(t(x1), cy, "runner-cap")
       .setOrigin(1, 0.5)
       .setFlipX(true)
-      .setTint(0xd6c3a4)
+      .setTint(0x9a6a55)
       .setDepth(1);
   }
 
@@ -412,6 +423,7 @@ export class DormScene extends Phaser.Scene {
 
   private prop(def: PropDef) {
     const s = this.add.sprite(def.x, def.y, def.key).setDepth(def.y + (def.depthBias ?? 0));
+    this.collecting?.push(s);
     if (def.scale) s.setScale(def.scale);
     if (def.tint) s.setTint(def.tint);
     if (def.solid) {
@@ -420,6 +432,7 @@ export class DormScene extends Phaser.Scene {
       const zy = def.y + s.displayHeight * 0.2;
       const zone = this.add.zone(def.x, zy, zw, zh);
       this.walls.add(zone);
+      this.collecting?.push(zone);
       for (let ty = Math.floor((zy - zh / 2) / TILE); ty <= Math.floor((zy + zh / 2) / TILE); ty++)
         for (let tx = Math.floor((def.x - zw / 2) / TILE); tx <= Math.floor((def.x + zw / 2) / TILE); tx++)
           if (this.grid[ty]?.[tx] === FLOOR) this.grid[ty]![tx] = BLOCKED;
@@ -431,6 +444,7 @@ export class DormScene extends Phaser.Scene {
         .setAlpha(0)
         .setScale(1.1)
         .setTint(0xf2d79a);
+      this.collecting?.push(ring);
       this.interactives.push({ sprite: s, ring, payload: def.payload });
       // 2px stepped bob — reads as sprite animation, not a smooth CSS float
       this.tweens.add({
