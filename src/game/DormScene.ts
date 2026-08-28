@@ -594,6 +594,17 @@ export class DormScene extends Phaser.Scene {
             : undefined;
   }
 
+  /**
+   * Per-room recolour for mood-carrying decor, same trick the rug already uses:
+   * greyscale-authored textures multiplied by a pale accent read as that room's colour.
+   */
+  private moodTint(room: PersonRoom, item: ItemDef): number | undefined {
+    const mood = MOODS[room.mood];
+    if (item.category === "poster") return mix(mood.posterAccent, 0xffffff, 0.32);
+    if (item.textureKey === "tv") return mix(mood.glow, 0xffffff, 0.62);
+    return item.tint;
+  }
+
   /** footprint-aware sprite placement for rooms that are not editable */
   private renderLayout(room: PersonRoom, rect: Rect, layout: PlacedItem[]) {
     for (const placed of layout) {
@@ -608,8 +619,10 @@ export class DormScene extends Phaser.Scene {
         y: t(rect.y + placed.gy + f.h / 2),
         solid: item.solid,
       };
-      if (item.tint) def.tint = item.tint;
+      const tint = this.moodTint(room, item);
+      if (tint) def.tint = tint;
       if (payload) def.payload = payload;
+
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
     }
