@@ -122,7 +122,7 @@ const DormGame = () => {
           </p>
         </GamePanel>
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <GamePanel className="flex items-center gap-1.5 px-2.5 py-1.5">
+          <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
             <IconChip>
               <Coins className="size-3.5" aria-hidden />
             </IconChip>

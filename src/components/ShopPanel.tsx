@@ -106,7 +106,7 @@ export const ShopPanel = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="game-panel max-w-lg border-0 bg-panel p-5 text-panel-foreground shadow-none">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-3 font-display text-lg font-bold">
+          <DialogTitle className="flex items-center justify-between gap-3 pr-7 font-display text-lg font-bold">
             <span>Floor 3 Shop</span>
             <span className="flex items-center gap-1.5 font-display text-base font-bold text-panel-foreground">
               <IconChip>
