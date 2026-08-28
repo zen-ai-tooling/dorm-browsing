@@ -54,6 +54,10 @@ export interface PersonRoom {
   accentColor: string;
   mood: MoodKey;
   isActive: boolean;
+  /** 3-digit door placard number */
+  roomNumber?: string;
+  /** shown on a door whiteboard when the room is inactive */
+  awayNote?: string;
   songs: Song[];
   bulletin: { interests: string[]; event: string };
   companion: { type: "plant" | "pet"; name: string; breed: string; blurb: string };
@@ -68,6 +72,7 @@ export const ROOMS: PersonRoom[] = [
     accentColor: "#4A9B8E",
     mood: "chill_ambient",
     isActive: true,
+    roomNumber: "301",
     songs: [
       { title: "Midnight City", artist: "M83" },
       { title: "Redbone", artist: "Childish Gambino" },
@@ -94,6 +99,7 @@ export const ROOMS: PersonRoom[] = [
     accentColor: "#E07A5F",
     mood: "energetic_dance",
     isActive: true,
+    roomNumber: "302",
     songs: [
       { title: "Two Slow Dancers", artist: "Mitski" },
       { title: "Cherry", artist: "Lucy Dacus" },
@@ -120,6 +126,8 @@ export const ROOMS: PersonRoom[] = [
     accentColor: "#9B6BC7",
     mood: "cozy_soft",
     isActive: false,
+    roomNumber: "303",
+    awayNote: "at the library",
     songs: [
       { title: "One More Time", artist: "Daft Punk" },
       { title: "Move Your Body", artist: "Marshall Jefferson" },
