@@ -30,6 +30,18 @@ const DormGame = () => {
     (async () => {
       const Phaser = await import("phaser");
       const { DormScene } = await import("@/game/DormScene");
+      // Phaser draws canvas text with whatever is loaded — wait for the display font first.
+      try {
+        await Promise.race([
+          Promise.all([
+            document.fonts.load('16px "Pixelify Sans"'),
+            document.fonts.load('700 16px "Pixelify Sans"'),
+          ]),
+          new Promise((r) => setTimeout(r, 2500)),
+        ]);
+      } catch {
+        /* fall back to default font rendering */
+      }
       if (destroyed || !containerRef.current) return;
 
       game = new Phaser.Game({
