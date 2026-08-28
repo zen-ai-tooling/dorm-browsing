@@ -1172,15 +1172,22 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
 
     // focal cluster: TV hooked up to a console, low table with controllers, couches facing in
+    // SOLIDITY RULE: any floor-standing furniture a person couldn't walk through
+    // (tables, consoles, couches, shelving, appliances, foosball) is solid: true.
+    // Small things resting on a solid surface (controllers), wall-mounted decor
+    // (posters, snack shelf, string lights) and soft/thin floor accents
+    // (beanbags, record player, plants) stay non-solid.
     this.prop({ key: "tv", x: t(L.x + 4), y: t(L.y + 1.8), solid: true });
-    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3) });
+    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3), solid: true });
     this.prop({
       key: "table",
       x: t(L.x + 4),
       y: t(L.y + 4.9),
+      solid: true,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
     this.prop({ key: "controller", x: t(L.x + 3.3), y: t(L.y + 4.5), depthBias: 20 });
+
     this.prop({ key: "controller", x: t(L.x + 4.8), y: t(L.y + 4.4), depthBias: 20 });
     this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.7), solid: true });
     // second couch renders as-authored: its texture is baked teal, and setTint
