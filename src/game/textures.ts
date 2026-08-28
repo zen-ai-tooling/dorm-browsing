@@ -540,4 +540,109 @@ export const buildTextures = (scene: Phaser.Scene) => {
     },
   };
   for (const [k, d] of Object.entries(stickers)) make(scene, `sticker-${k}`, 12, 12, d);
+
+  /* ------------- iteration 3: hallway texture + collegiate flavour ------------- */
+
+  // hallway runner segment 16x40 — seamless left/right, woven pixel field
+  make(scene, "runner", 16, 40, (g) => {
+    r(g, 0, 0, 16, 40, 0xb59a78);
+    r(g, 0, 0, 16, 2, 0x8d7659);
+    r(g, 0, 38, 16, 2, 0x8d7659);
+    r(g, 0, 3, 16, 34, 0xc4ab8a);
+    dither(g, 0, 3, 16, 34, 0xb59a78);
+    r(g, 0, 7, 16, 26, 0xab8f6d);
+    r(g, 0, 7, 16, 1, 0x8d7659);
+    r(g, 0, 32, 16, 1, 0x8d7659);
+    dither(g, 0, 9, 16, 22, 0xbb9f7c, 1);
+    // centre motif band
+    r(g, 4, 16, 8, 8, 0x9c7f5e);
+    line(g, 4, 16, 8, 8, 0x7d6449);
+    r(g, 7, 19, 2, 2, 0xc9b18f);
+  });
+
+  // runner end cap 6x40 (fringe)
+  make(scene, "runner-cap", 6, 40, (g) => {
+    r(g, 2, 0, 4, 40, 0xb59a78);
+    r(g, 2, 0, 4, 2, 0x8d7659);
+    r(g, 2, 38, 4, 2, 0x8d7659);
+    for (let i = 1; i < 39; i += 3) r(g, 0, i, 2, 1, 0x8d7659);
+  });
+
+  // doorway mat 14x9 — woven rect with contrasting 1px border
+  make(scene, "doormat", 14, 9, (g) => {
+    r(g, 0, 0, 14, 9, 0xa89279);
+    line(g, 0, 0, 14, 9, 0x4a3b36);
+    r(g, 2, 2, 10, 5, 0xbda display);
+  });
+
+  // hallway flyer 13x16 — paper with text lines + torn tab strip
+  const flyer = (base: number, accent: number) => (g: G) => {
+    r(g, 1, 0, 11, 15, base);
+    line(g, 1, 0, 11, 15, 0x4a3b36);
+    r(g, 3, 2, 7, 2, accent);
+    for (const ly of [6, 8, 10]) r(g, 3, ly, 7, 1, 0x8b7b70);
+    for (let i = 0; i < 3; i++) r(g, 3 + i * 3, 12, 2, 3, 0xd9cdb4);
+    r(g, 6, 0, 1, 2, CORAL); // pin
+  };
+  make(scene, "flyer-a", 13, 16, flyer(0xf3ead2, CORAL));
+  make(scene, "flyer-b", 13, 16, flyer(0xe6dfc6, TEAL));
+  make(scene, "flyer-c", 13, 16, flyer(0xf0e0d4, PLUM));
+  make(scene, "flyer-d", 13, 16, flyer(0xe9e2d0, 0xd8b25c));
+
+  // away note / mini whiteboard 22x15
+  make(scene, "awaynote", 22, 15, (g) => {
+    panel(g, 0, 0, 22, 15, 0xe9e6dc, 0xbdb9ae, 0xf7f5ee);
+    r(g, 3, 4, 14, 1, 0x7b8f9c);
+    r(g, 3, 7, 11, 1, 0x7b8f9c);
+    r(g, 3, 10, 8, 1, 0x7b8f9c);
+    r(g, 17, 11, 3, 2, CORAL); // marker
+  });
+
+  // shoe rack 26x17
+  make(scene, "shoerack", 26, 17, (g) => {
+    foot(g, 13, 15, 20);
+    panel(g, 1, 8, 24, 6, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 3, 14, 2, 2, WOOD_SH);
+    r(g, 21, 14, 2, 2, WOOD_SH);
+    const shoes = [CORAL, TEAL, 0xd8b25c, PLUM];
+    shoes.forEach((c, i) => {
+      const x = 2 + i * 6;
+      r(g, x, 4, 5, 4, c);
+      r(g, x, 7, 6, 1, INK);
+      line(g, x, 4, 5, 4);
+    });
+  });
+
+  // trash / recycling bin 13x19
+  make(scene, "bin", 13, 19, (g) => {
+    foot(g, 6, 17, 11);
+    panel(g, 1, 3, 11, 14, 0x8d8a94, 0x63606b, 0xaba7b3);
+    r(g, 0, 1, 13, 3, 0x6c6975);
+    line(g, 0, 1, 13, 3);
+    dither(g, 3, 7, 7, 6, 0x7a7782);
+    r(g, 5, 9, 3, 3, 0xd6d2cb);
+  });
+
+  // mail cubby cluster 34x24
+  make(scene, "cubby", 34, 24, (g) => {
+    panel(g, 0, 0, 34, 24, WOOD_SH, 0x6d4e33, WOOD);
+    for (let row = 0; row < 3; row++)
+      for (let c = 0; c < 4; c++) {
+        const x = 2 + c * 8;
+        const y = 2 + row * 7;
+        r(g, x, y, 7, 6, 0x503626);
+        line(g, x, y, 7, 6, 0x3b271b);
+        if ((row + c) % 3 === 0) {
+          r(g, x + 1, y + 3, 5, 3, CREAM);
+          line(g, x + 1, y + 3, 5, 3, 0x8b7b70);
+        }
+      }
+  });
+
+  // room-number placard 26x13
+  make(scene, "placard", 26, 13, (g) => {
+    panel(g, 0, 0, 26, 13, 0x33292f, 0x241c26, 0x4b3f47);
+    r(g, 2, 2, 22, 2, 0x5d5060);
+  });
 };
+
