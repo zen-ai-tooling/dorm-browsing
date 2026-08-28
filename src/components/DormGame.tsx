@@ -15,6 +15,7 @@ const DormGame = () => {
   const [shopOpen, setShopOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [inMyRoom, setInMyRoom] = useState(false);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const { coins } = usePlayerState();
 
   useEffect(() => {
