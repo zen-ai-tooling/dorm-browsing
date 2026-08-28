@@ -7,6 +7,7 @@ import {
   type PersonRoom,
   type PopupPayload,
 } from "@/data/dorm";
+import { ITEM_CATALOG } from "@/data/items";
 import { buildTextures } from "./textures";
 
 export const TILE = 32;
