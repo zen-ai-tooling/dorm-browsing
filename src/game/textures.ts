@@ -572,7 +572,8 @@ export const buildTextures = (scene: Phaser.Scene) => {
   make(scene, "doormat", 14, 9, (g) => {
     r(g, 0, 0, 14, 9, 0xa89279);
     line(g, 0, 0, 14, 9, 0x4a3b36);
-    r(g, 2, 2, 10, 5, 0xbda display);
+    r(g, 2, 2, 10, 5, 0xbda98c);
+    dither(g, 2, 2, 10, 5, 0xa89279);
   });
 
   // hallway flyer 13x16 — paper with text lines + torn tab strip
