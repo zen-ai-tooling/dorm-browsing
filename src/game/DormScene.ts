@@ -202,14 +202,17 @@ export class DormScene extends Phaser.Scene {
     getMyLayout?: () => PlacedItem[];
     onLayoutChange?: (l: PlacedItem[]) => void;
     onInsideRoom?: (v: boolean) => void;
+    onPlacingChange?: (itemId: string | null) => void;
     onReady?: (scene: DormScene) => void;
   }) {
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
     if (data?.onInsideRoom) this.onInsideRoom = data.onInsideRoom;
+    if (data?.onPlacingChange) this.onPlacingChange = data.onPlacingChange;
     if (data?.onReady) this.onReady = data.onReady;
   }
+
 
   preload() {
     buildTextures(this);
