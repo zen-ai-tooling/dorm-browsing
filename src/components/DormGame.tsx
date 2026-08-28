@@ -88,7 +88,7 @@ const DormGame = () => {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-3xl border border-border bg-secondary">
+    <div className="relative h-full w-full overflow-hidden rounded-[6px] border-[6px] border-ink bg-secondary shadow-[0_10px_0_-2px_rgba(36,28,38,0.25)]">
       <div
         ref={containerRef}
         className="h-full w-full touch-none [&>canvas]:block"
