@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { PlacedItem } from "@/data/dorm";
+import { ROOMS, type PlacedItem, type Song } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
 import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
 import { setSfxMuted, sfx } from "@/game/sounds";
@@ -10,6 +10,7 @@ const STARTING_COINS = 50;
 /** seed layout for "Your Room" — tile coords are the footprint's top-left, room-relative */
 export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
   { itemId: "bed_basic", gx: 9, gy: 5 },
+  { itemId: "tv_basic", gx: 5, gy: 1 },
   { itemId: "desk_basic", gx: 1, gy: 7 },
   { itemId: "speaker_basic", gx: 1, gy: 2 },
   { itemId: "board_basic", gx: 9, gy: 1 },
@@ -22,7 +23,13 @@ export interface PlayerState {
   roomLayout: PlacedItem[];
   lastDailyAnswerDate: string | null;
   muted: boolean;
+  /** editable content for "Your Room" — seeded from ROOMS[0] */
+  mySongs: Song[];
+  myBulletin: { interests: string[]; event: string };
+  myNowWatching: { title: string; status?: string };
 }
+
+const seed = ROOMS[0]!;
 
 const defaultState = (): PlayerState => ({
   coins: STARTING_COINS,
@@ -32,6 +39,12 @@ const defaultState = (): PlayerState => ({
   roomLayout: DEFAULT_MY_ROOM_LAYOUT.map((p) => ({ ...p })),
   lastDailyAnswerDate: null,
   muted: false,
+  mySongs: seed.songs.map((s) => ({ ...s })),
+  myBulletin: {
+    interests: [...seed.bulletin.interests],
+    event: seed.bulletin.event,
+  },
+  myNowWatching: { ...(seed.nowWatching ?? { title: "Nothing yet", status: "" }) },
 });
 
 let state: PlayerState = defaultState();
@@ -58,6 +71,20 @@ const read = (): PlayerState => {
       lastDailyAnswerDate:
         typeof parsed.lastDailyAnswerDate === "string" ? parsed.lastDailyAnswerDate : null,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
+      mySongs:
+        Array.isArray(parsed.mySongs) && parsed.mySongs.length > 0
+          ? parsed.mySongs.map((s) => ({ title: String(s?.title ?? ""), artist: String(s?.artist ?? "") }))
+          : base.mySongs,
+      myBulletin:
+        parsed.myBulletin && Array.isArray(parsed.myBulletin.interests)
+          ? {
+              interests: parsed.myBulletin.interests.map((i) => String(i)),
+              event: String(parsed.myBulletin.event ?? ""),
+            }
+          : base.myBulletin,
+      myNowWatching: parsed.myNowWatching?.title
+        ? { title: String(parsed.myNowWatching.title), status: String(parsed.myNowWatching.status ?? "") }
+        : base.myNowWatching,
     };
   } catch {
     return defaultState();
@@ -111,6 +138,15 @@ export const playerActions = {
     set({ coins: state.coins + DAILY_COIN_REWARD, lastDailyAnswerDate: todayKey() });
     sfx.coin();
     return true;
+  },
+  setSongs(songs: Song[]) {
+    set({ mySongs: songs.map((s) => ({ ...s })) });
+  },
+  setBulletin(bulletin: { interests: string[]; event: string }) {
+    set({ myBulletin: { interests: [...bulletin.interests], event: bulletin.event } });
+  },
+  setNowWatching(nowWatching: { title: string; status?: string }) {
+    set({ myNowWatching: { ...nowWatching } });
   },
   toggleMute() {
     const muted = !state.muted;
