@@ -515,7 +515,8 @@ export class DormScene extends Phaser.Scene {
     this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
 
     if (editable) this.renderMyLayout(room, rect);
-    else this.renderLayout(room, rect, room.layout, false);
+    else this.renderLayout(room, rect, room.layout);
+
 
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
