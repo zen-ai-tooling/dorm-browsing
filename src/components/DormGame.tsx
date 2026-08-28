@@ -198,9 +198,12 @@ const DormGame = () => {
       {editing ? (
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
-          onTrayClick={(itemId) => sceneRef.current?.placeFromTray(itemId)}
+          onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
+          onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
+          placingItemId={placingItemId}
           thumbnails={thumbs}
         />
+
       ) : (
         <DormPopup payload={popup} />
       )}
