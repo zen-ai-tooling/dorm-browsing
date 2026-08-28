@@ -51,6 +51,13 @@ const DormGame = () => {
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
           (window as unknown as { __scene?: DormScene }).__scene = scene;
+          const map: Record<string, string> = {};
+          for (const item of Object.values(ITEM_CATALOG)) {
+            if (map[item.textureKey]) continue;
+            const url = scene.getTextureDataUrl(item.textureKey);
+            if (url) map[item.textureKey] = url;
+          }
+          setThumbs(map);
         },
       });
     })();
