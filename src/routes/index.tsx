@@ -32,14 +32,14 @@ function Index() {
       <div className="h-[calc(100vh-1.5rem)] w-full sm:h-[calc(100vh-2.5rem)]">
         <ClientOnly
           fallback={
-            <div className="flex h-full w-full items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground">
+            <div className="flex h-full w-full items-center justify-center rounded-[6px] border-[6px] border-ink bg-secondary font-display text-sm text-muted-foreground">
               Unlocking the floor…
             </div>
           }
         >
           <Suspense
             fallback={
-              <div className="flex h-full w-full items-center justify-center rounded-3xl border border-border bg-secondary text-sm text-muted-foreground">
+              <div className="flex h-full w-full items-center justify-center rounded-[6px] border-[6px] border-ink bg-secondary font-display text-sm text-muted-foreground">
                 Unlocking the floor…
               </div>
             }
