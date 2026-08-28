@@ -30,4 +30,4 @@ export const IconChip = ({
 }: {
   children: ReactNode;
   className?: string;
-}) => <span className={cn("icon-chip", className)}>{children}</span>;
+}) => <span className={cn("icon-chip shrink-0", className)}>{children}</span>;
