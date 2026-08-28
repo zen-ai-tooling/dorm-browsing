@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ITEM_CATALOG, isPlaceable } from "@/data/items";
 import { usePlayerState } from "@/lib/playerStore";
 import { GamePanel } from "./GamePanel";
+import { sfx } from "@/game/sounds";
 
 export const RoomEditorTray = ({
   onDone,
@@ -30,7 +31,10 @@ export const RoomEditorTray = ({
         </p>
         <Button
           size="sm"
-          onClick={onDone}
+          onClick={() => {
+            sfx.uiClick();
+            onDone();
+          }}
           className="rounded-[3px] border-2 border-ink font-display font-bold"
         >
           Done

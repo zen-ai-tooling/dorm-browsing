@@ -39,7 +39,7 @@ const Shell = ({
         ) : null}
       </div>
       <div className="mt-2 font-body text-sm text-panel-muted">{children}</div>
-      <p className="mt-3 font-display text-xs text-panel-muted/80">walk away to close</p>
+      <p className="mt-3 font-body text-xs italic text-panel-muted/80">walk away to close</p>
     </GamePanel>
   </div>
 );

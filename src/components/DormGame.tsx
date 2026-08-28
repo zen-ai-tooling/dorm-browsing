@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Coins, Pencil, Store } from "lucide-react";
+import { Coins, Pencil, Store, Volume2, VolumeX } from "lucide-react";
 import type { PopupPayload } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { ShopPanel } from "./ShopPanel";
 import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
+import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 
 const DormGame = () => {
@@ -18,7 +19,7 @@ const DormGame = () => {
   const [editing, setEditing] = useState(false);
   const [inMyRoom, setInMyRoom] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const { coins } = usePlayerState();
+  const { coins, muted } = usePlayerState();
 
   useEffect(() => {
     hydratePlayerState();
@@ -126,13 +127,33 @@ const DormGame = () => {
             <IconChip>
               <Coins className="size-3.5" aria-hidden />
             </IconChip>
-            <span className="font-display text-sm font-bold text-panel-foreground">{coins}</span>
+            <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">
+              {coins}
+            </span>
           </GamePanel>
+          <button
+            type="button"
+            aria-label={muted ? "Unmute sound" : "Mute sound"}
+            aria-pressed={muted}
+            onClick={() => playerActions.toggleMute()}
+            className="rounded-[3px]"
+          >
+            <IconChip>
+              {muted ? (
+                <VolumeX className="size-3.5" aria-hidden />
+              ) : (
+                <Volume2 className="size-3.5" aria-hidden />
+              )}
+            </IconChip>
+          </button>
           <Button
             size="sm"
             variant="secondary"
             className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-            onClick={() => setShopOpen(true)}
+            onClick={() => {
+              sfx.uiClick();
+              setShopOpen(true);
+            }}
           >
             <IconChip>
               <Store className="size-3.5" aria-hidden />
@@ -146,7 +167,10 @@ const DormGame = () => {
               className={`rounded-[3px] border-2 border-ink font-display font-bold ${
                 editing ? "" : "bg-panel text-panel-foreground hover:bg-panel/80"
               }`}
-              onClick={() => toggleEdit(!editing)}
+              onClick={() => {
+                sfx.uiClick();
+                toggleEdit(!editing);
+              }}
             >
               <IconChip>
                 <Pencil className="size-3.5" aria-hidden />
