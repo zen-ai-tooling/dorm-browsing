@@ -1209,7 +1209,7 @@ export class DormScene extends Phaser.Scene {
     // accent pieces (unchanged in spirit, recomposed around the focal cluster)
     this.prop({ key: "record", x: t(L.x + 11.2), y: t(L.y + 2.9) });
     this.prop({ key: "plant", x: t(L.x + 14.4), y: t(L.y + 1.6), scale: 1.05 });
-    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3) });
+    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3), solid: true });
 
     // decorative band / film posters along the lounge walls — varied tints and motifs
     const loungePosters: Array<[number, number, string, number]> = [
@@ -1227,7 +1227,7 @@ export class DormScene extends Phaser.Scene {
     // indoor fairy lights strung along the upper wall trim
     for (let i = 0; i < 18; i++) {
       const sx = t(L.x + 0.7) + i * 28;
-      const sy = t(L.y + 1.35) + Math.sin(i * 0.85) * 5;
+      const sy = t(L.y + 0.25) + Math.sin(i * 0.85) * 5;
       if (sx > t(L.x + L.w - 0.4)) break;
       this.add.image(sx, sy, "sparkle").setTint(0xffe3a6).setDepth(3).setAlpha(0.95);
     }
