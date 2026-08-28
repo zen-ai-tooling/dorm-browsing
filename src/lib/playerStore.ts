@@ -67,8 +67,9 @@ const read = (): PlayerState => {
           )
         : base.ownedItemIds,
       roomLayout: Array.isArray(parsed.roomLayout)
-        ? parsed.roomLayout.filter((p) => !!ITEM_CATALOG[p?.itemId])
+        ? migrateLayout(parsed.roomLayout.filter((p) => !!ITEM_CATALOG[p?.itemId]))
         : base.roomLayout,
+
       lastDailyAnswerDate:
         typeof parsed.lastDailyAnswerDate === "string" ? parsed.lastDailyAnswerDate : null,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
