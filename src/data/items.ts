@@ -8,7 +8,7 @@ export interface ItemDef {
   footprint: { w: number; h: number };
   solid: boolean;
   /** which popup this triggers, if any */
-  interactive?: "songs" | "bulletin" | "companion";
+  interactive?: "songs" | "bulletin" | "companion" | "watching";
   /** optional recolor applied to the (neutral-authored) texture */
   tint?: number;
   /** coin cost in the shop; 0 for starter items */
@@ -78,6 +78,17 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     footprint: { w: 2, h: 2 },
     solid: false,
     interactive: "companion",
+    price: 0,
+    unlockedByDefault: true,
+  },
+  tv_basic: {
+    id: "tv_basic",
+    name: "TV",
+    category: "furniture",
+    textureKey: "tv",
+    footprint: { w: 2, h: 2 },
+    solid: false,
+    interactive: "watching",
     price: 0,
     unlockedByDefault: true,
   },
