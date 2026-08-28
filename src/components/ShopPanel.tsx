@@ -1,5 +1,6 @@
 import { Check, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ITEM_CATALOG, type ItemDef } from "@/data/items";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 
@@ -20,11 +22,80 @@ const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
 
 const groups = (): Array<[ItemDef["category"], ItemDef[]]> =>
   (Object.keys(CATEGORY_LABEL) as ItemDef["category"][])
-    .map((c) => [c, Object.values(ITEM_CATALOG).filter((i) => i.category === c)] as [ItemDef["category"], ItemDef[]])
+    .map(
+      (c) =>
+        [c, Object.values(ITEM_CATALOG).filter((i) => i.category === c)] as [
+          ItemDef["category"],
+          ItemDef[],
+        ],
+    )
     .filter(([, items]) => items.length > 0);
 
-export const ShopPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) => {
+const ItemCard = ({
+  item,
+  owned,
+  affordable,
+  thumb,
+}: {
+  item: ItemDef;
+  owned: boolean;
+  affordable: boolean;
+  thumb?: string;
+}) => (
+  <Card
+    className={`relative gap-2 p-3 transition ${owned || affordable ? "" : "opacity-50"}`}
+  >
+    {owned ? (
+      <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Check className="size-3" aria-hidden />
+      </span>
+    ) : null}
+    <div className="flex h-20 items-center justify-center rounded-lg border border-border bg-secondary">
+      {thumb ? (
+        <img
+          src={thumb}
+          alt={item.name}
+          className="max-h-16 w-auto [image-rendering:pixelated]"
+          loading="lazy"
+        />
+      ) : (
+        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          {CATEGORY_LABEL[item.category]}
+        </span>
+      )}
+    </div>
+    <p className="text-center text-xs font-semibold text-foreground">{item.name}</p>
+    {owned ? (
+      <p className="text-center text-[11px] text-muted-foreground">In your inventory</p>
+    ) : (
+      <>
+        <p className="flex items-center justify-center gap-1 text-xs font-bold text-primary">
+          <Coins className="size-3.5" aria-hidden /> {item.price}
+        </p>
+        <Button
+          size="sm"
+          className="w-full"
+          disabled={!affordable}
+          onClick={() => playerActions.buy(item.id)}
+        >
+          Buy
+        </Button>
+      </>
+    )}
+  </Card>
+);
+
+export const ShopPanel = ({
+  open,
+  onOpenChange,
+  thumbnails = {},
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  thumbnails?: Record<string, string>;
+}) => {
   const { coins, ownedItemIds } = usePlayerState();
+  const sections = groups();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -38,49 +109,32 @@ export const ShopPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange:
           </DialogTitle>
           <DialogDescription>Buy items, then place them from Edit My Room.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="h-[60vh] pr-3">
-          <div className="space-y-5">
-            {groups().map(([category, items]) => (
-              <section key={category}>
-                <h3 className="mb-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {CATEGORY_LABEL[category]}
-                </h3>
-                <ul className="space-y-2">
-                  {items.map((item) => {
-                    const owned = ownedItemIds.includes(item.id);
-                    const affordable = coins >= item.price;
-                    return (
-                      <li
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2"
-                      >
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {owned ? "In your inventory" : `${item.price} coins`}
-                          </p>
-                        </div>
-                        {owned ? (
-                          <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-                            <Check className="size-4" aria-hidden /> Owned
-                          </span>
-                        ) : (
-                          <Button
-                            size="sm"
-                            disabled={!affordable}
-                            onClick={() => playerActions.buy(item.id)}
-                          >
-                            Buy
-                          </Button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+        <Tabs defaultValue={sections[0]?.[0] ?? "furniture"}>
+          <TabsList className="w-full">
+            {sections.map(([category]) => (
+              <TabsTrigger key={category} value={category} className="flex-1 text-xs">
+                {CATEGORY_LABEL[category]}
+              </TabsTrigger>
             ))}
-          </div>
-        </ScrollArea>
+          </TabsList>
+          {sections.map(([category, items]) => (
+            <TabsContent key={category} value={category}>
+              <ScrollArea className="h-[55vh] pr-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {items.map((item) => (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      owned={ownedItemIds.includes(item.id)}
+                      affordable={coins >= item.price}
+                      thumb={thumbnails[item.textureKey]}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+          ))}
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
