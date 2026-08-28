@@ -702,7 +702,7 @@ export class DormScene extends Phaser.Scene {
     const bg = this.add.rectangle(0, 0, 22, 22, 0x9b2f2f, 1).setStrokeStyle(2, 0x241c26);
     const icon = this.add
       .text(0, 0, "X", {
-        fontFamily: "ui-monospace, Menlo, monospace",
+        fontFamily: '"Pixelify Sans", sans-serif',
         fontSize: "13px",
         color: "#fff6e8",
       })
