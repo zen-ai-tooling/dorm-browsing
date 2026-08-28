@@ -1163,22 +1163,64 @@ export class DormScene extends Phaser.Scene {
 
     // ---- Common Lounge ----
     const L = COMMON[0]!;
-    // seating cluster: TV up top, low table in the middle, couches facing in
+
+    // shared neutral rug anchoring the TV + couch + beanbag cluster as one room-within-a-room
+    this.add
+      .image(t(L.x + 4.6), t(L.y + 5.4), "rug")
+      .setTint(0xbfae97)
+      .setScale(1.5, 1.35)
+      .setDepth(1);
+
+    // focal cluster: TV hooked up to a console, low table with controllers, couches facing in
     this.prop({ key: "tv", x: t(L.x + 4), y: t(L.y + 1.8), solid: true });
+    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3) });
     this.prop({
       key: "table",
       x: t(L.x + 4),
-      y: t(L.y + 4.8),
+      y: t(L.y + 4.9),
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
-    this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.6), solid: true });
+    this.prop({ key: "controller", x: t(L.x + 3.3), y: t(L.y + 4.5), depthBias: 20 });
+    this.prop({ key: "controller", x: t(L.x + 4.8), y: t(L.y + 4.4), depthBias: 20 });
+    this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.7), solid: true });
     // second couch renders as-authored: its texture is baked teal, and setTint
     // multiplies, so a coral override would crush to mud
-    this.prop({ key: "couch", x: t(L.x + 10.8), y: t(L.y + 4.8), scale: 0.9, solid: true });
-    // looser accent pieces off to the side
-    this.prop({ key: "record", x: t(L.x + 13.8), y: t(L.y + 8.4) });
-    this.prop({ key: "plant", x: t(L.x + 14.2), y: t(L.y + 1.8), scale: 1.05 });
-    this.prop({ key: "shoerack", x: t(L.x + 9.6), y: t(L.y + 1.3) });
+    this.prop({ key: "couch", x: t(L.x + 8.6), y: t(L.y + 5.1), scale: 0.9, solid: true });
+
+    // beanbags — greyscale texture, so these tint cleanly into three different colours
+    this.prop({ key: "beanbag", x: t(L.x + 1.6), y: t(L.y + 3.6), tint: 0xd98a6c });
+    this.prop({ key: "beanbag", x: t(L.x + 1.7), y: t(L.y + 6.6), tint: 0x74a8ab, scale: 0.95 });
+    this.prop({ key: "beanbag", x: t(L.x + 7.2), y: t(L.y + 7.9), tint: 0xd8b25c, scale: 0.9 });
+
+    // secondary zone: foosball, away from the screen so the room has two things to do
+    this.prop({ key: "foosball", x: t(L.x + 12.4), y: t(L.y + 8.2), solid: true });
+
+    // snack corner tucked into the far side
+    this.prop({ key: "fridge", x: t(L.x + 14.4), y: t(L.y + 5.7), scale: 0.8, tint: 0xb8c8cf, solid: true });
+    this.prop({ key: "snackshelf", x: t(L.x + 14.2), y: t(L.y + 3.6) });
+
+    // accent pieces (unchanged in spirit, recomposed around the focal cluster)
+    this.prop({ key: "record", x: t(L.x + 11.4), y: t(L.y + 1.7) });
+    this.prop({ key: "plant", x: t(L.x + 14.4), y: t(L.y + 1.6), scale: 1.05 });
+    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3) });
+
+    // decorative band / film posters along the lounge walls — varied tints and motifs
+    const loungePosters: Array<[number, number, string, number]> = [
+      [1.9, 0.62, "poster-band", 0xe2b7a4],
+      [6.9, 0.58, "poster-film", 0xc7cfd8],
+      [11.9, 0.62, "poster", 0xd8c68f],
+    ];
+    for (const [lx, ly, key, tint] of loungePosters)
+      this.add.image(t(L.x + lx), t(L.y + ly), key).setTint(tint).setDepth(4);
+
+    // indoor fairy lights strung along the upper wall trim
+    for (let i = 0; i < 18; i++) {
+      const sx = t(L.x + 0.7) + i * 28;
+      const sy = t(L.y + 1.35) + Math.sin(i * 0.85) * 5;
+      if (sx > t(L.x + L.w - 0.4)) break;
+      this.add.image(sx, sy, "sparkle").setTint(0xffe3a6).setDepth(3).setAlpha(0.95);
+    }
+
 
     // ---- Study Lounge ----
     const S = COMMON[1]!;
