@@ -461,7 +461,7 @@ export class DormScene extends Phaser.Scene {
   }
 
   /** Generic personal-room builder: same code path for every person record. */
-  private buildPersonalRoom(room: PersonRoom, rect: Rect, doorX: number) {
+  private buildPersonalRoom(room: PersonRoom, rect: Rect, doorX: number, editable = false) {
     const mood = MOODS[room.mood];
     const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
 
@@ -486,27 +486,9 @@ export class DormScene extends Phaser.Scene {
     this.add.rectangle(px, py - 6, 48, 18, 0xefe2c9, 1).setDepth(4);
     this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
 
-    // furniture + interactives, rendered generically from room.layout
-    for (const placed of room.layout) {
-      const item = ITEM_CATALOG[placed.itemId];
-      if (!item) continue;
-      const payload: PopupPayload | undefined =
-        item.interactive === "songs"
-          ? { kind: "songs", room }
-          : item.interactive === "bulletin"
-            ? { kind: "bulletin", room }
-            : item.interactive === "companion"
-              ? { kind: "companion", room }
-              : undefined;
-      const def: PropDef = {
-        key: item.textureKey,
-        x: t(rect.x + placed.gx),
-        y: t(rect.y + placed.gy),
-        solid: item.solid,
-      };
-      if (payload) def.payload = payload;
-      this.prop(def);
-    }
+    if (editable) this.renderMyLayout(room, rect);
+    else this.renderLayout(room, rect, room.layout, false);
+
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
