@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Coins, Pencil, Store, Volume2, VolumeX } from "lucide-react";
+import { Coins, Flame, Pencil, Store, Volume2, VolumeX } from "lucide-react";
 import type { PopupPayload } from "@/data/dorm";
-import { ITEM_CATALOG } from "@/data/items";
+import { featuredForToday, ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
 import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { ShopPanel } from "./ShopPanel";
+import { todayKey } from "@/data/prompts";
 import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
@@ -20,7 +21,8 @@ const DormGame = () => {
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const { coins, muted } = usePlayerState();
+  const { coins, muted, currentStreak, lastShopSeenDate } = usePlayerState();
+  const hasNewFeatured = featuredForToday().length > 0 && lastShopSeenDate !== todayKey();
 
 
   useEffect(() => {
@@ -145,6 +147,20 @@ const DormGame = () => {
               {coins}
             </span>
           </GamePanel>
+          {currentStreak > 0 ? (
+            <GamePanel
+              className="flex items-center gap-2 px-2.5 py-1.5"
+              accent="#c8765c"
+              title={`${currentStreak}-day daily question streak`}
+            >
+              <IconChip>
+                <Flame className="size-3.5" aria-hidden />
+              </IconChip>
+              <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">
+                {currentStreak}
+              </span>
+            </GamePanel>
+          ) : null}
           <button
             type="button"
             aria-label={muted ? "Unmute sound" : "Mute sound"}
@@ -160,20 +176,29 @@ const DormGame = () => {
               )}
             </IconChip>
           </button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-            onClick={() => {
-              sfx.uiClick();
-              setShopOpen(true);
-            }}
-          >
-            <IconChip>
-              <Store className="size-3.5" aria-hidden />
-            </IconChip>
-            Shop
-          </Button>
+          <div className="relative">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+              onClick={() => {
+                sfx.uiClick();
+                playerActions.markShopSeen();
+                setShopOpen(true);
+              }}
+            >
+              <IconChip>
+                <Store className="size-3.5" aria-hidden />
+              </IconChip>
+              Shop
+            </Button>
+            {hasNewFeatured ? (
+              <span
+                aria-label="New featured items in the shop"
+                className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
+              />
+            ) : null}
+          </div>
           {inMyRoom || editing ? (
             <Button
               size="sm"
