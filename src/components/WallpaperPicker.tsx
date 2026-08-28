@@ -20,7 +20,7 @@ export const WallpaperPicker = ({
   const owned = WALLPAPER_ITEM_IDS.filter((id) => ownedItemIds.includes(id));
 
   return (
-    <div className="pointer-events-auto absolute bottom-5 left-1/2 w-[min(92vw,380px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200">
+    <div className="pointer-events-auto absolute bottom-5 left-1/2 z-30 w-[min(92vw,380px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200">
       <GamePanel accent="#7f9c86" className="p-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display text-base font-bold tracking-wide text-panel-foreground">
