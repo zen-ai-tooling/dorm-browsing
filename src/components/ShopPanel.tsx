@@ -40,7 +40,7 @@ const ItemCard = ({
   item: ItemDef;
   owned: boolean;
   affordable: boolean;
-  thumb?: string;
+  thumb?: string | undefined;
 }) => (
   <Card
     className={`relative gap-2 p-3 transition ${owned || affordable ? "" : "opacity-50"}`}
