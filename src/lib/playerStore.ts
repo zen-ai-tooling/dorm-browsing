@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { PlacedItem } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
 import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
+import { setSfxMuted, sfx } from "@/game/sounds";
 
 const STORAGE_KEY = "dorm-vibes-player-state";
 const STARTING_COINS = 50;
@@ -20,6 +21,7 @@ export interface PlayerState {
   ownedItemIds: string[];
   roomLayout: PlacedItem[];
   lastDailyAnswerDate: string | null;
+  muted: boolean;
 }
 
 const defaultState = (): PlayerState => ({
@@ -29,6 +31,7 @@ const defaultState = (): PlayerState => ({
     .map((i) => i.id),
   roomLayout: DEFAULT_MY_ROOM_LAYOUT.map((p) => ({ ...p })),
   lastDailyAnswerDate: null,
+  muted: false,
 });
 
 let state: PlayerState = defaultState();
@@ -54,6 +57,7 @@ const read = (): PlayerState => {
         : base.roomLayout,
       lastDailyAnswerDate:
         typeof parsed.lastDailyAnswerDate === "string" ? parsed.lastDailyAnswerDate : null,
+      muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
     };
   } catch {
     return defaultState();
@@ -79,6 +83,7 @@ export const hydratePlayerState = () => {
   if (hydrated) return;
   hydrated = true;
   state = read();
+  setSfxMuted(state.muted);
   listeners.forEach((l) => l());
 };
 
@@ -94,6 +99,8 @@ export const playerActions = {
     const item = ITEM_CATALOG[itemId];
     if (!item || state.ownedItemIds.includes(itemId) || state.coins < item.price) return false;
     set({ coins: state.coins - item.price, ownedItemIds: [...state.ownedItemIds, itemId] });
+    sfx.purchase();
+    sfx.coin();
     return true;
   },
   setRoomLayout(layout: PlacedItem[]) {
@@ -102,7 +109,15 @@ export const playerActions = {
   answerDaily() {
     if (state.lastDailyAnswerDate === todayKey()) return false;
     set({ coins: state.coins + DAILY_COIN_REWARD, lastDailyAnswerDate: todayKey() });
+    sfx.coin();
     return true;
+  },
+  toggleMute() {
+    const muted = !state.muted;
+    setSfxMuted(muted);
+    set({ muted });
+    if (!muted) sfx.uiClick();
+    return muted;
   },
 };
 

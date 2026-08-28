@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { sfx, unlockAudio } from "./sounds";
 import {
   COMMUNITY_CORKBOARD,
   FLAVOR_PROPS,
@@ -164,6 +165,7 @@ export class DormScene extends Phaser.Scene {
     payload: PopupPayload;
   }> = [];
   private activePayload: PopupPayload | null = null;
+  private lastStep = 0;
   private onPopup: (p: PopupPayload | null) => void = () => {};
   private grid: number[][] = [];
   private collecting: Phaser.GameObjects.GameObject[] | null = null;
@@ -723,6 +725,7 @@ export class DormScene extends Phaser.Scene {
     const idx = this.selectedIdx;
     if (idx < 0) return;
     this.placed.splice(idx, 1);
+    sfx.removeItem();
     this.clearSelection();
     this.commitLayout();
     this.rebuildMyRoom();
@@ -745,6 +748,7 @@ export class DormScene extends Phaser.Scene {
         for (let gx = 0; gx < rect.w && !spot; gx++)
           if (this.canPlace(itemId, gx, gy)) spot = { gx, gy };
     if (!spot) return false;
+    sfx.placeItem();
     this.placed.push({ sprite: this.player, itemId, ...spot }); // placeholder, rebuilt below
     this.onLayoutChange(this.currentLayout());
     this.rebuildMyRoom();
@@ -784,6 +788,7 @@ export class DormScene extends Phaser.Scene {
       if (this.canPlace(entry.itemId, gx, gy, idx)) {
         entry.gx = gx;
         entry.gy = gy;
+        sfx.placeItem();
         this.commitLayout();
         this.rebuildMyRoom();
       } else {
@@ -994,9 +999,11 @@ export class DormScene extends Phaser.Scene {
   private setupInput() {
     const kb = this.input.keyboard!;
     this.cursors = kb.createCursorKeys();
+    kb.on("keydown", () => unlockAudio());
     this.keys = kb.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      unlockAudio();
       if (this.editMode) {
         // tapping empty floor deselects; tapping an item or the X is handled elsewhere
         const wp0 = this.cameras.main.getWorldPoint(p.x, p.y);
@@ -1119,6 +1126,8 @@ export class DormScene extends Phaser.Scene {
       this.walkTime = 0;
     }
     const step = moving ? (Math.floor(this.walkTime / 150) % 2 === 0 ? 1 : 2) : 0;
+    if (moving && step !== this.lastStep) sfx.footstep();
+    this.lastStep = step;
     const key = `char-${this.facing}-${step}`;
     if (this.player.texture.key !== key) this.player.setTexture(key);
 
@@ -1152,6 +1161,7 @@ export class DormScene extends Phaser.Scene {
     }
     const next = best?.payload ?? null;
     if (next !== this.activePayload) {
+      if (next && !this.activePayload) sfx.popupOpen();
       this.activePayload = next;
       this.onPopup(next);
     }

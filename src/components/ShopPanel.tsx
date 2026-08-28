@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ITEM_CATALOG, type ItemDef } from "@/data/items";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { IconChip } from "./GamePanel";
+import { sfx } from "@/game/sounds";
 
 const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
   furniture: "Furniture",
@@ -71,11 +72,11 @@ const ItemCard = ({
       <p className="text-center font-body text-[11px] text-panel-muted">In your inventory</p>
     ) : (
       <>
-        <p className="flex items-center justify-center gap-1.5 font-display text-sm font-bold text-panel-foreground">
+        <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-panel-foreground">
           <IconChip>
             <Coins className="size-3.5" aria-hidden />
           </IconChip>
-          {item.price}
+          <span className="font-body tabular-nums">{item.price}</span>
         </p>
         <Button
           size="sm"
@@ -108,11 +109,11 @@ export const ShopPanel = ({
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-3 pr-7 font-display text-lg font-bold">
             <span>Floor 3 Shop</span>
-            <span className="flex items-center gap-1.5 font-display text-base font-bold text-panel-foreground">
+            <span className="flex items-center gap-1.5 text-base font-bold text-panel-foreground">
               <IconChip>
                 <Coins className="size-4" aria-hidden />
               </IconChip>
-              {coins}
+              <span className="font-body tabular-nums">{coins}</span>
             </span>
           </DialogTitle>
           <DialogDescription className="font-body text-panel-muted">
@@ -125,6 +126,7 @@ export const ShopPanel = ({
               <TabsTrigger
                 key={category}
                 value={category}
+                onClick={() => sfx.uiClick()}
                 className="flex-1 rounded-[2px] font-display text-xs font-bold"
               >
                 {CATEGORY_LABEL[category]}
