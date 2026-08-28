@@ -434,7 +434,7 @@ export class DormScene extends Phaser.Scene {
   private label(x: number, y: number, text: string, color = "#33272c", size = 14) {
     return this.add
       .text(x, y, text, {
-        fontFamily: "ui-monospace, Menlo, monospace",
+        fontFamily: '"Pixelify Sans", sans-serif',
         fontSize: `${size}px`,
         color,
         fontStyle: "600",
