@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, Pencil, Store } from "lucide-react";
 import type { PopupPayload } from "@/data/dorm";
+import { ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
 import { RoomEditorTray } from "./RoomEditorTray";
@@ -120,12 +121,13 @@ const DormGame = () => {
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
           onTrayClick={(itemId) => sceneRef.current?.placeFromTray(itemId)}
+          thumbnails={thumbs}
         />
       ) : (
         <DormPopup payload={popup} />
       )}
 
-      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} />
+      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
     </div>
   );
 };
