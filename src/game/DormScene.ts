@@ -1443,6 +1443,8 @@ export class DormScene extends Phaser.Scene {
     if (this.player.texture.key !== key) this.player.setTexture(key);
 
     if (!this.editMode) this.checkProximity();
+    if (this.editMode && this.selectedIdx >= 0) this.positionSelectionUi();
+
     this.trackMyRoom();
   }
 
