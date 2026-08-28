@@ -176,6 +176,7 @@ export class DormScene extends Phaser.Scene {
   private getMyLayout: () => PlacedItem[] = () => ROOMS[0]!.layout;
   private onLayoutChange: (l: PlacedItem[]) => void = () => {};
   private onInsideRoom: (v: boolean) => void = () => {};
+  private onReady: (scene: DormScene) => void = () => {};
 
   constructor() {
     super("dorm");
@@ -186,11 +187,13 @@ export class DormScene extends Phaser.Scene {
     getMyLayout?: () => PlacedItem[];
     onLayoutChange?: (l: PlacedItem[]) => void;
     onInsideRoom?: (v: boolean) => void;
+    onReady?: (scene: DormScene) => void;
   }) {
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
     if (data?.onInsideRoom) this.onInsideRoom = data.onInsideRoom;
+    if (data?.onReady) this.onReady = data.onReady;
   }
 
   preload() {
@@ -207,6 +210,7 @@ export class DormScene extends Phaser.Scene {
     this.setupCamera();
     this.setupInput();
     this.setupEditorInput();
+    this.onReady(this);
   }
 
   // ---------- world ----------

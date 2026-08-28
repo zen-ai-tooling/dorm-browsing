@@ -47,8 +47,10 @@ const DormGame = () => {
         getMyLayout: () => getPlayerState().roomLayout,
         onLayoutChange: playerActions.setRoomLayout,
         onInsideRoom: setInMyRoom,
+        onReady: (scene: DormScene) => {
+          sceneRef.current = scene;
+        },
       });
-      sceneRef.current = game.scene.getScene("dorm") as DormScene;
     })();
 
     return () => {
