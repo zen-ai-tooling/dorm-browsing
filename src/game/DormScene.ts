@@ -570,41 +570,109 @@ export class DormScene extends Phaser.Scene {
 
   // ---------- layout rendering + room editor ----------
 
-  /** footprint-aware sprite placement, shared by every room */
-  private renderLayout(room: PersonRoom, rect: Rect, layout: PlacedItem[], track: boolean) {
+  private payloadFor(room: PersonRoom, item: ItemDef): PopupPayload | undefined {
+    return item.interactive === "songs"
+      ? { kind: "songs", room }
+      : item.interactive === "bulletin"
+        ? { kind: "bulletin", room }
+        : item.interactive === "companion"
+          ? { kind: "companion", room }
+          : undefined;
+  }
+
+  /** footprint-aware sprite placement for rooms that are not editable */
+  private renderLayout(room: PersonRoom, rect: Rect, layout: PlacedItem[]) {
     for (const placed of layout) {
       const item = ITEM_CATALOG[placed.itemId];
       if (!item) continue;
-      const payload: PopupPayload | undefined =
-        item.interactive === "songs"
-          ? { kind: "songs", room }
-          : item.interactive === "bulletin"
-            ? { kind: "bulletin", room }
-            : item.interactive === "companion"
-              ? { kind: "companion", room }
-              : undefined;
+      const rotation = placed.rotation ?? 0;
+      const f = rotatedFootprint(item, rotation);
+      const payload = this.payloadFor(room, item);
       const def: PropDef = {
         key: item.textureKey,
-        x: t(rect.x + placed.gx + item.footprint.w / 2),
-        y: t(rect.y + placed.gy + item.footprint.h / 2),
+        x: t(rect.x + placed.gx + f.w / 2),
+        y: t(rect.y + placed.gy + f.h / 2),
         solid: item.solid,
       };
       if (item.tint) def.tint = item.tint;
       if (payload) def.payload = payload;
       const sprite = this.prop(def);
-      if (track) this.placed.push({ sprite, itemId: item.id, gx: placed.gx, gy: placed.gy });
+      if (rotation) sprite.setAngle(rotation);
     }
   }
 
-  private renderMyLayout(room: PersonRoom, rect: Rect) {
+  private centerOf(gx: number, gy: number, w: number, h: number) {
+    const r = PERSONAL_RECTS[0]!;
+    return { x: t(r.x + gx + w / 2), y: t(r.y + gy + h / 2) };
+  }
+
+  private markTiles(gx: number, gy: number, w: number, h: number, blocked: boolean) {
+    const r = PERSONAL_RECTS[0]!;
+    for (let y = r.y + gy; y < r.y + gy + h; y++)
+      for (let x = r.x + gx; x < r.x + gx + w; x++) {
+        if (blocked) {
+          if (this.grid[y]?.[x] === FLOOR) this.grid[y]![x] = BLOCKED;
+        } else if (this.grid[y]?.[x] === BLOCKED) this.grid[y]![x] = FLOOR;
+      }
+  }
+
+  /** creates exactly one sprite (+ collision zone / glow ring) and tracks it */
+  private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation): number {
+    const item = ITEM_CATALOG[itemId];
+    if (!item) return -1;
+    const f = rotatedFootprint(item, rotation);
+    const c = this.centerOf(gx, gy, f.w, f.h);
+    const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
+    if (item.tint) sprite.setTint(item.tint);
+    if (rotation) sprite.setAngle(rotation);
+    this.myObjs.push(sprite);
+
+    let zone: Phaser.GameObjects.Zone | null = null;
+    if (item.solid) {
+      zone = this.add.zone(c.x, c.y, t(f.w) * 0.85, t(f.h) * 0.7);
+      this.walls.add(zone);
+      this.myObjs.push(zone);
+      this.markTiles(gx, gy, f.w, f.h, true);
+    }
+
+    const payload = this.payloadFor(ROOMS[0]!, item);
+    let ring: Phaser.GameObjects.Image | null = null;
+    if (payload) {
+      ring = this.add
+        .image(c.x, c.y + 6, "glow")
+        .setDepth(1)
+        .setAlpha(0)
+        .setScale(1.1)
+        .setTint(0xf2d79a);
+      this.myObjs.push(ring);
+      this.interactives.push({ sprite, ring, payload });
+      if (!this.editMode) {
+        this.tweens.add({
+          targets: sprite,
+          y: c.y - 2,
+          duration: 1800,
+          yoyo: true,
+          repeat: -1,
+          ease: "Stepped",
+          easeParams: [2],
+        });
+      }
+    }
+
+    this.placed.push({ sprite, zone, ring, itemId, gx, gy, rotation });
+    return this.placed.length - 1;
+  }
+
+  private renderMyLayout(_room: PersonRoom, _rect: Rect) {
     this.myObjs = [];
     this.placed = [];
-    this.collecting = this.myObjs;
-    this.renderLayout(room, rect, this.getMyLayout(), true);
-    this.collecting = null;
+    for (const p of this.getMyLayout()) {
+      this.spawnPlaced(p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation);
+    }
     if (this.editMode) this.enableDragging();
   }
 
+  /** full teardown/rebuild — only used when leaving edit mode */
   private rebuildMyRoom() {
     this.clearSelection();
     for (const o of this.myObjs) {
@@ -613,12 +681,97 @@ export class DormScene extends Phaser.Scene {
     }
     this.myObjs = [];
     this.interactives = this.interactives.filter((i) => i.sprite.active);
-    // reset furniture blocking inside my room, then re-render
     const rect = PERSONAL_RECTS[0]!;
     for (let y = rect.y; y < rect.y + rect.h; y++)
       for (let x = rect.x; x < rect.x + rect.w; x++)
         if (this.grid[y]![x] === BLOCKED) this.grid[y]![x] = FLOOR;
     this.renderMyLayout(ROOMS[0]!, rect);
+  }
+
+  // ---------- per-item operations ----------
+
+  private addPlacedItem(itemId: string, gx: number, gy: number, rotation: Rotation = 0) {
+    const idx = this.spawnPlaced(itemId, gx, gy, rotation);
+    if (idx < 0) return false;
+    const entry = this.placed[idx]!;
+    this.makeDraggable(entry.sprite);
+    sfx.placeItem();
+    this.commitLayout();
+    this.select(idx);
+    return true;
+  }
+
+  private movePlacedItem(idx: number, gx: number, gy: number) {
+    const entry = this.placed[idx];
+    if (!entry) return;
+    const item = ITEM_CATALOG[entry.itemId]!;
+    const f = rotatedFootprint(item, entry.rotation);
+    if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
+    entry.gx = gx;
+    entry.gy = gy;
+    const c = this.centerOf(gx, gy, f.w, f.h);
+    entry.sprite.setPosition(c.x, c.y).setDepth(c.y);
+    entry.ring?.setPosition(c.x, c.y + 6);
+    if (entry.zone) {
+      entry.zone.setPosition(c.x, c.y);
+      (entry.zone.body as Phaser.Physics.Arcade.StaticBody | undefined)?.updateFromGameObject();
+      this.markTiles(gx, gy, f.w, f.h, true);
+    }
+  }
+
+  private rotatePlacedItem(idx: number) {
+    const entry = this.placed[idx];
+    if (!entry) return;
+    const item = ITEM_CATALOG[entry.itemId]!;
+    const next = (((entry.rotation + 90) % 360) as Rotation) ?? 0;
+    if (!this.canPlace(entry.itemId, entry.gx, entry.gy, next, idx)) {
+      this.flashReject(entry.sprite);
+      return;
+    }
+    const old = rotatedFootprint(item, entry.rotation);
+    if (item.solid) this.markTiles(entry.gx, entry.gy, old.w, old.h, false);
+    entry.rotation = next;
+    const f = rotatedFootprint(item, next);
+    const c = this.centerOf(entry.gx, entry.gy, f.w, f.h);
+    entry.sprite.setAngle(next).setPosition(c.x, c.y).setDepth(c.y);
+    entry.ring?.setPosition(c.x, c.y + 6);
+    if (entry.zone) {
+      entry.zone.setPosition(c.x, c.y).setSize(t(f.w) * 0.85, t(f.h) * 0.7);
+      (entry.zone.body as Phaser.Physics.Arcade.StaticBody | undefined)?.updateFromGameObject();
+      this.markTiles(entry.gx, entry.gy, f.w, f.h, true);
+    }
+    sfx.uiClick();
+    this.commitLayout();
+  }
+
+  private removePlacedItem(idx: number) {
+    const entry = this.placed[idx];
+    if (!entry) return;
+    const item = ITEM_CATALOG[entry.itemId]!;
+    const f = rotatedFootprint(item, entry.rotation);
+    this.clearSelection();
+    if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
+    this.interactives = this.interactives.filter((i) => i.sprite !== entry.sprite);
+    const dead = [entry.sprite, entry.ring, entry.zone].filter(Boolean) as Phaser.GameObjects.GameObject[];
+    this.myObjs = this.myObjs.filter((o) => !dead.includes(o));
+    if (entry.zone) this.walls.remove(entry.zone, true, true);
+    entry.ring?.destroy();
+    entry.sprite.destroy();
+    this.placed.splice(idx, 1);
+    sfx.removeItem();
+    this.commitLayout();
+  }
+
+  private flashReject(sprite: Phaser.GameObjects.Sprite) {
+    sprite.setTint(0xdd4444);
+    this.time.delayedCall(150, () => {
+      if (!sprite.active) return;
+      const entry = this.placed.find((p) => p.sprite === sprite);
+      const tint = entry ? ITEM_CATALOG[entry.itemId]?.tint : undefined;
+      sprite.clearTint();
+      if (tint) sprite.setTint(tint);
+      if (entry && this.placed.indexOf(entry) === this.selectedIdx) sprite.setTint(0xfff3b0);
+    });
   }
 
   /** tiles just inside my door — kept clear so the room stays enterable */
@@ -627,41 +780,47 @@ export class DormScene extends Phaser.Scene {
     return gy === rect.h - 1 && (gx === 5 || gx === 6);
   }
 
-  private canPlace(itemId: string, gx: number, gy: number, ignoreIdx = -1) {
+  private canPlace(
+    itemId: string,
+    gx: number,
+    gy: number,
+    rotation: Rotation = 0,
+    ignoreIdx = -1,
+  ) {
     const item = ITEM_CATALOG[itemId];
     const rect = PERSONAL_RECTS[0]!;
     if (!item) return false;
-    const { w, h } = item.footprint;
+    const { w, h } = rotatedFootprint(item, rotation);
     if (gx < 0 || gy < 0 || gx + w > rect.w || gy + h > rect.h) return false;
     for (let y = gy; y < gy + h; y++)
       for (let x = gx; x < gx + w; x++) if (this.isDoorLane(x, y)) return false;
     return !this.placed.some((p, i) => {
       if (i === ignoreIdx) return false;
-      const o = ITEM_CATALOG[p.itemId]!;
-      return (
-        gx < p.gx + o.footprint.w && gx + w > p.gx && gy < p.gy + o.footprint.h && gy + h > p.gy
-      );
+      const o = rotatedFootprint(ITEM_CATALOG[p.itemId]!, p.rotation);
+      return gx < p.gx + o.w && gx + w > p.gx && gy < p.gy + o.h && gy + h > p.gy;
     });
   }
 
   private currentLayout(): PlacedItem[] {
-    return this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy }));
+    return this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy, rotation: p.rotation }));
   }
 
   private commitLayout() {
     this.onLayoutChange(this.currentLayout());
   }
 
+  private makeDraggable(sprite: Phaser.GameObjects.Sprite) {
+    sprite.setInteractive({ useHandCursor: true, draggable: true });
+    sprite.off("pointerdown");
+    sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (!this.editMode || this.pendingPlaceItemId) return;
+      pointer.event.stopPropagation();
+      this.select(this.placed.findIndex((q) => q.sprite === sprite));
+    });
+  }
+
   private enableDragging() {
-    for (const p of this.placed) {
-      p.sprite.setInteractive({ useHandCursor: true, draggable: true });
-      p.sprite.off("pointerdown");
-      p.sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-        if (!this.editMode) return;
-        pointer.event.stopPropagation();
-        this.select(this.placed.findIndex((q) => q.sprite === p.sprite));
-      });
-    }
+    for (const p of this.placed) this.makeDraggable(p.sprite);
   }
 
   private disableDragging() {
@@ -682,6 +841,7 @@ export class DormScene extends Phaser.Scene {
       this.onPopup(null);
       this.enableDragging();
     } else {
+      this.cancelPlacing();
       this.disableDragging();
       this.clearSelection();
       this.commitLayout();
@@ -689,11 +849,40 @@ export class DormScene extends Phaser.Scene {
     }
   }
 
+  // ---------- selection ----------
+
   private clearSelection() {
-    if (this.selectedIdx >= 0) this.placed[this.selectedIdx]?.sprite.clearTint();
+    if (this.selectedIdx >= 0) {
+      const entry = this.placed[this.selectedIdx];
+      if (entry?.sprite.active) {
+        entry.sprite.clearTint();
+        const tint = ITEM_CATALOG[entry.itemId]?.tint;
+        if (tint) entry.sprite.setTint(tint);
+      }
+    }
     this.selectedIdx = -1;
-    this.trash?.destroy();
-    this.trash = null;
+    this.selectionUi?.destroy();
+    this.selectionUi = null;
+  }
+
+  private iconButton(label: string, fill: number, onTap: () => void) {
+    const bg = this.add.rectangle(0, 0, 22, 22, fill, 1).setStrokeStyle(2, 0x241c26);
+    const icon = this.add
+      .text(0, 0, label, {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "13px",
+        color: "#fff6e8",
+      })
+      .setOrigin(0.5);
+    const c = this.add
+      .container(0, 0, [bg, icon])
+      .setSize(22, 22)
+      .setInteractive({ useHandCursor: true });
+    c.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      pointer.event.stopPropagation();
+      onTap();
+    });
+    return c;
   }
 
   private select(idx: number) {
@@ -702,103 +891,203 @@ export class DormScene extends Phaser.Scene {
     if (!p) return;
     this.selectedIdx = idx;
     p.sprite.setTint(0xfff3b0);
-    const bg = this.add.rectangle(0, 0, 22, 22, 0x9b2f2f, 1).setStrokeStyle(2, 0x241c26);
-    const icon = this.add
-      .text(0, 0, "X", {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: "13px",
-        color: "#fff6e8",
-      })
-      .setOrigin(0.5);
-    const c = this.add
-      .container(p.sprite.x, p.sprite.y - p.sprite.displayHeight / 2 - 16, [bg, icon])
-      .setDepth(5000)
-      .setSize(22, 22)
-      .setInteractive({ useHandCursor: true });
-    c.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      pointer.event.stopPropagation();
-      this.removeSelected();
-    });
-    this.trash = c;
+    const remove = this.iconButton("X", 0x9b2f2f, () => this.removeSelected());
+    const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
+    remove.setPosition(14, 0);
+    rotate.setPosition(-14, 0);
+    this.selectionUi = this.add.container(p.sprite.x, 0, [rotate, remove]).setDepth(5000);
+    this.positionSelectionUi();
+  }
+
+  private positionSelectionUi() {
+    const entry = this.placed[this.selectedIdx];
+    if (!this.selectionUi || !entry?.sprite.active) return;
+    const s = entry.sprite;
+    const halfH = (s.angle % 180 === 0 ? s.displayHeight : s.displayWidth) / 2;
+    this.selectionUi.setPosition(s.x, s.y - halfH - 16);
   }
 
   private removeSelected() {
-    const idx = this.selectedIdx;
-    if (idx < 0) return;
-    this.placed.splice(idx, 1);
-    sfx.removeItem();
-    this.clearSelection();
-    this.commitLayout();
-    this.rebuildMyRoom();
+    if (this.selectedIdx >= 0) this.removePlacedItem(this.selectedIdx);
   }
 
-  /** drop an owned-but-unplaced item into the room (from the editor tray) */
+  // ---------- tap-to-place ----------
+
+  /** starts (or toggles off) placing mode for a tray item */
+  togglePlacing(itemId: string) {
+    if (this.pendingPlaceItemId === itemId) {
+      this.cancelPlacing();
+      return;
+    }
+    if (!ITEM_CATALOG[itemId]) return;
+    this.clearSelection();
+    this.pendingPlaceItemId = itemId;
+    this.onPlacingChange(itemId);
+    const item = ITEM_CATALOG[itemId]!;
+    this.ghost?.destroy();
+    this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
+    this.ensureHighlight();
+    this.updatePlacingPreview(this.input.activePointer);
+  }
+
+  cancelPlacing() {
+    if (!this.pendingPlaceItemId) return;
+    this.pendingPlaceItemId = null;
+    this.onPlacingChange(null);
+    this.ghost?.destroy();
+    this.ghost = null;
+    this.highlight?.setVisible(false);
+  }
+
+  private ensureHighlight() {
+    if (!this.highlight) {
+      this.highlight = this.add
+        .rectangle(0, 0, TILE, TILE, 0x6fbf73, 0.3)
+        .setStrokeStyle(2, 0x6fbf73)
+        .setDepth(6400)
+        .setOrigin(0.5);
+    }
+    this.highlight.setVisible(true);
+  }
+
+  /** tile under the pointer for a footprint of w x h, room-relative */
+  private tileUnderPointer(p: Phaser.Input.Pointer, w: number, h: number) {
+    const rect = PERSONAL_RECTS[0]!;
+    const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+    return {
+      gx: Math.round(wp.x / TILE - w / 2) - rect.x,
+      gy: Math.round(wp.y / TILE - h / 2) - rect.y,
+    };
+  }
+
+  private paintHighlight(gx: number, gy: number, w: number, h: number, ok: boolean) {
+    this.ensureHighlight();
+    const c = this.centerOf(gx, gy, w, h);
+    const color = ok ? 0x6fbf73 : 0xdd4444;
+    this.highlight!
+      .setPosition(c.x, c.y)
+      .setSize(t(w), t(h))
+      .setFillStyle(color, 0.28)
+      .setStrokeStyle(2, color);
+  }
+
+  private updatePlacingPreview(p: Phaser.Input.Pointer) {
+    const itemId = this.pendingPlaceItemId;
+    if (!itemId || !this.ghost) return;
+    const item = ITEM_CATALOG[itemId]!;
+    const f = rotatedFootprint(item, 0);
+    const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
+    const c = this.centerOf(gx, gy, f.w, f.h);
+    this.ghost.setPosition(c.x, c.y);
+    const ok = this.canPlace(itemId, gx, gy, 0);
+    this.ghost.setTint(ok ? 0xffffff : 0xdd4444);
+    this.paintHighlight(gx, gy, f.w, f.h, ok);
+  }
+
+  /** tap on the room while in placing mode */
+  private tryPlaceAtPointer(p: Phaser.Input.Pointer) {
+    const itemId = this.pendingPlaceItemId;
+    if (!itemId) return;
+    const item = ITEM_CATALOG[itemId]!;
+    const f = rotatedFootprint(item, 0);
+    const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
+    if (!this.canPlace(itemId, gx, gy, 0)) {
+      // stay in placing mode so the next tap can try again
+      this.ghost?.setTint(0xdd4444);
+      return;
+    }
+    this.cancelPlacing();
+    this.addPlacedItem(itemId, gx, gy, 0);
+  }
+
+  /** desktop HTML5-drag drop from the tray, or a coordinate-free fallback */
   placeFromTray(itemId: string, screen?: { x: number; y: number }) {
     const rect = PERSONAL_RECTS[0]!;
     const item = ITEM_CATALOG[itemId];
     if (!item) return false;
+    const f = rotatedFootprint(item, 0);
     let spot: { gx: number; gy: number } | null = null;
     if (screen) {
       const wp = this.cameras.main.getWorldPoint(screen.x, screen.y);
-      const gx = Math.floor(wp.x / TILE) - rect.x - Math.floor(item.footprint.w / 2);
-      const gy = Math.floor(wp.y / TILE) - rect.y - Math.floor(item.footprint.h / 2);
-      if (this.canPlace(itemId, gx, gy)) spot = { gx, gy };
+      const gx = Math.round(wp.x / TILE - f.w / 2) - rect.x;
+      const gy = Math.round(wp.y / TILE - f.h / 2) - rect.y;
+      if (this.canPlace(itemId, gx, gy, 0)) spot = { gx, gy };
     }
     if (!spot)
       for (let gy = 0; gy < rect.h && !spot; gy++)
         for (let gx = 0; gx < rect.w && !spot; gx++)
-          if (this.canPlace(itemId, gx, gy)) spot = { gx, gy };
+          if (this.canPlace(itemId, gx, gy, 0)) spot = { gx, gy };
     if (!spot) return false;
-    sfx.placeItem();
-    this.placed.push({ sprite: this.player, itemId, ...spot }); // placeholder, rebuilt below
-    this.onLayoutChange(this.currentLayout());
-    this.rebuildMyRoom();
-    return true;
+    this.cancelPlacing();
+    return this.addPlacedItem(itemId, spot.gx, spot.gy, 0);
+  }
+
+  /** Escape backs out of whatever is live */
+  escape() {
+    if (this.pendingPlaceItemId) this.cancelPlacing();
+    else if (this.selectedIdx >= 0) this.clearSelection();
   }
 
   private setupEditorInput() {
-    this.input.on("dragstart", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
-      // defense-in-depth: nothing may animate a sprite while it is being dragged
-      this.tweens.killTweensOf(obj);
+    this.input.keyboard?.on("keydown-ESC", () => this.escape());
+
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!this.editMode) return;
+      if (this.pendingPlaceItemId) this.updatePlacingPreview(p);
+    });
+
+    this.input.on("dragstart", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
+      this.tweens.killTweensOf(obj);
+      if (!this.editMode || this.pendingPlaceItemId) return;
       obj.setDepth(6000);
       this.select(this.placed.findIndex((p) => p.sprite === obj));
     });
+
     this.input.on(
       "drag",
       (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite, dx: number, dy: number) => {
         if (!this.editMode) return;
         const rect = PERSONAL_RECTS[0]!;
-        const halfW = obj.displayWidth / 2;
-        const halfH = obj.displayHeight / 2;
+        const idx = this.placed.findIndex((p) => p.sprite === obj);
+        const entry = this.placed[idx];
+        if (!entry) return;
+        const item = ITEM_CATALOG[entry.itemId]!;
+        const f = rotatedFootprint(item, entry.rotation);
+        const halfW = t(f.w) / 2;
+        const halfH = t(f.h) / 2;
         const cx = Phaser.Math.Clamp(dx, t(rect.x) + halfW, t(rect.x + rect.w) - halfW);
         const cy = Phaser.Math.Clamp(dy, t(rect.y) + halfH, t(rect.y + rect.h) - halfH);
         obj.setPosition(cx, cy);
-        this.trash?.setPosition(cx, cy - halfH - 16);
+        const gx = Math.round(cx / TILE - f.w / 2) - rect.x;
+        const gy = Math.round(cy / TILE - f.h / 2) - rect.y;
+        this.paintHighlight(gx, gy, f.w, f.h, this.canPlace(entry.itemId, gx, gy, entry.rotation, idx));
       },
     );
+
     this.input.on("dragend", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
       if (!this.editMode) return;
+      this.highlight?.setVisible(false);
       const rect = PERSONAL_RECTS[0]!;
       const idx = this.placed.findIndex((p) => p.sprite === obj);
       const entry = this.placed[idx];
       if (!entry) return;
       const item = ITEM_CATALOG[entry.itemId]!;
-      const gx = Math.round(obj.x / TILE - item.footprint.w / 2) - rect.x;
-      const gy = Math.round(obj.y / TILE - item.footprint.h / 2) - rect.y;
-      if (this.canPlace(entry.itemId, gx, gy, idx)) {
-        entry.gx = gx;
-        entry.gy = gy;
+      const f = rotatedFootprint(item, entry.rotation);
+      const gx = Math.round(obj.x / TILE - f.w / 2) - rect.x;
+      const gy = Math.round(obj.y / TILE - f.h / 2) - rect.y;
+      if (this.canPlace(entry.itemId, gx, gy, entry.rotation, idx)) {
+        this.movePlacedItem(idx, gx, gy);
         sfx.placeItem();
         this.commitLayout();
-        this.rebuildMyRoom();
       } else {
-        // rejected drop: flash red so it reads as "invalid", then snap back
-        obj.setTint(0xdd4444);
-        this.time.delayedCall(150, () => this.rebuildMyRoom());
+        this.flashReject(obj);
+        // snap back to the last committed position without rebuilding the room
+        const c = this.centerOf(entry.gx, entry.gy, f.w, f.h);
+        obj.setPosition(c.x, c.y).setDepth(c.y);
       }
     });
   }
+
 
   /** data-url thumbnail for a generated texture — used by the shop/tray UI */
   getTextureDataUrl(key: string): string | null {
