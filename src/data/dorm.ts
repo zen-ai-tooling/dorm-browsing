@@ -51,11 +51,12 @@ export interface Song {
 export interface PlacedItem {
   /** key into ITEM_CATALOG */
   itemId: string;
-  /** grid x in tiles, relative to the room's own top-left corner */
+  /** footprint top-left tile x, relative to the room's own interior top-left */
   gx: number;
-  /** grid y in tiles, relative to the room's own top-left corner */
+  /** footprint top-left tile y, relative to the room's own interior top-left */
   gy: number;
 }
+
 
 export interface PersonRoom {
   id: string;
