@@ -42,7 +42,7 @@ const mix = (a: number, b: number, t: number) =>
     ),
   ).color;
 
-const NEUTRAL_WALL = 0x8a6f56; // muted warm-neutral trim for hallway + common rooms
+const NEUTRAL_WALL = 0x8b7461; // muted warm-neutral trim for hallway + common rooms
 
 const HALL: Zone = {
   id: "hall",
@@ -71,8 +71,8 @@ const COMMON: Zone[] = [
     y: 23,
     w: 16,
     h: 10,
-    floor: 0xc4ac90,
-    wall: NEUTRAL_WALL,
+    floor: 0xc9a58a,
+    wall: mix(NEUTRAL_WALL, 0xa9704f, 0.35),
     kind: "common",
   },
   {
@@ -82,8 +82,8 @@ const COMMON: Zone[] = [
     y: 23,
     w: 14,
     h: 10,
-    floor: 0xb3aea4,
-    wall: NEUTRAL_WALL,
+    floor: 0xacb4bd,
+    wall: mix(NEUTRAL_WALL, 0x5f7286, 0.35),
     kind: "common",
   },
   {
@@ -93,8 +93,8 @@ const COMMON: Zone[] = [
     y: 23,
     w: 12,
     h: 10,
-    floor: 0xcbb794,
-    wall: NEUTRAL_WALL,
+    floor: 0xdcc9a0,
+    wall: mix(NEUTRAL_WALL, 0xc9a35e, 0.3),
     kind: "common",
   },
   {
@@ -199,9 +199,9 @@ export class DormScene extends Phaser.Scene {
         ...r,
         id: room.id,
         label: room.name,
-        floor: mix(mood.wallpaper, 0xb59774, 0.55),
+        floor: mix(mood.wallpaper, 0xb59774, 0.18),
         // personal rooms get accent-tinted wall trim
-        wall: mix(accent, 0x7a6250, 0.45),
+        wall: mix(accent, 0x7a6250, 0.22),
         kind: "personal" as const,
       };
     });
@@ -376,12 +376,6 @@ export class DormScene extends Phaser.Scene {
     });
   }
 
-  /** dark pixel placard with a 3-digit room number */
-  private placard(x: number, y: number, num: string) {
-    this.add.image(x, y, "placard").setDepth(5);
-    this.label(x, y - 1, num, "#f3e7cf", 11).setDepth(6);
-  }
-
   private zoneNear(x: number, y: number, zones: Zone[]): Zone | undefined {
     const hit = (z: Zone) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h;
     // rooms own their trim colour; the hallway only claims walls nobody else touches
@@ -465,7 +459,7 @@ export class DormScene extends Phaser.Scene {
     // woven area rug, accent-tinted (opaque pixels, no soft blend)
     this.add
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
-      .setTint(mix(mood.posterAccent, 0xbca584, 0.55))
+      .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
       .setScale(0.85)
       .setDepth(1);
 
@@ -473,34 +467,30 @@ export class DormScene extends Phaser.Scene {
     const px = t(rect.x + rect.w / 2);
     const py = t(rect.y) + 18;
     this.add.rectangle(px, py, 80, 48, 0x241c26, 1).setDepth(2);
-    this.add.rectangle(px, py, 74, 42, mix(mood.posterAccent, 0x8b7a63, 0.35), 1).setDepth(3);
+    this.add.rectangle(px, py, 74, 42, mix(mood.posterAccent, 0x8b7a63, 0.12), 1).setDepth(3);
     this.add.rectangle(px, py - 6, 48, 18, 0xefe2c9, 1).setDepth(4);
     this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
 
-    // decor furniture
-    this.prop({ key: "bed", x: t(rect.x + 9.2), y: t(rect.y + 6.6), solid: true });
-    this.prop({ key: "desk", x: t(rect.x + 2.6), y: t(rect.y + 7.4), solid: true });
-
-    // interactive objects
-    this.prop({
-      key: "speaker",
-      x: t(rect.x + 2),
-      y: t(rect.y + 2.2),
-      payload: { kind: "songs", room },
-    });
-    this.prop({
-      key: "board",
-      x: t(rect.x + 9.3),
-      y: t(rect.y + 1.8),
-      payload: { kind: "bulletin", room },
-    });
-    this.prop({
-      key: room.companion.type === "plant" ? "plant" : "pet",
-      x: t(rect.x + 2),
-      y: t(rect.y + 4.9),
-      payload: { kind: "companion", room },
-    });
-
+    // furniture + interactives, rendered generically from room.layout
+    for (const placed of room.layout) {
+      const item = ITEM_CATALOG[placed.itemId];
+      if (!item) continue;
+      const payload: PopupPayload | undefined =
+        item.interactive === "songs"
+          ? { kind: "songs", room }
+          : item.interactive === "bulletin"
+            ? { kind: "bulletin", room }
+            : item.interactive === "companion"
+              ? { kind: "companion", room }
+              : undefined;
+      this.prop({
+        key: item.textureKey,
+        x: t(rect.x + placed.gx),
+        y: t(rect.y + placed.gy),
+        solid: item.solid,
+        payload,
+      });
+    }
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
@@ -508,7 +498,6 @@ export class DormScene extends Phaser.Scene {
     this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
     this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
     this.label(dx, dy - 46, room.name, "#241c26", 13).setDepth(5);
-    if (room.roomNumber) this.placard(dx, dy - 22, room.roomNumber);
 
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
@@ -685,7 +674,6 @@ export class DormScene extends Phaser.Scene {
       y: t(22) + 6,
       payload: { kind: "flavor", ...FLAVOR_PROPS.locked },
     }).setAlpha(0.75);
-    this.placard(t(65.5), t(22) - 26, "304");
 
     // club flyers / lost-pet posters taped along the hallway walls
     const flyers: Array<[number, number, string, number]> = [
