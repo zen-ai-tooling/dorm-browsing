@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, Flame, Pencil, Store, Volume2, VolumeX } from "lucide-react";
 import type { PopupPayload } from "@/data/dorm";
-import { featuredForToday, ITEM_CATALOG } from "@/data/items";
+import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
 import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
+import { WallpaperPicker } from "./WallpaperPicker";
 import { ShopPanel } from "./ShopPanel";
 import { todayKey } from "@/data/prompts";
 import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
@@ -21,7 +22,8 @@ const DormGame = () => {
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const { coins, muted, currentStreak, lastShopSeenDate } = usePlayerState();
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
+  const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId } = usePlayerState();
   const hasNewFeatured = featuredForToday().length > 0 && lastShopSeenDate !== todayKey();
 
 
@@ -68,15 +70,19 @@ const DormGame = () => {
         onLayoutChange: playerActions.setRoomLayout,
         onInsideRoom: setInMyRoom,
         onPlacingChange: setPlacingItemId,
+        getWallpaperId: () => getPlayerState().myWallpaperId,
+        onWallTap: () => setWallpaperOpen(true),
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
 
           (window as unknown as { __scene?: DormScene }).__scene = scene;
           const map: Record<string, string> = {};
           for (const item of Object.values(ITEM_CATALOG)) {
-            if (map[item.textureKey]) continue;
-            const url = scene.getTextureDataUrl(item.textureKey);
-            if (url) map[item.textureKey] = url;
+            for (const key of [item.textureKey, zoomTextureKey(item.textureKey)]) {
+              if (map[key]) continue;
+              const url = scene.getTextureDataUrl(key);
+              if (url) map[key] = url;
+            }
           }
           setThumbs(map);
         },
@@ -90,6 +96,10 @@ const DormGame = () => {
     };
   }, []);
 
+  useEffect(() => {
+    sceneRef.current?.applyWallpaper();
+  }, [myWallpaperId]);
+
   // Escape backs out of placing mode / selection even when the canvas isn't focused
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -101,6 +111,7 @@ const DormGame = () => {
 
   const toggleEdit = (on: boolean) => {
     setEditing(on);
+    if (!on) setWallpaperOpen(false);
     sceneRef.current?.setEditMode(on);
   };
 
@@ -220,7 +231,19 @@ const DormGame = () => {
         </div>
       </div>
 
-      {editing ? (
+      {editing && wallpaperOpen ? (
+        <WallpaperPicker
+          equippedId={myWallpaperId}
+          thumbnails={thumbs}
+          onPick={(id) => {
+            playerActions.setWallpaper(id);
+            setWallpaperOpen(false);
+          }}
+          onClose={() => setWallpaperOpen(false)}
+        />
+      ) : null}
+
+      {editing && !wallpaperOpen ? (
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
           onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
@@ -230,7 +253,7 @@ const DormGame = () => {
         />
 
       ) : (
-        <DormPopup payload={popup} />
+        <DormPopup payload={popup} thumbnails={thumbs} />
       )}
 
       <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
