@@ -736,7 +736,7 @@ export class DormScene extends Phaser.Scene {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
-    const next = (((entry.rotation + 90) % 360) as Rotation) ?? 0;
+    const next = ((entry.rotation + 90) % 360) as Rotation;
     if (!this.canPlace(entry.itemId, entry.gx, entry.gy, next, idx)) {
       this.flashReject(entry.sprite);
       return;
