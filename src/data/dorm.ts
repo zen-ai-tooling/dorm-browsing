@@ -48,6 +48,15 @@ export interface Song {
   artist: string;
 }
 
+export interface PlacedItem {
+  /** key into ITEM_CATALOG */
+  itemId: string;
+  /** grid x in tiles, relative to the room's own top-left corner */
+  gx: number;
+  /** grid y in tiles, relative to the room's own top-left corner */
+  gy: number;
+}
+
 export interface PersonRoom {
   id: string;
   name: string;
@@ -61,7 +70,12 @@ export interface PersonRoom {
   songs: Song[];
   bulletin: { interests: string[]; event: string };
   companion: { type: "plant" | "pet"; name: string; breed: string; blurb: string };
-  decor: { wallpaper: string; poster: string };
+  /** furniture placement — data-driven, ready for a future editor */
+  layout: PlacedItem[];
+  /** reserved for catalog-driven wallpaper swap */
+  wallpaperId: string;
+  /** reserved for catalog-driven poster swap */
+  posterId: string;
   doorStickers: string[];
 }
 
@@ -90,7 +104,15 @@ export const ROOMS: PersonRoom[] = [
       breed: "succulent",
       blurb: "low-maintenance, high standards",
     },
-    decor: { wallpaper: "default", poster: "default" },
+    layout: [
+      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
+      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
+      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
+      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
+      { itemId: "plant_basic", gx: 2, gy: 4.9 },
+    ],
+    wallpaperId: "wallpaper_default",
+    posterId: "poster_default",
     doorStickers: ["music-note", "skateboard"],
   },
   {
@@ -117,7 +139,15 @@ export const ROOMS: PersonRoom[] = [
       breed: "round orange cat",
       blurb: "sits in every wet clay bowl exactly once",
     },
-    decor: { wallpaper: "default", poster: "default" },
+    layout: [
+      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
+      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
+      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
+      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
+      { itemId: "pet_cat_basic", gx: 2, gy: 4.9 },
+    ],
+    wallpaperId: "wallpaper_default",
+    posterId: "poster_default",
     doorStickers: ["book", "pottery"],
   },
   {
@@ -145,7 +175,15 @@ export const ROOMS: PersonRoom[] = [
       breed: "trailing pothos",
       blurb: "grows toward the speaker, not the window",
     },
-    decor: { wallpaper: "default", poster: "default" },
+    layout: [
+      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
+      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
+      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
+      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
+      { itemId: "plant_basic", gx: 2, gy: 4.9 },
+    ],
+    wallpaperId: "wallpaper_default",
+    posterId: "poster_default",
     doorStickers: ["vinyl", "sneaker"],
   },
 ];
