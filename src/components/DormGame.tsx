@@ -49,6 +49,7 @@ const DormGame = () => {
         onInsideRoom: setInMyRoom,
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
+          (window as unknown as { __scene?: DormScene }).__scene = scene;
         },
       });
     })();
