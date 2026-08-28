@@ -1200,18 +1200,22 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "snackshelf", x: t(L.x + 14.2), y: t(L.y + 3.6) });
 
     // accent pieces (unchanged in spirit, recomposed around the focal cluster)
-    this.prop({ key: "record", x: t(L.x + 11.4), y: t(L.y + 1.7) });
+    this.prop({ key: "record", x: t(L.x + 11.2), y: t(L.y + 2.9) });
     this.prop({ key: "plant", x: t(L.x + 14.4), y: t(L.y + 1.6), scale: 1.05 });
     this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3) });
 
     // decorative band / film posters along the lounge walls — varied tints and motifs
     const loungePosters: Array<[number, number, string, number]> = [
-      [1.9, 0.62, "poster-band", 0xe2b7a4],
-      [6.9, 0.58, "poster-film", 0xc7cfd8],
-      [11.9, 0.62, "poster", 0xd8c68f],
+      [2.2, 0.55, "poster-band", 0xe2b7a4],
+      [5.6, 0.5, "poster-film", 0xc7cfd8],
+      [11.2, 0.55, "poster", 0xd8c68f],
     ];
     for (const [lx, ly, key, tint] of loungePosters)
-      this.add.image(t(L.x + lx), t(L.y + ly), key).setTint(tint).setDepth(4);
+      this.add
+        .image(t(L.x + lx), t(L.y + ly), key)
+        .setTint(tint)
+        .setScale(0.62)
+        .setDepth(4);
 
     // indoor fairy lights strung along the upper wall trim
     for (let i = 0; i < 18; i++) {
