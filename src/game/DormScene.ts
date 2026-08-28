@@ -469,16 +469,19 @@ export class DormScene extends Phaser.Scene {
         .setTint(0xf2d79a);
       this.collecting?.push(ring);
       this.interactives.push({ sprite: s, ring, payload: def.payload });
-      // 2px stepped bob — reads as sprite animation, not a smooth CSS float
-      this.tweens.add({
-        targets: s,
-        y: def.y - 2,
-        duration: 1800,
-        yoyo: true,
-        repeat: -1,
-        ease: "Stepped",
-        easeParams: [2],
-      });
+      // 2px stepped bob — reads as sprite animation, not a smooth CSS float.
+      // Never attach while editing: it would fight the drag handler's setPosition.
+      if (!this.editMode) {
+        this.tweens.add({
+          targets: s,
+          y: def.y - 2,
+          duration: 1800,
+          yoyo: true,
+          repeat: -1,
+          ease: "Stepped",
+          easeParams: [2],
+        });
+      }
     }
     return s;
   }
@@ -649,7 +652,6 @@ export class DormScene extends Phaser.Scene {
   private enableDragging() {
     for (const p of this.placed) {
       p.sprite.setInteractive({ useHandCursor: true, draggable: true });
-      this.input.setDraggable(p.sprite, true);
       p.sprite.off("pointerdown");
       p.sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
         if (!this.editMode) return;
@@ -751,6 +753,8 @@ export class DormScene extends Phaser.Scene {
 
   private setupEditorInput() {
     this.input.on("dragstart", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
+      // defense-in-depth: nothing may animate a sprite while it is being dragged
+      this.tweens.killTweensOf(obj);
       if (!this.editMode) return;
       obj.setDepth(6000);
       this.select(this.placed.findIndex((p) => p.sprite === obj));
@@ -759,8 +763,13 @@ export class DormScene extends Phaser.Scene {
       "drag",
       (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite, dx: number, dy: number) => {
         if (!this.editMode) return;
-        obj.setPosition(dx, dy);
-        this.trash?.setPosition(dx, dy - obj.displayHeight / 2 - 16);
+        const rect = PERSONAL_RECTS[0]!;
+        const halfW = obj.displayWidth / 2;
+        const halfH = obj.displayHeight / 2;
+        const cx = Phaser.Math.Clamp(dx, t(rect.x) + halfW, t(rect.x + rect.w) - halfW);
+        const cy = Phaser.Math.Clamp(dy, t(rect.y) + halfH, t(rect.y + rect.h) - halfH);
+        obj.setPosition(cx, cy);
+        this.trash?.setPosition(cx, cy - halfH - 16);
       },
     );
     this.input.on("dragend", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
@@ -776,9 +785,20 @@ export class DormScene extends Phaser.Scene {
         entry.gx = gx;
         entry.gy = gy;
         this.commitLayout();
+        this.rebuildMyRoom();
+      } else {
+        // rejected drop: flash red so it reads as "invalid", then snap back
+        obj.setTint(0xdd4444);
+        this.time.delayedCall(150, () => this.rebuildMyRoom());
       }
-      this.rebuildMyRoom();
     });
+  }
+
+  /** data-url thumbnail for a generated texture — used by the shop/tray UI */
+  getTextureDataUrl(key: string): string | null {
+    if (!this.textures.exists(key)) return null;
+    const src = this.textures.get(key).getSourceImage(0) as HTMLCanvasElement;
+    return typeof src?.toDataURL === "function" ? src.toDataURL() : null;
   }
 
   /** drifting music notes — reuses one shared texture */
@@ -977,7 +997,15 @@ export class DormScene extends Phaser.Scene {
     this.keys = kb.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      if (this.editMode) return;
+      if (this.editMode) {
+        // tapping empty floor deselects; tapping an item or the X is handled elsewhere
+        const wp0 = this.cameras.main.getWorldPoint(p.x, p.y);
+        const hitItem = this.placed.some((q) => q.sprite.getBounds().contains(wp0.x, wp0.y));
+        const tb = this.trash?.getBounds();
+        const hitTrash = !!tb && tb.contains(wp0.x, wp0.y);
+        if (!hitItem && !hitTrash) this.clearSelection();
+        return;
+      }
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = Math.floor(wp.x / TILE);
       const ty = Math.floor(wp.y / TILE);

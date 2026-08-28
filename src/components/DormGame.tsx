@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, Pencil, Store } from "lucide-react";
 import type { PopupPayload } from "@/data/dorm";
+import { ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
 import { RoomEditorTray } from "./RoomEditorTray";
@@ -15,6 +16,7 @@ const DormGame = () => {
   const [shopOpen, setShopOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [inMyRoom, setInMyRoom] = useState(false);
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const { coins } = usePlayerState();
 
   useEffect(() => {
@@ -50,6 +52,13 @@ const DormGame = () => {
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
           (window as unknown as { __scene?: DormScene }).__scene = scene;
+          const map: Record<string, string> = {};
+          for (const item of Object.values(ITEM_CATALOG)) {
+            if (map[item.textureKey]) continue;
+            const url = scene.getTextureDataUrl(item.textureKey);
+            if (url) map[item.textureKey] = url;
+          }
+          setThumbs(map);
         },
       });
     })();
@@ -112,12 +121,13 @@ const DormGame = () => {
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
           onTrayClick={(itemId) => sceneRef.current?.placeFromTray(itemId)}
+          thumbnails={thumbs}
         />
       ) : (
         <DormPopup payload={popup} />
       )}
 
-      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} />
+      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
     </div>
   );
 };
