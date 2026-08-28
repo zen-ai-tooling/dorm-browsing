@@ -68,6 +68,10 @@
 }
 
 :root {
+  --panel: oklch(0.955 0.024 84);
+  --panel-foreground: oklch(0.24 0.024 330);
+  --panel-muted: oklch(0.5 0.02 330);
+  --ink: oklch(0.24 0.024 330);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
