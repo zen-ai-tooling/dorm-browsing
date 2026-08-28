@@ -784,8 +784,327 @@ export const buildTextures = (scene: Phaser.Scene) => {
     r(g, 20, 8, 8, 2, TEAL);
     r(g, 10, 4, 7, 2, 0x2f2a33); // handlebars
     r(g, 25, 3, 6, 2, 0x33292f); // saddle
-    r(g, 20, 16, 5, 5, 0x4c4750); // crank
   });
+
+  /* ------------- iteration 13: shop catalog expansion ------------- */
+
+  // lava lamp 16x34 — conical base, glass bulb, drifting blobs
+  make(scene, "lavalamp", 16, 34, (g) => {
+    foot(g, 8, 32, 12);
+    r(g, 4, 27, 8, 4, METAL_SH);
+    r(g, 3, 30, 10, 2, METAL);
+    line(g, 3, 27, 10, 5);
+    r(g, 5, 6, 6, 21, 0xd76a8c);
+    r(g, 5, 6, 2, 21, 0xe9899f);
+    line(g, 5, 6, 6, 21);
+    for (const [by, bh] of [[10, 3], [16, 2], [21, 3]] as const)
+      r(g, 6, by, 4, bh, 0xf6c3a1);
+    r(g, 5, 2, 6, 4, METAL);
+    line(g, 5, 2, 6, 4);
+  });
+
+  // mini disco ball 22x30 — chain + faceted greyscale sphere (tints cleanly)
+  make(scene, "discoball", 22, 30, (g) => {
+    r(g, 10, 0, 2, 8, METAL_SH);
+    r(g, 4, 8, 14, 14, 0xb9b4bd);
+    line(g, 4, 8, 14, 14);
+    for (let yy = 0; yy < 12; yy++)
+      for (let xx = 0; xx < 12; xx++)
+        if ((xx + yy) % 3 === 0) r(g, 5 + xx, 9 + yy, 1, 1, 0xecebef);
+        else if ((xx * yy) % 5 === 0) r(g, 5 + xx, 9 + yy, 1, 1, 0x807c85);
+    for (const [sx, sy] of [[1, 24], [19, 25], [10, 27]] as const)
+      r(g, sx, sy, 2, 2, 0xf6f2e2);
+  });
+
+  // tabletop arcade cabinet 26x38 — marquee, screen, joystick, buttons
+  make(scene, "arcade", 26, 38, (g) => {
+    foot(g, 13, 36, 20);
+    panel(g, 2, 2, 22, 33, 0x4a3d5c, 0x33294a, 0x62537a);
+    r(g, 5, 4, 16, 5, 0xf0d47a);
+    line(g, 5, 4, 16, 5);
+    r(g, 5, 11, 16, 12, 0x1d2430);
+    line(g, 5, 11, 16, 12);
+    dither(g, 7, 13, 12, 8, 0x3f7ea8);
+    r(g, 9, 15, 3, 3, 0x8fe0c0);
+    r(g, 14, 18, 2, 2, CORAL);
+    r(g, 7, 26, 3, 4, METAL_HI);
+    r(g, 6, 29, 5, 2, 0x33292f);
+    for (let i = 0; i < 3; i++) r(g, 14 + i * 3, 27, 2, 2, [CORAL, 0xd8b25c, TEAL][i]!);
+  });
+
+  // hammock chair 34x40 — ceiling rope + woven hanging bowl
+  make(scene, "hammock", 34, 40, (g) => {
+    r(g, 16, 0, 2, 9, 0xbca77e);
+    r(g, 6, 9, 22, 2, 0x8b6543);
+    r(g, 5, 11, 24, 15, 0xd9cbb0);
+    r(g, 5, 22, 24, 4, 0xb8a988);
+    line(g, 5, 11, 24, 15);
+    dither(g, 7, 13, 20, 10, 0xc4b696);
+    for (let i = 0; i < 5; i++) r(g, 8 + i * 4, 26, 2, 5, 0xbca77e);
+    r(g, 9, 14, 8, 5, CREAM);
+    line(g, 9, 14, 8, 5);
+  });
+
+  // neon "VIBES" sign 40x18 — glowing tube letters over dark backer
+  make(scene, "neon", 40, 18, (g) => {
+    r(g, 0, 0, 40, 18, 0x231d2c);
+    line(g, 0, 0, 40, 18);
+    dither(g, 2, 2, 36, 14, 0x2f2739);
+    const glyph = (x: number, cols: number[]) => {
+      for (const c of cols) r(g, x + c, 4, 1, 9, 0xf07ab8);
+      r(g, x, 4, 5, 1, 0xf07ab8);
+      r(g, x, 12, 5, 1, 0xf07ab8);
+    };
+    for (let i = 0; i < 5; i++) glyph(4 + i * 7, [0, 4]);
+    dither(g, 3, 3, 34, 12, 0xffb7dd);
+  });
+
+  // papasan chair 36x28 — round woven bowl on a low frame
+  make(scene, "papasan", 36, 28, (g) => {
+    foot(g, 18, 26, 26);
+    r(g, 4, 6, 28, 14, 0xd6c7a6);
+    r(g, 2, 9, 32, 8, 0xd6c7a6);
+    r(g, 4, 15, 28, 5, 0xb39f7d);
+    line(g, 4, 6, 28, 14);
+    dither(g, 6, 8, 24, 9, 0xc4b48f);
+    r(g, 8, 8, 20, 5, CREAM);
+    line(g, 8, 8, 20, 5);
+    r(g, 7, 20, 22, 3, 0x6d5138);
+    line(g, 7, 20, 22, 3);
+  });
+
+  // vinyl crate 30x24 — wood crate stuffed with record sleeves
+  make(scene, "vinylcrate", 30, 24, (g) => {
+    foot(g, 15, 22, 22);
+    panel(g, 2, 6, 26, 15, WOOD, WOOD_SH, WOOD_HI);
+    const sleeves = [CORAL, 0xd8b25c, TEAL, PLUM, 0x8f8a83];
+    sleeves.forEach((c, i) => {
+      r(g, 4 + i * 5, 2, 4, 12, c);
+      line(g, 4 + i * 5, 2, 4, 12);
+      r(g, 5 + i * 5, 4, 2, 2, CREAM);
+    });
+    r(g, 2, 14, 26, 2, WOOD_SH);
+  });
+
+  // projector + pull-down screen 44x34
+  make(scene, "projector", 44, 34, (g) => {
+    r(g, 4, 0, 34, 3, 0x4c4750);
+    r(g, 6, 3, 30, 20, 0xe8e3d6);
+    line(g, 6, 3, 30, 20);
+    dither(g, 8, 5, 26, 16, 0xd4cfc2);
+    r(g, 6, 21, 30, 2, 0x8f8a83);
+    foot(g, 22, 32, 18);
+    panel(g, 14, 25, 16, 7, 0x3d3a45, 0x2a2830, 0x565261);
+    r(g, 29, 27, 2, 3, 0xf6e2ae);
+    r(g, 16, 27, 4, 1, 0x211f26);
+  });
+
+  // canopy bed 52x44 — four posts, fairy lights strung across the top rail
+  make(scene, "canopybed", 52, 44, (g) => {
+    foot(g, 26, 42, 40);
+    for (const px of [2, 46]) r(g, px, 2, 4, 38, WOOD_SH);
+    r(g, 2, 2, 48, 3, WOOD);
+    line(g, 2, 2, 48, 3);
+    for (let i = 0; i < 8; i++) r(g, 6 + i * 6, 5, 2, 2, 0xffe3a6);
+    panel(g, 7, 14, 38, 24, LINEN, LINEN_SH, 0xf6efdd);
+    r(g, 9, 16, 34, 7, 0xc0d2d6);
+    line(g, 9, 16, 34, 7);
+    dither(g, 10, 26, 32, 8, LINEN_SH);
+    r(g, 12, 17, 12, 4, CREAM);
+    line(g, 12, 17, 12, 4);
+  });
+
+  // floor cushion stack 30x22 — three squishy cushions, greyscale for tinting
+  make(scene, "cushions", 30, 22, (g) => {
+    foot(g, 15, 20, 22);
+    const cushion = (y: number, w: number, tone: number) => {
+      const x = 15 - w / 2;
+      r(g, x, y, w, 5, tone);
+      r(g, x, y + 3, w, 2, 0xa39d94);
+      line(g, x, y, w, 5);
+      dither(g, x + 2, y + 1, w - 4, 2, 0xb5afa6);
+    };
+    cushion(14, 24, 0xc9c3ba);
+    cushion(9, 22, 0xd8d2c9);
+    cushion(4, 18, 0xe6e0d6);
+  });
+
+  // hamster + wheel 26x24
+  make(scene, "hamster", 26, 24, (g) => {
+    foot(g, 13, 22, 18);
+    r(g, 3, 3, 18, 18, METAL_HI);
+    r(g, 5, 5, 14, 14, 0xdfd9cf, 0.35);
+    line(g, 3, 3, 18, 18);
+    for (let i = 0; i < 4; i++) r(g, 4 + i * 4, 4, 1, 16, METAL_SH);
+    r(g, 9, 10, 8, 7, 0xe0b98a);
+    r(g, 9, 14, 8, 3, 0xc59a6b);
+    line(g, 9, 10, 8, 7);
+    r(g, 11, 12, 1, 1, INK);
+    r(g, 15, 12, 1, 1, INK);
+    r(g, 20, 19, 5, 3, 0x6d5138);
+  });
+
+  // betta fish bowl 24x24
+  make(scene, "betta", 24, 24, (g) => {
+    foot(g, 12, 22, 16);
+    r(g, 4, 4, 16, 16, 0x9fc9d4, 0.55);
+    line(g, 4, 4, 16, 16);
+    r(g, 6, 6, 4, 12, 0xc7e2e8, 0.5);
+    r(g, 10, 10, 6, 4, 0xc8547e);
+    r(g, 8, 11, 2, 2, 0xc8547e);
+    r(g, 16, 9, 3, 6, 0x8b3f66);
+    r(g, 14, 11, 1, 1, CREAM);
+    r(g, 5, 17, 14, 3, 0xb59f7d);
+    r(g, 5, 20, 14, 2, METAL_SH);
+  });
+
+  // axolotl tank 34x26
+  make(scene, "axolotl", 34, 26, (g) => {
+    foot(g, 17, 24, 26);
+    r(g, 2, 3, 30, 19, 0x8fbfc9, 0.5);
+    line(g, 2, 3, 30, 19);
+    r(g, 3, 17, 28, 4, 0xd8cdb2);
+    dither(g, 3, 15, 28, 2, 0xc0b493);
+    r(g, 10, 11, 13, 5, 0xf0b9c6);
+    r(g, 21, 9, 5, 5, 0xf0b9c6);
+    line(g, 10, 11, 13, 5);
+    for (const fy of [8, 10, 12]) r(g, 26, fy, 4, 1, 0xf6d3dc);
+    r(g, 24, 10, 1, 1, INK);
+    r(g, 6, 9, 2, 8, LEAF);
+    r(g, 28, 12, 2, 5, LEAF_SH);
+  });
+
+  // corgi 26x20 — long low body, stubby legs, big ears
+  make(scene, "corgi", 26, 20, (g) => {
+    foot(g, 13, 18, 20);
+    r(g, 4, 7, 16, 8, 0xd8a45e);
+    r(g, 4, 12, 16, 3, 0xb5813f);
+    line(g, 4, 7, 16, 8);
+    r(g, 6, 10, 10, 4, CREAM);
+    r(g, 16, 3, 8, 7, 0xd8a45e);
+    line(g, 16, 3, 8, 7);
+    r(g, 17, 0, 2, 4, 0xb5813f);
+    r(g, 22, 0, 2, 4, 0xb5813f);
+    r(g, 21, 6, 1, 1, INK);
+    r(g, 23, 7, 2, 2, INK);
+    r(g, 18, 8, 5, 2, CREAM);
+    for (const lx of [5, 10, 15]) r(g, lx, 15, 3, 3, CREAM);
+    r(g, 2, 6, 3, 4, 0xe6bd82);
+  });
+
+  // bonsai 28x30 — shallow pot, gnarled trunk, flat canopy pads
+  make(scene, "bonsai", 28, 30, (g) => {
+    foot(g, 14, 28, 20);
+    r(g, 12, 12, 3, 12, 0x6d5138);
+    r(g, 14, 15, 6, 2, 0x6d5138);
+    r(g, 8, 17, 5, 2, 0x6d5138);
+    r(g, 6, 6, 14, 6, LEAF);
+    r(g, 6, 10, 14, 2, LEAF_SH);
+    line(g, 6, 6, 14, 6);
+    dither(g, 8, 7, 10, 3, LEAF_HI);
+    r(g, 17, 12, 9, 5, LEAF);
+    line(g, 17, 12, 9, 5);
+    r(g, 4, 15, 8, 4, LEAF);
+    line(g, 4, 15, 8, 4);
+    panel(g, 6, 23, 16, 5, 0x8b5a4a, 0x6b4238, 0xa4715c);
+  });
+
+  /* ---- wallpaper swatches (thumbnail-only 24x24 pattern chips) ---- */
+  const swatch = (draw: (g: G) => void) => (g: G) => {
+    draw(g);
+    line(g, 0, 0, 24, 24);
+  };
+  make(scene, "wallpaper_sunset", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0xe8a978);
+    r(g, 0, 0, 24, 8, 0xf0c79a);
+    dither(g, 0, 8, 24, 6, 0xd98a6c);
+    r(g, 0, 16, 24, 8, 0xc8765c);
+  }));
+  make(scene, "wallpaper_stripes", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0xf3e6ec);
+    for (let i = 0; i < 6; i++) r(g, 2 + i * 4, 0, 2, 24, 0xd7b9cf);
+  }));
+  make(scene, "wallpaper_checker", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0xefe6d2);
+    for (let yy = 0; yy < 4; yy++)
+      for (let xx = 0; xx < 4; xx++)
+        if ((xx + yy) % 2 === 0) r(g, xx * 6, yy * 6, 6, 6, 0x4c4750);
+  }));
+  make(scene, "wallpaper_botanical", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0xe6e9da);
+    for (const [lx, ly] of [[4, 4], [14, 8], [7, 15], [17, 17]] as const) {
+      r(g, lx, ly, 4, 2, LEAF);
+      r(g, lx + 1, ly - 2, 2, 5, LEAF_SH);
+    }
+  }));
+  make(scene, "wallpaper_night", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0x2b3350);
+    dither(g, 0, 0, 24, 24, 0x333c5e);
+    for (const [sx, sy] of [[3, 5], [10, 3], [18, 8], [6, 16], [20, 18], [14, 13]] as const)
+      r(g, sx, sy, 1, 1, 0xf6f2e2);
+    r(g, 16, 4, 3, 3, 0xf0e4cd);
+  }));
+  make(scene, "wallpaper_graph", 24, 24, swatch((g) => {
+    r(g, 0, 0, 24, 24, 0xeef1e8);
+    for (let i = 0; i < 6; i++) {
+      r(g, i * 4, 0, 1, 24, 0xb9c9c0);
+      r(g, 0, i * 4, 24, 1, 0xb9c9c0);
+    }
+  }));
+
+  /* ---- new posters (same greyscale-field frame, distinct motifs) ---- */
+  // tour poster: bold type block over a lone silhouette + date rows
+  make(scene, "poster-tour", 44, 26, poster((g) => {
+    r(g, 6, 3, 32, 4, 0x2f2b2a);
+    r(g, 19, 9, 6, 11, 0x3f3a38);
+    r(g, 20, 6, 4, 3, 0x3f3a38);
+    r(g, 14, 12, 5, 2, 0x3f3a38);
+    r(g, 25, 12, 5, 2, 0x3f3a38);
+    for (const ly of [21, 23]) r(g, 8, ly, 28, 1, 0x5a5350);
+  }));
+  // travel poster: stylized skyline + sun disc
+  make(scene, "poster-travel", 44, 26, poster((g) => {
+    r(g, 28, 6, 7, 7, 0xf2ece0);
+    line(g, 28, 6, 7, 7, 0x5a5350);
+    const towers: Array<[number, number, number]> = [
+      [6, 12, 5], [12, 8, 4], [17, 14, 6], [24, 10, 5], [30, 15, 6], [37, 11, 4],
+    ];
+    for (const [tx, ty, tw] of towers) {
+      r(g, tx, ty, tw, 20 - ty + 2, 0x3f3a38);
+      r(g, tx + 1, ty + 2, 1, 1, 0xd6cfc4);
+    }
+    r(g, 4, 21, 36, 2, 0x5a5350);
+  }));
+  // space print: planet, ring, star field
+  make(scene, "poster-space", 44, 26, poster((g) => {
+    r(g, 4, 4, 36, 18, 0x2f2b2a);
+    line(g, 4, 4, 36, 18, 0x5a5350);
+    dither(g, 6, 6, 32, 14, 0x453f3e);
+    r(g, 18, 9, 9, 9, 0xa39c93);
+    r(g, 18, 14, 9, 4, 0x6d6763);
+    r(g, 13, 12, 19, 1, 0xd6cfc4);
+    for (const [sx, sy] of [[8, 7], [34, 8], [11, 18], [31, 17]] as const)
+      r(g, sx, sy, 1, 1, 0xf2ece0);
+  }));
+  // abstract print: overlapping blocks + arc
+  make(scene, "poster-abstract", 44, 26, poster((g) => {
+    r(g, 7, 5, 14, 14, 0x3f3a38);
+    r(g, 17, 10, 12, 9, 0xa39c93);
+    line(g, 17, 10, 12, 9, 0x5a5350);
+    r(g, 27, 4, 10, 10, 0xf2ece0);
+    line(g, 27, 4, 10, 10, 0x5a5350);
+    dither(g, 29, 6, 6, 6, 0x8b847e);
+    r(g, 8, 21, 28, 2, 0x5a5350);
+  }));
+  // quote poster: fake type lines with an oversized opening mark
+  make(scene, "poster-quote", 44, 26, poster((g) => {
+    r(g, 6, 4, 3, 5, 0x3f3a38);
+    r(g, 11, 4, 3, 5, 0x3f3a38);
+    for (const [ly, lw] of [[11, 30], [14, 26], [17, 20]] as const)
+      r(g, 7, ly, lw, 2, 0x5a5350);
+    r(g, 7, 21, 10, 1, 0x8b847e);
+  }));
 };
+
 
 
