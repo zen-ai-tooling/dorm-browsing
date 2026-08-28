@@ -51,11 +51,12 @@ export interface Song {
 export interface PlacedItem {
   /** key into ITEM_CATALOG */
   itemId: string;
-  /** grid x in tiles, relative to the room's own top-left corner */
+  /** footprint top-left tile x, relative to the room's own interior top-left */
   gx: number;
-  /** grid y in tiles, relative to the room's own top-left corner */
+  /** footprint top-left tile y, relative to the room's own interior top-left */
   gy: number;
 }
+
 
 export interface PersonRoom {
   id: string;
@@ -105,11 +106,11 @@ export const ROOMS: PersonRoom[] = [
       blurb: "low-maintenance, high standards",
     },
     layout: [
-      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
-      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
-      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
-      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
-      { itemId: "plant_basic", gx: 2, gy: 4.9 },
+      { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "desk_basic", gx: 1, gy: 7 },
+      { itemId: "speaker_basic", gx: 1, gy: 2 },
+      { itemId: "board_basic", gx: 9, gy: 1 },
+      { itemId: "plant_basic", gx: 1, gy: 4 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",
@@ -140,11 +141,11 @@ export const ROOMS: PersonRoom[] = [
       blurb: "sits in every wet clay bowl exactly once",
     },
     layout: [
-      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
-      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
-      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
-      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
-      { itemId: "pet_cat_basic", gx: 2, gy: 4.9 },
+      { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "desk_basic", gx: 1, gy: 7 },
+      { itemId: "speaker_basic", gx: 1, gy: 2 },
+      { itemId: "board_basic", gx: 9, gy: 1 },
+      { itemId: "pet_cat_basic", gx: 1, gy: 4 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",
@@ -176,11 +177,11 @@ export const ROOMS: PersonRoom[] = [
       blurb: "grows toward the speaker, not the window",
     },
     layout: [
-      { itemId: "bed_basic", gx: 9.2, gy: 6.6 },
-      { itemId: "desk_basic", gx: 2.6, gy: 7.4 },
-      { itemId: "speaker_basic", gx: 2, gy: 2.2 },
-      { itemId: "board_basic", gx: 9.3, gy: 1.8 },
-      { itemId: "plant_basic", gx: 2, gy: 4.9 },
+      { itemId: "bed_basic", gx: 9, gy: 5 },
+      { itemId: "desk_basic", gx: 1, gy: 7 },
+      { itemId: "speaker_basic", gx: 1, gy: 2 },
+      { itemId: "board_basic", gx: 9, gy: 1 },
+      { itemId: "plant_basic", gx: 1, gy: 4 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",

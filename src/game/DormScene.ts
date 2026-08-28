@@ -5,6 +5,7 @@ import {
   MOODS,
   ROOMS,
   type PersonRoom,
+  type PlacedItem,
   type PopupPayload,
 } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
@@ -165,13 +166,34 @@ export class DormScene extends Phaser.Scene {
   private activePayload: PopupPayload | null = null;
   private onPopup: (p: PopupPayload | null) => void = () => {};
   private grid: number[][] = [];
+  private collecting: Phaser.GameObjects.GameObject[] | null = null;
+  private editMode = false;
+  private insideMyRoom = false;
+  private myObjs: Phaser.GameObjects.GameObject[] = [];
+  private placed: Array<{ sprite: Phaser.GameObjects.Sprite; itemId: string; gx: number; gy: number }> = [];
+  private selectedIdx = -1;
+  private trash: Phaser.GameObjects.Container | null = null;
+  private getMyLayout: () => PlacedItem[] = () => ROOMS[0]!.layout;
+  private onLayoutChange: (l: PlacedItem[]) => void = () => {};
+  private onInsideRoom: (v: boolean) => void = () => {};
+  private onReady: (scene: DormScene) => void = () => {};
 
   constructor() {
     super("dorm");
   }
 
-  init(data: { onPopup?: (p: PopupPayload | null) => void }) {
+  init(data: {
+    onPopup?: (p: PopupPayload | null) => void;
+    getMyLayout?: () => PlacedItem[];
+    onLayoutChange?: (l: PlacedItem[]) => void;
+    onInsideRoom?: (v: boolean) => void;
+    onReady?: (scene: DormScene) => void;
+  }) {
     if (data?.onPopup) this.onPopup = data.onPopup;
+    if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
+    if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
+    if (data?.onInsideRoom) this.onInsideRoom = data.onInsideRoom;
+    if (data?.onReady) this.onReady = data.onReady;
   }
 
   preload() {
@@ -187,6 +209,8 @@ export class DormScene extends Phaser.Scene {
     this.spawnPlayer();
     this.setupCamera();
     this.setupInput();
+    this.setupEditorInput();
+    this.onReady(this);
   }
 
   // ---------- world ----------
@@ -260,6 +284,16 @@ export class DormScene extends Phaser.Scene {
             const sx = Math.abs((seed >> (i * 3)) % U);
             const sy = Math.abs((seed >> (i * 2 + 5)) % U);
             px(ox + sx, oy + sy, 1, 2, i % 3 === 0 ? light : dark);
+          }
+        } else if (z.kind === "hall") {
+          // commercial fleck carpet: mottled tufts, no plank grain
+          const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
+          const tones = [dark, darker, light, mix(z.floor, 0x6b5748, 0.16)];
+          for (let i = 0; i < 26; i++) {
+            const sx = Math.abs((seed >> (i % 11)) * (i + 3)) % U;
+            const sy = Math.abs((seed >> ((i % 7) + 2)) * (i + 5)) % U;
+            const tone = tones[(seed + i) % tones.length]!;
+            px(ox + sx, oy + sy, 1 + ((seed + i) % 2), 1, tone);
           }
         } else {
           // wood planks: staggered joints + seeded per-tile grain variation
@@ -352,14 +386,14 @@ export class DormScene extends Phaser.Scene {
       this.add
         .image(t(tx), cy, "runner")
         .setOrigin(0, 0.5)
-        .setTint(0xd6c3a4)
+        .setTint(0x9a6a55)
         .setDepth(1);
-    this.add.image(t(x0), cy, "runner-cap").setOrigin(1, 0.5).setTint(0xd6c3a4).setDepth(1);
+    this.add.image(t(x0), cy, "runner-cap").setOrigin(1, 0.5).setTint(0x9a6a55).setDepth(1);
     this.add
       .image(t(x1), cy, "runner-cap")
       .setOrigin(1, 0.5)
       .setFlipX(true)
-      .setTint(0xd6c3a4)
+      .setTint(0x9a6a55)
       .setDepth(1);
   }
 
@@ -412,6 +446,7 @@ export class DormScene extends Phaser.Scene {
 
   private prop(def: PropDef) {
     const s = this.add.sprite(def.x, def.y, def.key).setDepth(def.y + (def.depthBias ?? 0));
+    this.collecting?.push(s);
     if (def.scale) s.setScale(def.scale);
     if (def.tint) s.setTint(def.tint);
     if (def.solid) {
@@ -420,6 +455,7 @@ export class DormScene extends Phaser.Scene {
       const zy = def.y + s.displayHeight * 0.2;
       const zone = this.add.zone(def.x, zy, zw, zh);
       this.walls.add(zone);
+      this.collecting?.push(zone);
       for (let ty = Math.floor((zy - zh / 2) / TILE); ty <= Math.floor((zy + zh / 2) / TILE); ty++)
         for (let tx = Math.floor((def.x - zw / 2) / TILE); tx <= Math.floor((def.x + zw / 2) / TILE); tx++)
           if (this.grid[ty]?.[tx] === FLOOR) this.grid[ty]![tx] = BLOCKED;
@@ -431,6 +467,7 @@ export class DormScene extends Phaser.Scene {
         .setAlpha(0)
         .setScale(1.1)
         .setTint(0xf2d79a);
+      this.collecting?.push(ring);
       this.interactives.push({ sprite: s, ring, payload: def.payload });
       // 2px stepped bob — reads as sprite animation, not a smooth CSS float
       this.tweens.add({
@@ -447,7 +484,7 @@ export class DormScene extends Phaser.Scene {
   }
 
   /** Generic personal-room builder: same code path for every person record. */
-  private buildPersonalRoom(room: PersonRoom, rect: Rect, doorX: number) {
+  private buildPersonalRoom(room: PersonRoom, rect: Rect, doorX: number, editable = false) {
     const mood = MOODS[room.mood];
     const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
 
@@ -472,27 +509,9 @@ export class DormScene extends Phaser.Scene {
     this.add.rectangle(px, py - 6, 48, 18, 0xefe2c9, 1).setDepth(4);
     this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
 
-    // furniture + interactives, rendered generically from room.layout
-    for (const placed of room.layout) {
-      const item = ITEM_CATALOG[placed.itemId];
-      if (!item) continue;
-      const payload: PopupPayload | undefined =
-        item.interactive === "songs"
-          ? { kind: "songs", room }
-          : item.interactive === "bulletin"
-            ? { kind: "bulletin", room }
-            : item.interactive === "companion"
-              ? { kind: "companion", room }
-              : undefined;
-      const def: PropDef = {
-        key: item.textureKey,
-        x: t(rect.x + placed.gx),
-        y: t(rect.y + placed.gy),
-        solid: item.solid,
-      };
-      if (payload) def.payload = payload;
-      this.prop(def);
-    }
+    if (editable) this.renderMyLayout(room, rect);
+    else this.renderLayout(room, rect, room.layout, false);
+
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
     const dx = t(doorX) + TILE;
@@ -543,6 +562,225 @@ export class DormScene extends Phaser.Scene {
     }
   }
 
+  // ---------- layout rendering + room editor ----------
+
+  /** footprint-aware sprite placement, shared by every room */
+  private renderLayout(room: PersonRoom, rect: Rect, layout: PlacedItem[], track: boolean) {
+    for (const placed of layout) {
+      const item = ITEM_CATALOG[placed.itemId];
+      if (!item) continue;
+      const payload: PopupPayload | undefined =
+        item.interactive === "songs"
+          ? { kind: "songs", room }
+          : item.interactive === "bulletin"
+            ? { kind: "bulletin", room }
+            : item.interactive === "companion"
+              ? { kind: "companion", room }
+              : undefined;
+      const def: PropDef = {
+        key: item.textureKey,
+        x: t(rect.x + placed.gx + item.footprint.w / 2),
+        y: t(rect.y + placed.gy + item.footprint.h / 2),
+        solid: item.solid,
+      };
+      if (item.tint) def.tint = item.tint;
+      if (payload) def.payload = payload;
+      const sprite = this.prop(def);
+      if (track) this.placed.push({ sprite, itemId: item.id, gx: placed.gx, gy: placed.gy });
+    }
+  }
+
+  private renderMyLayout(room: PersonRoom, rect: Rect) {
+    this.myObjs = [];
+    this.placed = [];
+    this.collecting = this.myObjs;
+    this.renderLayout(room, rect, this.getMyLayout(), true);
+    this.collecting = null;
+    if (this.editMode) this.enableDragging();
+  }
+
+  private rebuildMyRoom() {
+    this.clearSelection();
+    for (const o of this.myObjs) {
+      if (o instanceof Phaser.GameObjects.Zone) this.walls.remove(o, true, true);
+      else o.destroy();
+    }
+    this.myObjs = [];
+    this.interactives = this.interactives.filter((i) => i.sprite.active);
+    // reset furniture blocking inside my room, then re-render
+    const rect = PERSONAL_RECTS[0]!;
+    for (let y = rect.y; y < rect.y + rect.h; y++)
+      for (let x = rect.x; x < rect.x + rect.w; x++)
+        if (this.grid[y]![x] === BLOCKED) this.grid[y]![x] = FLOOR;
+    this.renderMyLayout(ROOMS[0]!, rect);
+  }
+
+  /** tiles just inside my door — kept clear so the room stays enterable */
+  private isDoorLane(gx: number, gy: number) {
+    const rect = PERSONAL_RECTS[0]!;
+    return gy === rect.h - 1 && (gx === 5 || gx === 6);
+  }
+
+  private canPlace(itemId: string, gx: number, gy: number, ignoreIdx = -1) {
+    const item = ITEM_CATALOG[itemId];
+    const rect = PERSONAL_RECTS[0]!;
+    if (!item) return false;
+    const { w, h } = item.footprint;
+    if (gx < 0 || gy < 0 || gx + w > rect.w || gy + h > rect.h) return false;
+    for (let y = gy; y < gy + h; y++)
+      for (let x = gx; x < gx + w; x++) if (this.isDoorLane(x, y)) return false;
+    return !this.placed.some((p, i) => {
+      if (i === ignoreIdx) return false;
+      const o = ITEM_CATALOG[p.itemId]!;
+      return (
+        gx < p.gx + o.footprint.w && gx + w > p.gx && gy < p.gy + o.footprint.h && gy + h > p.gy
+      );
+    });
+  }
+
+  private currentLayout(): PlacedItem[] {
+    return this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy }));
+  }
+
+  private commitLayout() {
+    this.onLayoutChange(this.currentLayout());
+  }
+
+  private enableDragging() {
+    for (const p of this.placed) {
+      p.sprite.setInteractive({ useHandCursor: true, draggable: true });
+      this.input.setDraggable(p.sprite, true);
+      p.sprite.off("pointerdown");
+      p.sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        if (!this.editMode) return;
+        pointer.event.stopPropagation();
+        this.select(this.placed.findIndex((q) => q.sprite === p.sprite));
+      });
+    }
+  }
+
+  private disableDragging() {
+    for (const p of this.placed) {
+      this.input.setDraggable(p.sprite, false);
+      p.sprite.off("pointerdown");
+      p.sprite.disableInteractive();
+    }
+  }
+
+  setEditMode(on: boolean) {
+    if (this.editMode === on) return;
+    this.editMode = on;
+    this.target = null;
+    this.path = [];
+    if (on) {
+      this.activePayload = null;
+      this.onPopup(null);
+      this.enableDragging();
+    } else {
+      this.disableDragging();
+      this.clearSelection();
+      this.commitLayout();
+      this.rebuildMyRoom();
+    }
+  }
+
+  private clearSelection() {
+    if (this.selectedIdx >= 0) this.placed[this.selectedIdx]?.sprite.clearTint();
+    this.selectedIdx = -1;
+    this.trash?.destroy();
+    this.trash = null;
+  }
+
+  private select(idx: number) {
+    this.clearSelection();
+    const p = this.placed[idx];
+    if (!p) return;
+    this.selectedIdx = idx;
+    p.sprite.setTint(0xfff3b0);
+    const bg = this.add.rectangle(0, 0, 22, 22, 0x9b2f2f, 1).setStrokeStyle(2, 0x241c26);
+    const icon = this.add
+      .text(0, 0, "X", {
+        fontFamily: "ui-monospace, Menlo, monospace",
+        fontSize: "13px",
+        color: "#fff6e8",
+      })
+      .setOrigin(0.5);
+    const c = this.add
+      .container(p.sprite.x, p.sprite.y - p.sprite.displayHeight / 2 - 16, [bg, icon])
+      .setDepth(5000)
+      .setSize(22, 22)
+      .setInteractive({ useHandCursor: true });
+    c.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      pointer.event.stopPropagation();
+      this.removeSelected();
+    });
+    this.trash = c;
+  }
+
+  private removeSelected() {
+    const idx = this.selectedIdx;
+    if (idx < 0) return;
+    this.placed.splice(idx, 1);
+    this.clearSelection();
+    this.commitLayout();
+    this.rebuildMyRoom();
+  }
+
+  /** drop an owned-but-unplaced item into the room (from the editor tray) */
+  placeFromTray(itemId: string, screen?: { x: number; y: number }) {
+    const rect = PERSONAL_RECTS[0]!;
+    const item = ITEM_CATALOG[itemId];
+    if (!item) return false;
+    let spot: { gx: number; gy: number } | null = null;
+    if (screen) {
+      const wp = this.cameras.main.getWorldPoint(screen.x, screen.y);
+      const gx = Math.floor(wp.x / TILE) - rect.x - Math.floor(item.footprint.w / 2);
+      const gy = Math.floor(wp.y / TILE) - rect.y - Math.floor(item.footprint.h / 2);
+      if (this.canPlace(itemId, gx, gy)) spot = { gx, gy };
+    }
+    if (!spot)
+      for (let gy = 0; gy < rect.h && !spot; gy++)
+        for (let gx = 0; gx < rect.w && !spot; gx++)
+          if (this.canPlace(itemId, gx, gy)) spot = { gx, gy };
+    if (!spot) return false;
+    this.placed.push({ sprite: this.player, itemId, ...spot }); // placeholder, rebuilt below
+    this.onLayoutChange(this.currentLayout());
+    this.rebuildMyRoom();
+    return true;
+  }
+
+  private setupEditorInput() {
+    this.input.on("dragstart", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
+      if (!this.editMode) return;
+      obj.setDepth(6000);
+      this.select(this.placed.findIndex((p) => p.sprite === obj));
+    });
+    this.input.on(
+      "drag",
+      (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite, dx: number, dy: number) => {
+        if (!this.editMode) return;
+        obj.setPosition(dx, dy);
+        this.trash?.setPosition(dx, dy - obj.displayHeight / 2 - 16);
+      },
+    );
+    this.input.on("dragend", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
+      if (!this.editMode) return;
+      const rect = PERSONAL_RECTS[0]!;
+      const idx = this.placed.findIndex((p) => p.sprite === obj);
+      const entry = this.placed[idx];
+      if (!entry) return;
+      const item = ITEM_CATALOG[entry.itemId]!;
+      const gx = Math.round(obj.x / TILE - item.footprint.w / 2) - rect.x;
+      const gy = Math.round(obj.y / TILE - item.footprint.h / 2) - rect.y;
+      if (this.canPlace(entry.itemId, gx, gy, idx)) {
+        entry.gx = gx;
+        entry.gy = gy;
+        this.commitLayout();
+      }
+      this.rebuildMyRoom();
+    });
+  }
+
   /** drifting music notes — reuses one shared texture */
   private spawnSoundCue(x: number, y: number, tint: number) {
     for (let i = 0; i < 3; i++) {
@@ -572,7 +810,9 @@ export class DormScene extends Phaser.Scene {
   private decorate(zones: Zone[]) {
     // personal rooms (generic from data)
     const doorXs = [11, 32, 53];
-    ROOMS.forEach((room, i) => this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!));
+    ROOMS.forEach((room, i) =>
+      this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!, i === 0),
+    );
 
     // zone labels
     for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#3a2f34", 15);
@@ -737,6 +977,7 @@ export class DormScene extends Phaser.Scene {
     this.keys = kb.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (this.editMode) return;
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = Math.floor(wp.x / TILE);
       const ty = Math.floor(wp.y / TILE);
@@ -853,7 +1094,20 @@ export class DormScene extends Phaser.Scene {
     const key = `char-${this.facing}-${step}`;
     if (this.player.texture.key !== key) this.player.setTexture(key);
 
-    this.checkProximity();
+    if (!this.editMode) this.checkProximity();
+    this.trackMyRoom();
+  }
+
+  /** tells React whether the player is standing in their own room */
+  private trackMyRoom() {
+    const r = PERSONAL_RECTS[0]!;
+    const tx = this.player.x / TILE;
+    const ty = this.player.y / TILE;
+    const inside = tx >= r.x && tx <= r.x + r.w && ty >= r.y && ty <= r.y + r.h;
+    if (inside !== this.insideMyRoom) {
+      this.insideMyRoom = inside;
+      this.onInsideRoom(inside);
+    }
   }
 
   private checkProximity() {

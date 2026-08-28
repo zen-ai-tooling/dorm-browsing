@@ -1,18 +1,25 @@
+import { useState } from "react";
 import { COMMUNITY_CORKBOARD, MOODS, type PopupPayload } from "@/data/dorm";
+import { DAILY_COIN_REWARD, promptForToday, todayKey } from "@/data/prompts";
+import { playerActions, usePlayerState } from "@/lib/playerStore";
 
 const Shell = ({
   accent,
   title,
   subtitle,
+  interactive,
   children,
 }: {
   accent: string;
   title: string;
   subtitle?: string;
+  interactive?: boolean;
   children: React.ReactNode;
 }) => (
   <div
-    className="pointer-events-none absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200"
+    className={`absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+      interactive ? "pointer-events-auto" : "pointer-events-none"
+    }`}
     role="status"
     aria-live="polite"
   >
@@ -33,6 +40,51 @@ const Shell = ({
     </div>
   </div>
 );
+
+const CorkboardPopup = () => {
+  const { lastDailyAnswerDate } = usePlayerState();
+  const [justAnswered, setJustAnswered] = useState<string | null>(null);
+  const answeredToday = lastDailyAnswerDate === todayKey();
+  const prompt = promptForToday();
+
+  if (answeredToday) {
+    return (
+      <Shell accent="#8d8090" title={COMMUNITY_CORKBOARD.title} subtitle="floor-wide">
+        {justAnswered ? (
+          <p className="font-semibold text-foreground">
+            “{justAnswered}” pinned · +{DAILY_COIN_REWARD} coins
+          </p>
+        ) : null}
+        <ul className="mt-1 space-y-1">
+          {COMMUNITY_CORKBOARD.items.map((i) => (
+            <li key={i}>· {i}</li>
+          ))}
+        </ul>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell accent="#c9a227" title="Question of the day" subtitle={`+${DAILY_COIN_REWARD} coins`} interactive>
+      <p className="font-medium text-foreground">{prompt.question}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {prompt.options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => {
+              setJustAnswered(opt);
+              playerActions.answerDaily();
+            }}
+            className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-primary hover:text-primary"
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </Shell>
+  );
+};
 
 export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
   if (!payload) return null;
@@ -84,17 +136,7 @@ export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
     );
   }
 
-  if (payload.kind === "corkboard") {
-    return (
-      <Shell accent="#8d8090" title={COMMUNITY_CORKBOARD.title} subtitle="floor-wide">
-        <ul className="space-y-1">
-          {COMMUNITY_CORKBOARD.items.map((i) => (
-            <li key={i}>· {i}</li>
-          ))}
-        </ul>
-      </Shell>
-    );
-  }
+  if (payload.kind === "corkboard") return <CorkboardPopup />;
 
   return (
     <Shell accent={payload.accent ?? "#8d8090"} title={payload.title}>
