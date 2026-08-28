@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <main className="min-h-screen bg-background p-3 sm:p-5">
+    <main className="dorm-backdrop min-h-screen p-3 sm:p-5">
       <h1 className="sr-only">Dorm Vibes — a walkable 2D dorm floor</h1>
       <div className="h-[calc(100vh-1.5rem)] w-full sm:h-[calc(100vh-2.5rem)]">
         <ClientOnly
