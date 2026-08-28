@@ -88,10 +88,20 @@ const DormGame = () => {
     };
   }, []);
 
+  // Escape backs out of placing mode / selection even when the canvas isn't focused
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") sceneRef.current?.escape();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const toggleEdit = (on: boolean) => {
     setEditing(on);
     sceneRef.current?.setEditMode(on);
   };
+
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[6px] border-[6px] border-ink bg-secondary shadow-[0_10px_0_-2px_rgba(36,28,38,0.25)]">
