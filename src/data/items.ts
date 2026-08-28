@@ -72,15 +72,6 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     interactive: "companion",
     unlockedByDefault: true,
   },
-  lamp_basic: {
-    id: "lamp_basic",
-    name: "Floor Lamp",
-    category: "furniture",
-    textureKey: "lamp",
-    footprint: { w: 1, h: 1 },
-    solid: false,
-    unlockedByDefault: true,
-  },
   rug_woven: {
     id: "rug_woven",
     name: "Woven Rug",
