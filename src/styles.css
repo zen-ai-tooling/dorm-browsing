@@ -19,6 +19,12 @@
  */
 
 @theme inline {
+  --font-display: "Pixelify Sans", sans-serif;
+  --font-body: "Nunito", sans-serif;
+  --color-panel: var(--panel);
+  --color-panel-foreground: var(--panel-foreground);
+  --color-panel-muted: var(--panel-muted);
+  --color-ink: var(--ink);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -62,6 +68,10 @@
 }
 
 :root {
+  --panel: oklch(0.955 0.024 84);
+  --panel-foreground: oklch(0.24 0.024 330);
+  --panel-muted: oklch(0.5 0.02 330);
+  --ink: oklch(0.24 0.024 330);
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
@@ -98,6 +108,10 @@
 }
 
 .dark {
+  --panel: oklch(0.93 0.026 84);
+  --panel-foreground: oklch(0.24 0.024 330);
+  --panel-muted: oklch(0.5 0.02 330);
+  --ink: oklch(0.2 0.02 330);
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -140,5 +154,63 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-body);
   }
+}
+
+/* chunky game panel: solid parchment fill, ink border, pixel-notched corners */
+@utility game-panel {
+  background-color: var(--color-panel);
+  color: var(--color-panel-foreground);
+  border: 3px solid var(--color-ink);
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--color-ink) 18%, transparent),
+    0 8px 0 -2px color-mix(in oklab, var(--color-ink) 22%, transparent);
+  clip-path: polygon(
+    0 6px,
+    6px 6px,
+    6px 0,
+    calc(100% - 6px) 0,
+    calc(100% - 6px) 6px,
+    100% 6px,
+    100% calc(100% - 6px),
+    calc(100% - 6px) calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    6px 100%,
+    6px calc(100% - 6px),
+    0 calc(100% - 6px)
+  );
+}
+
+/* ink-outlined square chip behind icons */
+@utility icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.4rem;
+  width: 1.4rem;
+  border: 2px solid var(--color-ink);
+  border-radius: 3px;
+  background-color: color-mix(in oklab, var(--color-panel) 82%, var(--color-ink) 6%);
+}
+
+/* dithered pixel corkboard fill for photo placeholders */
+@utility pixel-corkboard {
+  background-color: #b98a55;
+  background-image:
+    linear-gradient(45deg, #a9793f 25%, transparent 25%, transparent 75%, #a9793f 75%),
+    linear-gradient(45deg, #a9793f 25%, transparent 25%, transparent 75%, #a9793f 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    4px 4px;
+}
+
+/* warm ambient page backdrop around the game frame */
+@utility dorm-backdrop {
+  background-color: #efe3d2;
+  background-image:
+    radial-gradient(circle at 20% 10%, #f7ecdc 0%, transparent 55%),
+    radial-gradient(circle at 85% 90%, #e4d3bd 0%, transparent 60%);
 }

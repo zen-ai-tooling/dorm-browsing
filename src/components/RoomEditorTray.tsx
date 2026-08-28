@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ITEM_CATALOG, isPlaceable } from "@/data/items";
 import { usePlayerState } from "@/lib/playerStore";
+import { GamePanel } from "./GamePanel";
 
 export const RoomEditorTray = ({
   onDone,
@@ -20,18 +20,25 @@ export const RoomEditorTray = ({
     .filter((i) => !!i && isPlaceable(i) && !placedIds.has(i.id));
 
   return (
-    <Card className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(94vw,560px)] -translate-x-1/2 gap-0 p-3">
+    <GamePanel
+      accent="#c9a227"
+      className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(94vw,560px)] -translate-x-1/2 p-3"
+    >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        <p className="font-display text-xs font-bold uppercase tracking-widest text-panel-muted">
           Editing your room — drag items to move, tap the X to remove
         </p>
-        <Button size="sm" onClick={onDone}>
+        <Button
+          size="sm"
+          onClick={onDone}
+          className="rounded-[3px] border-2 border-ink font-display font-bold"
+        >
           Done
         </Button>
       </div>
       <ScrollArea className="mt-2 max-h-28">
         {tray.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="font-body text-xs text-panel-muted">
             Everything you own is placed. Visit the Shop for more.
           </p>
         ) : (
@@ -45,7 +52,7 @@ export const RoomEditorTray = ({
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", item!.id)}
                     onClick={() => onTrayClick(item!.id)}
-                    className="flex w-20 flex-col items-center gap-1 rounded-lg border border-border bg-secondary px-1.5 py-1.5 transition hover:border-primary"
+                    className="flex w-20 flex-col items-center gap-1 rounded-[3px] border-2 border-ink bg-panel px-1.5 py-1.5 transition hover:bg-panel-foreground/10"
                   >
                     <span className="flex h-10 w-full items-center justify-center">
                       {thumb ? (
@@ -56,7 +63,7 @@ export const RoomEditorTray = ({
                         />
                       ) : null}
                     </span>
-                    <span className="w-full truncate text-center text-[10px] font-medium text-foreground">
+                    <span className="w-full truncate text-center font-display text-[11px] font-bold text-panel-foreground">
                       {item!.name}
                     </span>
                   </button>
@@ -66,6 +73,6 @@ export const RoomEditorTray = ({
           </ul>
         )}
       </ScrollArea>
-    </Card>
+    </GamePanel>
   );
 };

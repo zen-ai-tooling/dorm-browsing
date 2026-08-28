@@ -1,6 +1,5 @@
 import { Check, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ITEM_CATALOG, type ItemDef } from "@/data/items";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
+import { IconChip } from "./GamePanel";
 
 const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
   furniture: "Furniture",
@@ -42,15 +42,17 @@ const ItemCard = ({
   affordable: boolean;
   thumb?: string | undefined;
 }) => (
-  <Card
-    className={`relative gap-2 p-3 transition ${owned || affordable ? "" : "opacity-50"}`}
+  <div
+    className={`game-panel relative flex flex-col gap-2 p-3 transition ${
+      owned || affordable ? "" : "opacity-50"
+    }`}
   >
     {owned ? (
-      <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+      <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-[3px] border-2 border-ink bg-primary text-primary-foreground">
         <Check className="size-3" aria-hidden />
       </span>
     ) : null}
-    <div className="flex h-20 items-center justify-center rounded-lg border border-border bg-secondary">
+    <div className="flex h-20 items-center justify-center rounded-[3px] border-2 border-ink bg-panel-foreground/5">
       {thumb ? (
         <img
           src={thumb}
@@ -59,22 +61,25 @@ const ItemCard = ({
           loading="lazy"
         />
       ) : (
-        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        <span className="font-display text-[11px] uppercase tracking-widest text-panel-muted">
           {CATEGORY_LABEL[item.category]}
         </span>
       )}
     </div>
-    <p className="text-center text-xs font-semibold text-foreground">{item.name}</p>
+    <p className="text-center font-display text-sm font-bold text-panel-foreground">{item.name}</p>
     {owned ? (
-      <p className="text-center text-[11px] text-muted-foreground">In your inventory</p>
+      <p className="text-center font-body text-[11px] text-panel-muted">In your inventory</p>
     ) : (
       <>
-        <p className="flex items-center justify-center gap-1 text-xs font-bold text-primary">
-          <Coins className="size-3.5" aria-hidden /> {item.price}
+        <p className="flex items-center justify-center gap-1.5 font-display text-sm font-bold text-panel-foreground">
+          <IconChip>
+            <Coins className="size-3.5" aria-hidden />
+          </IconChip>
+          {item.price}
         </p>
         <Button
           size="sm"
-          className="w-full"
+          className="w-full rounded-[3px] border-2 border-ink font-display font-bold"
           disabled={!affordable}
           onClick={() => playerActions.buy(item.id)}
         >
@@ -82,7 +87,7 @@ const ItemCard = ({
         </Button>
       </>
     )}
-  </Card>
+  </div>
 );
 
 export const ShopPanel = ({
@@ -99,20 +104,29 @@ export const ShopPanel = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="game-panel max-w-lg border-0 bg-panel p-5 text-panel-foreground shadow-none">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-3">
+          <DialogTitle className="flex items-center justify-between gap-3 pr-7 font-display text-lg font-bold">
             <span>Floor 3 Shop</span>
-            <span className="flex items-center gap-1 text-sm font-semibold text-primary">
-              <Coins className="size-4" aria-hidden /> {coins}
+            <span className="flex items-center gap-1.5 font-display text-base font-bold text-panel-foreground">
+              <IconChip>
+                <Coins className="size-4" aria-hidden />
+              </IconChip>
+              {coins}
             </span>
           </DialogTitle>
-          <DialogDescription>Buy items, then place them from Edit My Room.</DialogDescription>
+          <DialogDescription className="font-body text-panel-muted">
+            Buy items, then place them from Edit My Room.
+          </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue={sections[0]?.[0] ?? "furniture"}>
-          <TabsList className="w-full">
+          <TabsList className="w-full rounded-[3px] border-2 border-ink bg-panel-foreground/5">
             {sections.map(([category]) => (
-              <TabsTrigger key={category} value={category} className="flex-1 text-xs">
+              <TabsTrigger
+                key={category}
+                value={category}
+                className="flex-1 rounded-[2px] font-display text-xs font-bold"
+              >
                 {CATEGORY_LABEL[category]}
               </TabsTrigger>
             ))}

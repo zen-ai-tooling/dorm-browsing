@@ -4,6 +4,7 @@ import type { PopupPayload } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
+import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { ShopPanel } from "./ShopPanel";
 import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
@@ -30,6 +31,18 @@ const DormGame = () => {
     (async () => {
       const Phaser = await import("phaser");
       const { DormScene } = await import("@/game/DormScene");
+      // Phaser draws canvas text with whatever is loaded — wait for the display font first.
+      try {
+        await Promise.race([
+          Promise.all([
+            document.fonts.load('16px "Pixelify Sans"'),
+            document.fonts.load('700 16px "Pixelify Sans"'),
+          ]),
+          new Promise((r) => setTimeout(r, 2500)),
+        ]);
+      } catch {
+        /* fall back to default font rendering */
+      }
       if (destroyed || !containerRef.current) return;
 
       game = new Phaser.Game({
@@ -76,7 +89,7 @@ const DormGame = () => {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-3xl border border-border bg-secondary">
+    <div className="relative h-full w-full overflow-hidden rounded-[6px] border-[6px] border-ink bg-secondary shadow-[0_10px_0_-2px_rgba(36,28,38,0.25)]">
       <div
         ref={containerRef}
         className="h-full w-full touch-none [&>canvas]:block"
@@ -97,21 +110,48 @@ const DormGame = () => {
       />
 
       <div className="pointer-events-none absolute left-4 top-4 space-y-2">
-        <div className="rounded-2xl bg-card/85 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground shadow-md backdrop-blur-sm">
-          <p className="font-bold tracking-wide text-foreground">Dorm Vibes · Floor 3</p>
-          <p>WASD / arrows or click a tile to walk</p>
-          <p>Wander up to things — they open on their own</p>
-        </div>
+        <GamePanel accent="#7f9c86" className="px-3 py-2">
+          <p className="font-display text-sm font-bold tracking-wide text-panel-foreground">
+            Dorm Vibes · Floor 3
+          </p>
+          <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+            WASD / arrows or click a tile to walk
+          </p>
+          <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+            Wander up to things — they open on their own
+          </p>
+        </GamePanel>
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-1 rounded-2xl bg-card/85 px-3 py-1.5 text-xs font-bold text-foreground shadow-md backdrop-blur-sm">
-            <Coins className="size-4 text-primary" aria-hidden /> {coins}
-          </span>
-          <Button size="sm" variant="secondary" onClick={() => setShopOpen(true)}>
-            <Store className="size-4" aria-hidden /> Shop
+          <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
+            <IconChip>
+              <Coins className="size-3.5" aria-hidden />
+            </IconChip>
+            <span className="font-display text-sm font-bold text-panel-foreground">{coins}</span>
+          </GamePanel>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+            onClick={() => setShopOpen(true)}
+          >
+            <IconChip>
+              <Store className="size-3.5" aria-hidden />
+            </IconChip>
+            Shop
           </Button>
           {inMyRoom || editing ? (
-            <Button size="sm" variant={editing ? "default" : "secondary"} onClick={() => toggleEdit(!editing)}>
-              <Pencil className="size-4" aria-hidden /> {editing ? "Exit edit" : "Edit My Room"}
+            <Button
+              size="sm"
+              variant={editing ? "default" : "secondary"}
+              className={`rounded-[3px] border-2 border-ink font-display font-bold ${
+                editing ? "" : "bg-panel text-panel-foreground hover:bg-panel/80"
+              }`}
+              onClick={() => toggleEdit(!editing)}
+            >
+              <IconChip>
+                <Pencil className="size-3.5" aria-hidden />
+              </IconChip>
+              {editing ? "Exit edit" : "Edit My Room"}
             </Button>
           ) : null}
         </div>
