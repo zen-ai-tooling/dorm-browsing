@@ -243,7 +243,7 @@ const DormGame = () => {
         />
       ) : null}
 
-      {editing ? (
+      {editing && !wallpaperOpen ? (
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
           onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
