@@ -477,21 +477,22 @@ export const buildTextures = (scene: Phaser.Scene) => {
   });
 
   // woven rug 80x52 — pixel weave, hard edges
+  // greyscale base only: setTint multiplies, so any baked hue would crush the tint
   make(scene, "rug", 80, 52, (g) => {
-    r(g, 0, 0, 80, 52, 0xc0a98c);
-    line(g, 0, 0, 80, 52, 0x8d7659);
-    r(g, 2, 2, 76, 48, 0xcdb797);
-    dither(g, 2, 2, 76, 48, 0xbca384);
-    r(g, 6, 6, 68, 40, 0xb99a78);
-    line(g, 6, 6, 68, 40, 0x8d7659);
-    dither(g, 8, 8, 64, 36, 0xc8ab88, 1);
-    r(g, 16, 14, 48, 24, 0xa98a6b);
-    line(g, 16, 14, 48, 24, 0x8d7659);
-    dither(g, 18, 16, 44, 20, 0xbb9d7c);
+    r(g, 0, 0, 80, 52, 0xc8c2b6);
+    line(g, 0, 0, 80, 52, 0x756e62);
+    r(g, 2, 2, 76, 48, 0xd2ccc0);
+    dither(g, 2, 2, 76, 48, 0xc0b9ac);
+    r(g, 6, 6, 68, 40, 0xbcb4a4);
+    line(g, 6, 6, 68, 40, 0x756e62);
+    dither(g, 8, 8, 64, 36, 0xcac1b0, 1);
+    r(g, 16, 14, 48, 24, 0xaba294);
+    line(g, 16, 14, 48, 24, 0x756e62);
+    dither(g, 18, 16, 44, 20, 0xbfb6a4);
     // fringe
     for (let i = 0; i < 40; i += 2) {
-      r(g, i, 0, 1, 2, 0x8d7659);
-      r(g, 80 - i - 1, 50, 1, 2, 0x8d7659);
+      r(g, i, 0, 1, 2, 0x756e62);
+      r(g, 80 - i - 1, 50, 1, 2, 0x756e62);
     }
   });
 
@@ -544,36 +545,38 @@ export const buildTextures = (scene: Phaser.Scene) => {
   /* ------------- iteration 3: hallway texture + collegiate flavour ------------- */
 
   // hallway runner segment 16x40 — seamless left/right, woven pixel field
+  // greyscale base: tinted at use site, and setTint multiplies
   make(scene, "runner", 16, 40, (g) => {
-    r(g, 0, 0, 16, 40, 0xb59a78);
-    r(g, 0, 0, 16, 2, 0x8d7659);
-    r(g, 0, 38, 16, 2, 0x8d7659);
-    r(g, 0, 3, 16, 34, 0xc4ab8a);
-    dither(g, 0, 3, 16, 34, 0xb59a78);
-    r(g, 0, 7, 16, 26, 0xab8f6d);
-    r(g, 0, 7, 16, 1, 0x8d7659);
-    r(g, 0, 32, 16, 1, 0x8d7659);
-    dither(g, 0, 9, 16, 22, 0xbb9f7c, 1);
+    r(g, 0, 0, 16, 40, 0xb8b0a2);
+    r(g, 0, 0, 16, 2, 0x756e62);
+    r(g, 0, 38, 16, 2, 0x756e62);
+    r(g, 0, 3, 16, 34, 0xc6beb0);
+    dither(g, 0, 3, 16, 34, 0xb8b0a2);
+    r(g, 0, 7, 16, 26, 0xada394);
+    r(g, 0, 7, 16, 1, 0x756e62);
+    r(g, 0, 32, 16, 1, 0x756e62);
+    dither(g, 0, 9, 16, 22, 0xbcb4a4, 1);
     // centre motif band
-    r(g, 4, 16, 8, 8, 0x9c7f5e);
-    line(g, 4, 16, 8, 8, 0x7d6449);
-    r(g, 7, 19, 2, 2, 0xc9b18f);
+    r(g, 4, 16, 8, 8, 0x9c9284);
+    line(g, 4, 16, 8, 8, 0x6e665c);
+    r(g, 7, 19, 2, 2, 0xcbc2b0);
   });
 
-  // runner end cap 6x40 (fringe)
+  // runner end cap 6x40 (fringe) — greyscale, tinted at use site
   make(scene, "runner-cap", 6, 40, (g) => {
-    r(g, 2, 0, 4, 40, 0xb59a78);
-    r(g, 2, 0, 4, 2, 0x8d7659);
-    r(g, 2, 38, 4, 2, 0x8d7659);
-    for (let i = 1; i < 39; i += 3) r(g, 0, i, 2, 1, 0x8d7659);
+    r(g, 2, 0, 4, 40, 0xb8b0a2);
+    r(g, 2, 0, 4, 2, 0x756e62);
+    r(g, 2, 38, 4, 2, 0x756e62);
+    for (let i = 1; i < 39; i += 3) r(g, 0, i, 2, 1, 0x756e62);
   });
 
   // doorway mat 14x9 — woven rect with contrasting 1px border
+  // greyscale base: tinted per-room at use site, and setTint multiplies
   make(scene, "doormat", 14, 9, (g) => {
-    r(g, 0, 0, 14, 9, 0xa89279);
+    r(g, 0, 0, 14, 9, 0xa9a093);
     line(g, 0, 0, 14, 9, 0x4a3b36);
-    r(g, 2, 2, 10, 5, 0xbda98c);
-    dither(g, 2, 2, 10, 5, 0xa89279);
+    r(g, 2, 2, 10, 5, 0xbfb6a6);
+    dither(g, 2, 2, 10, 5, 0xa9a093);
   });
 
   // hallway flyer 13x16 — paper with text lines + torn tab strip
