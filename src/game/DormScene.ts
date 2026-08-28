@@ -522,16 +522,12 @@ export class DormScene extends Phaser.Scene {
       .setScale(0.85)
       .setDepth(1);
 
-    // pixel poster on the top wall: ink frame, flat accent field, 2-tone motif
-    const px = t(rect.x + rect.w / 2);
-    const py = t(rect.y) + 18;
-    this.add.rectangle(px, py, 80, 48, 0x241c26, 1).setDepth(2);
-    this.add.rectangle(px, py, 74, 42, mix(mood.posterAccent, 0x8b7a63, 0.12), 1).setDepth(3);
-    this.add.rectangle(px, py - 6, 48, 18, 0xefe2c9, 1).setDepth(4);
-    this.add.rectangle(px, py + 12, 34, 6, 0x241c26, 1).setDepth(4);
+    // the poster is a real catalog item now (see ITEM_CATALOG.poster_default) and
+    // is drawn through room.layout like every other prop — no hardcoded rectangles.
 
     if (editable) this.renderMyLayout(room, rect);
     else this.renderLayout(room, rect, room.layout);
+
 
 
 
