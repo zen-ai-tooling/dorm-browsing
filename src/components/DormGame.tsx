@@ -4,6 +4,7 @@ import type { PopupPayload } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
+import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { ShopPanel } from "./ShopPanel";
 import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
