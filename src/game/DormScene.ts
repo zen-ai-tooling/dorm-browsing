@@ -484,13 +484,14 @@ export class DormScene extends Phaser.Scene {
             : item.interactive === "companion"
               ? { kind: "companion", room }
               : undefined;
-      this.prop({
+      const def: PropDef = {
         key: item.textureKey,
         x: t(rect.x + placed.gx),
         y: t(rect.y + placed.gy),
         solid: item.solid,
-        payload,
-      });
+      };
+      if (payload) def.payload = payload;
+      this.prop(def);
     }
 
     // ---- door: nameplate, stickers, presence glow, sound cue ----
