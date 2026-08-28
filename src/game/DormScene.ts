@@ -662,6 +662,8 @@ export class DormScene extends Phaser.Scene {
     this.target = null;
     this.path = [];
     if (on) {
+      this.activePayload = null;
+      this.onPopup(null);
       this.enableDragging();
     } else {
       this.disableDragging();
