@@ -469,16 +469,19 @@ export class DormScene extends Phaser.Scene {
         .setTint(0xf2d79a);
       this.collecting?.push(ring);
       this.interactives.push({ sprite: s, ring, payload: def.payload });
-      // 2px stepped bob — reads as sprite animation, not a smooth CSS float
-      this.tweens.add({
-        targets: s,
-        y: def.y - 2,
-        duration: 1800,
-        yoyo: true,
-        repeat: -1,
-        ease: "Stepped",
-        easeParams: [2],
-      });
+      // 2px stepped bob — reads as sprite animation, not a smooth CSS float.
+      // Never attach while editing: it would fight the drag handler's setPosition.
+      if (!this.editMode) {
+        this.tweens.add({
+          targets: s,
+          y: def.y - 2,
+          duration: 1800,
+          yoyo: true,
+          repeat: -1,
+          ease: "Stepped",
+          easeParams: [2],
+        });
+      }
     }
     return s;
   }
