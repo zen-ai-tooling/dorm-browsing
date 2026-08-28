@@ -650,7 +650,8 @@ export class DormScene extends Phaser.Scene {
     const f = rotatedFootprint(item, rotation);
     const c = this.centerOf(gx, gy, f.w, f.h);
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
-    if (item.tint) sprite.setTint(item.tint);
+    const tint = this.moodTint(ROOMS[0]!, item);
+    if (tint) sprite.setTint(tint);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
 
