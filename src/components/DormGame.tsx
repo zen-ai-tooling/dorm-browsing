@@ -65,8 +65,10 @@ const DormGame = () => {
         getMyLayout: () => getPlayerState().roomLayout,
         onLayoutChange: playerActions.setRoomLayout,
         onInsideRoom: setInMyRoom,
+        onPlacingChange: setPlacingItemId,
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
+
           (window as unknown as { __scene?: DormScene }).__scene = scene;
           const map: Record<string, string> = {};
           for (const item of Object.values(ITEM_CATALOG)) {
