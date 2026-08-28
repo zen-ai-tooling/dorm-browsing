@@ -172,13 +172,26 @@ export class DormScene extends Phaser.Scene {
   private editMode = false;
   private insideMyRoom = false;
   private myObjs: Phaser.GameObjects.GameObject[] = [];
-  private placed: Array<{ sprite: Phaser.GameObjects.Sprite; itemId: string; gx: number; gy: number }> = [];
+  private placed: Array<{
+    sprite: Phaser.GameObjects.Sprite;
+    zone: Phaser.GameObjects.Zone | null;
+    ring: Phaser.GameObjects.Image | null;
+    itemId: string;
+    gx: number;
+    gy: number;
+    rotation: Rotation;
+  }> = [];
   private selectedIdx = -1;
-  private trash: Phaser.GameObjects.Container | null = null;
+  private selectionUi: Phaser.GameObjects.Container | null = null;
+  private pendingPlaceItemId: string | null = null;
+  private ghost: Phaser.GameObjects.Sprite | null = null;
+  private highlight: Phaser.GameObjects.Rectangle | null = null;
+  private onPlacingChange: (itemId: string | null) => void = () => {};
   private getMyLayout: () => PlacedItem[] = () => ROOMS[0]!.layout;
   private onLayoutChange: (l: PlacedItem[]) => void = () => {};
   private onInsideRoom: (v: boolean) => void = () => {};
   private onReady: (scene: DormScene) => void = () => {};
+
 
   constructor() {
     super("dorm");
