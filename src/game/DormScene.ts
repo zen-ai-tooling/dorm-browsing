@@ -1316,6 +1316,18 @@ export class DormScene extends Phaser.Scene {
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
 
+    // a bike leaning against the corridor wall
+    this.prop({ key: "bike", x: t(57), y: t(HALL.y) + 26 });
+
+    // warm floor lamp lighting an otherwise empty stretch of corridor
+    this.prop({ key: "lamp", x: t(35.4), y: t(HALL.y) + 36 });
+    this.add
+      .image(t(35.4), t(HALL.y) + 44, "glow")
+      .setTint(0xffdca0)
+      .setAlpha(0.3)
+      .setScale(1.8)
+      .setDepth(1);
+
     // recycling + trash pair
     this.prop({ key: "bin", x: t(40), y: t(HALL.y) + 40, tint: 0x7f9ec4 });
     this.prop({ key: "bin", x: t(40.9), y: t(HALL.y) + 42 });
