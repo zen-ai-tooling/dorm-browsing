@@ -9,8 +9,9 @@ const STARTING_COINS = 50;
 
 /** seed layout for "Your Room" — tile coords are the footprint's top-left, room-relative */
 export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
+  { itemId: "poster_default", gx: 4, gy: 0 },
   { itemId: "bed_basic", gx: 9, gy: 5 },
-  { itemId: "tv_basic", gx: 5, gy: 1 },
+  { itemId: "tv_basic", gx: 9, gy: 3 },
   { itemId: "desk_basic", gx: 1, gy: 7 },
   { itemId: "speaker_basic", gx: 1, gy: 2 },
   { itemId: "board_basic", gx: 9, gy: 1 },
