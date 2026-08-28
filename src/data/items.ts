@@ -184,5 +184,14 @@ export const PLACEABLE_CATEGORIES: ItemDef["category"][] = ["furniture", "compan
 
 export const isPlaceable = (item: ItemDef) => PLACEABLE_CATEGORIES.includes(item.category);
 
+export type Rotation = 0 | 90 | 180 | 270;
+
+/** 90°/270° swaps an item's tile footprint for placement + collision purposes */
+export const rotatedFootprint = (item: ItemDef, rotation: Rotation = 0) =>
+  rotation === 90 || rotation === 270
+    ? { w: item.footprint.h, h: item.footprint.w }
+    : { w: item.footprint.w, h: item.footprint.h };
+
+
 export const WALLPAPER_DEFAULT = "wallpaper_default";
 export const POSTER_DEFAULT = "poster_default";
