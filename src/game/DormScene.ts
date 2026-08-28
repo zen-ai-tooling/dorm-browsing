@@ -9,7 +9,7 @@ import {
   type PlacedItem,
   type PopupPayload,
 } from "@/data/dorm";
-import { ITEM_CATALOG } from "@/data/items";
+import { ITEM_CATALOG, rotatedFootprint, type ItemDef, type Rotation } from "@/data/items";
 import { buildTextures } from "./textures";
 
 export const TILE = 32;
