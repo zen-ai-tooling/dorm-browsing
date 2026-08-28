@@ -1172,15 +1172,22 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
 
     // focal cluster: TV hooked up to a console, low table with controllers, couches facing in
+    // SOLIDITY RULE: any floor-standing furniture a person couldn't walk through
+    // (tables, consoles, couches, shelving, appliances, foosball) is solid: true.
+    // Small things resting on a solid surface (controllers), wall-mounted decor
+    // (posters, snack shelf, string lights) and soft/thin floor accents
+    // (beanbags, record player, plants) stay non-solid.
     this.prop({ key: "tv", x: t(L.x + 4), y: t(L.y + 1.8), solid: true });
-    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3) });
+    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3), solid: true });
     this.prop({
       key: "table",
       x: t(L.x + 4),
       y: t(L.y + 4.9),
+      solid: true,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
     this.prop({ key: "controller", x: t(L.x + 3.3), y: t(L.y + 4.5), depthBias: 20 });
+
     this.prop({ key: "controller", x: t(L.x + 4.8), y: t(L.y + 4.4), depthBias: 20 });
     this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.7), solid: true });
     // second couch renders as-authored: its texture is baked teal, and setTint
@@ -1202,7 +1209,7 @@ export class DormScene extends Phaser.Scene {
     // accent pieces (unchanged in spirit, recomposed around the focal cluster)
     this.prop({ key: "record", x: t(L.x + 11.2), y: t(L.y + 2.9) });
     this.prop({ key: "plant", x: t(L.x + 14.4), y: t(L.y + 1.6), scale: 1.05 });
-    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3) });
+    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3), solid: true });
 
     // decorative band / film posters along the lounge walls — varied tints and motifs
     const loungePosters: Array<[number, number, string, number]> = [
@@ -1220,7 +1227,7 @@ export class DormScene extends Phaser.Scene {
     // indoor fairy lights strung along the upper wall trim
     for (let i = 0; i < 18; i++) {
       const sx = t(L.x + 0.7) + i * 28;
-      const sy = t(L.y + 1.35) + Math.sin(i * 0.85) * 5;
+      const sy = t(L.y + 0.25) + Math.sin(i * 0.85) * 5;
       if (sx > t(L.x + L.w - 0.4)) break;
       this.add.image(sx, sy, "sparkle").setTint(0xffe3a6).setDepth(3).setAlpha(0.95);
     }

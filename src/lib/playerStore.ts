@@ -6,6 +6,8 @@ import { setSfxMuted, sfx } from "@/game/sounds";
 
 const STORAGE_KEY = "dorm-vibes-player-state";
 const STARTING_COINS = 50;
+/** escalating daily bonus, capped so shop prices stay meaningful */
+const STREAK_BONUS_CAP = 10;
 
 /** seed layout for "Your Room" — tile coords are the footprint's top-left, room-relative */
 export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
@@ -23,6 +25,9 @@ export interface PlayerState {
   ownedItemIds: string[];
   roomLayout: PlacedItem[];
   lastDailyAnswerDate: string | null;
+  currentStreak: number;
+  longestStreak: number;
+  lastShopSeenDate: string | null;
   muted: boolean;
   /** editable content for "Your Room" — seeded from ROOMS[0] */
   mySongs: Song[];
@@ -39,6 +44,9 @@ const defaultState = (): PlayerState => ({
     .map((i) => i.id),
   roomLayout: DEFAULT_MY_ROOM_LAYOUT.map((p) => ({ ...p })),
   lastDailyAnswerDate: null,
+  currentStreak: 0,
+  longestStreak: 0,
+  lastShopSeenDate: null,
   muted: false,
   mySongs: seed.songs.map((s) => ({ ...s })),
   myBulletin: {
@@ -86,6 +94,10 @@ const read = (): PlayerState => {
 
       lastDailyAnswerDate:
         typeof parsed.lastDailyAnswerDate === "string" ? parsed.lastDailyAnswerDate : null,
+      currentStreak: typeof parsed.currentStreak === "number" ? parsed.currentStreak : 0,
+      longestStreak: typeof parsed.longestStreak === "number" ? parsed.longestStreak : 0,
+      lastShopSeenDate:
+        typeof parsed.lastShopSeenDate === "string" ? parsed.lastShopSeenDate : null,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
       mySongs:
         Array.isArray(parsed.mySongs) && parsed.mySongs.length > 0
@@ -150,10 +162,24 @@ export const playerActions = {
     set({ roomLayout: layout.map((p) => ({ ...p })) });
   },
   answerDaily() {
-    if (state.lastDailyAnswerDate === todayKey()) return false;
-    set({ coins: state.coins + DAILY_COIN_REWARD, lastDailyAnswerDate: todayKey() });
+    const today = todayKey();
+    if (state.lastDailyAnswerDate === today) return false;
+    // gentle streak: yesterday continues it, a gap just starts over — nothing is lost
+    const yesterday = todayKey(new Date(Date.now() - 86_400_000));
+    const currentStreak = state.lastDailyAnswerDate === yesterday ? state.currentStreak + 1 : 1;
+    const bonus = Math.min(currentStreak, STREAK_BONUS_CAP);
+    set({
+      coins: state.coins + DAILY_COIN_REWARD + bonus,
+      lastDailyAnswerDate: today,
+      currentStreak,
+      longestStreak: Math.max(state.longestStreak, currentStreak),
+    });
     sfx.coin();
     return true;
+  },
+  markShopSeen() {
+    if (state.lastShopSeenDate === todayKey()) return;
+    set({ lastShopSeenDate: todayKey() });
   },
   setSongs(songs: Song[]) {
     set({ mySongs: songs.map((s) => ({ ...s })) });

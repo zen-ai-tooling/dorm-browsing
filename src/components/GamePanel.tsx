@@ -5,13 +5,15 @@ import { cn } from "@/lib/utils";
 export const GamePanel = ({
   accent,
   className,
+  title,
   children,
 }: {
   accent?: string | undefined;
   className?: string;
+  title?: string;
   children: ReactNode;
 }) => (
-  <div className={cn("game-panel relative overflow-hidden", className)}>
+  <div className={cn("game-panel relative overflow-hidden", className)} title={title}>
     {accent ? (
       <span
         aria-hidden
