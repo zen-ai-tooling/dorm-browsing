@@ -48,7 +48,21 @@ const defaultState = (): PlayerState => ({
   myNowWatching: { ...(seed.nowWatching ?? { title: "Nothing yet", status: "" }) },
 });
 
+/** older saves predate the poster catalog item and the TV's side-wall spot */
+const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
+  const next = layout.map((p) => ({ ...p }));
+  const tv = next.find((p) => p.itemId === "tv_basic");
+  if (tv && tv.gx === 5 && tv.gy === 1) {
+    tv.gx = 9;
+    tv.gy = 3;
+  }
+  if (!next.some((p) => p.itemId === "poster_default"))
+    next.unshift({ itemId: "poster_default", gx: 4, gy: 0 });
+  return next;
+};
+
 let state: PlayerState = defaultState();
+
 let hydrated = false;
 const listeners = new Set<() => void>();
 
