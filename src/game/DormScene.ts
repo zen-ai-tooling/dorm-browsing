@@ -1308,14 +1308,19 @@ export class DormScene extends Phaser.Scene {
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       unlockAudio();
       if (this.editMode) {
-        // tapping empty floor deselects; tapping an item or the X is handled elsewhere
+        if (this.pendingPlaceItemId) {
+          this.tryPlaceAtPointer(p);
+          return;
+        }
+        // tapping empty floor deselects; tapping an item or a control is handled elsewhere
         const wp0 = this.cameras.main.getWorldPoint(p.x, p.y);
         const hitItem = this.placed.some((q) => q.sprite.getBounds().contains(wp0.x, wp0.y));
-        const tb = this.trash?.getBounds();
-        const hitTrash = !!tb && tb.contains(wp0.x, wp0.y);
-        if (!hitItem && !hitTrash) this.clearSelection();
+        const ub = this.selectionUi?.getBounds();
+        const hitUi = !!ub && ub.contains(wp0.x, wp0.y);
+        if (!hitItem && !hitUi) this.clearSelection();
         return;
       }
+
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = Math.floor(wp.x / TILE);
       const ty = Math.floor(wp.y / TILE);
