@@ -74,6 +74,8 @@ export interface PersonRoom {
   songs: Song[];
   bulletin: { interests: string[]; event: string };
   companion: { type: "plant" | "pet"; name: string; breed: string; blurb: string };
+  /** what the room's owner is currently watching */
+  nowWatching?: { title: string; status?: string };
   /** furniture placement — data-driven, ready for a future editor */
   layout: PlacedItem[];
   /** reserved for catalog-driven wallpaper swap */
@@ -108,7 +110,9 @@ export const ROOMS: PersonRoom[] = [
       breed: "succulent",
       blurb: "low-maintenance, high standards",
     },
+    nowWatching: { title: "The Bear", status: "Season 2, Episode 4" },
     layout: [
+      { itemId: "tv_basic", gx: 5, gy: 1 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
       { itemId: "speaker_basic", gx: 1, gy: 2 },
@@ -143,6 +147,7 @@ export const ROOMS: PersonRoom[] = [
       breed: "round orange cat",
       blurb: "sits in every wet clay bowl exactly once",
     },
+    nowWatching: { title: "Perfect Days", status: "rewatching, third time" },
     layout: [
       { itemId: "bed_basic", gx: 9, gy: 5 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
@@ -179,6 +184,7 @@ export const ROOMS: PersonRoom[] = [
       breed: "trailing pothos",
       blurb: "grows toward the speaker, not the window",
     },
+    nowWatching: { title: "Boiler Room sets", status: "on in the background, always" },
     layout: [
       { itemId: "bed_basic", gx: 9, gy: 5 },
       { itemId: "desk_basic", gx: 1, gy: 7 },
@@ -237,5 +243,6 @@ export type PopupPayload =
   | { kind: "songs"; room: PersonRoom }
   | { kind: "bulletin"; room: PersonRoom }
   | { kind: "companion"; room: PersonRoom }
+  | { kind: "watching"; room: PersonRoom }
   | { kind: "corkboard" }
   | { kind: "flavor"; title: string; lines: string[]; accent?: string };

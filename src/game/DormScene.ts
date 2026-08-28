@@ -593,7 +593,9 @@ export class DormScene extends Phaser.Scene {
         ? { kind: "bulletin", room }
         : item.interactive === "companion"
           ? { kind: "companion", room }
-          : undefined;
+          : item.interactive === "watching"
+            ? { kind: "watching", room }
+            : undefined;
   }
 
   /** footprint-aware sprite placement for rooms that are not editable */
