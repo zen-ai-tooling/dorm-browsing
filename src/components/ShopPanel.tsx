@@ -1,4 +1,4 @@
-import { Check, Coins } from "lucide-react";
+import { Check, Coins, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ITEM_CATALOG, type ItemDef } from "@/data/items";
+import { featuredForToday, ITEM_CATALOG, type ItemDef } from "@/data/items";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { IconChip } from "./GamePanel";
 import { sfx } from "@/game/sounds";
@@ -37,11 +37,13 @@ const ItemCard = ({
   owned,
   affordable,
   thumb,
+  featured = false,
 }: {
   item: ItemDef;
   owned: boolean;
   affordable: boolean;
   thumb?: string | undefined;
+  featured?: boolean;
 }) => (
   <div
     className={`game-panel relative flex flex-col gap-2 p-3 transition ${
@@ -51,6 +53,12 @@ const ItemCard = ({
     {owned ? (
       <span className="absolute right-2 top-2 flex size-5 items-center justify-center rounded-[3px] border-2 border-ink bg-primary text-primary-foreground">
         <Check className="size-3" aria-hidden />
+      </span>
+    ) : null}
+    {featured && !owned ? (
+      <span className="absolute -left-1 -top-2 flex items-center gap-1 rounded-[3px] border-2 border-ink bg-accent px-1.5 py-0.5 font-display text-[10px] font-bold uppercase tracking-wider text-accent-foreground">
+        <Sparkles className="size-2.5" aria-hidden />
+        Featured
       </span>
     ) : null}
     <div className="flex h-20 items-center justify-center rounded-[3px] border-2 border-ink bg-panel-foreground/5">
@@ -101,7 +109,17 @@ export const ShopPanel = ({
   thumbnails?: Record<string, string>;
 }) => {
   const { coins, ownedItemIds } = usePlayerState();
-  const sections = groups();
+  const featured = new Set(featuredForToday());
+  // today's featured picks float to the top of their own category tab
+  const sections = groups().map(
+    ([category, items]) =>
+      [
+        category,
+        [...items].sort(
+          (a, b) => Number(featured.has(b.id)) - Number(featured.has(a.id)),
+        ),
+      ] as [ItemDef["category"], ItemDef[]],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,7 +135,7 @@ export const ShopPanel = ({
             </span>
           </DialogTitle>
           <DialogDescription className="font-body text-panel-muted">
-            Buy items, then place them from Edit My Room.
+            Buy items, then place them from Edit My Room. Featured picks rotate daily.
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue={sections[0]?.[0] ?? "furniture"}>
@@ -144,6 +162,7 @@ export const ShopPanel = ({
                       owned={ownedItemIds.includes(item.id)}
                       affordable={coins >= item.price}
                       thumb={thumbnails[item.textureKey]}
+                      featured={featured.has(item.id)}
                     />
                   ))}
                 </div>
