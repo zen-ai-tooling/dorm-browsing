@@ -997,7 +997,15 @@ export class DormScene extends Phaser.Scene {
     this.keys = kb.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      if (this.editMode) return;
+      if (this.editMode) {
+        // tapping empty floor deselects; tapping an item or the X is handled elsewhere
+        const wp0 = this.cameras.main.getWorldPoint(p.x, p.y);
+        const hitItem = this.placed.some((q) => q.sprite.getBounds().contains(wp0.x, wp0.y));
+        const tb = this.trash?.getBounds();
+        const hitTrash = !!tb && tb.contains(wp0.x, wp0.y);
+        if (!hitItem && !hitTrash) this.clearSelection();
+        return;
+      }
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       const tx = Math.floor(wp.x / TILE);
       const ty = Math.floor(wp.y / TILE);
