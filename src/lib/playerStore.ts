@@ -33,6 +33,8 @@ export interface PlayerState {
   mySongs: Song[];
   myBulletin: { interests: string[]; event: string };
   myNowWatching: { title: string; status?: string };
+  /** equipped wallpaper catalog id; falsy / unknown ids fall back to the mood default */
+  myWallpaperId: string;
 }
 
 const seed = ROOMS[0]!;
@@ -54,6 +56,7 @@ const defaultState = (): PlayerState => ({
     event: seed.bulletin.event,
   },
   myNowWatching: { ...(seed.nowWatching ?? { title: "Nothing yet", status: "" }) },
+  myWallpaperId: seed.wallpaperId,
 });
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
@@ -113,6 +116,8 @@ const read = (): PlayerState => {
       myNowWatching: parsed.myNowWatching?.title
         ? { title: String(parsed.myNowWatching.title), status: String(parsed.myNowWatching.status ?? "") }
         : base.myNowWatching,
+      myWallpaperId:
+        typeof parsed.myWallpaperId === "string" ? parsed.myWallpaperId : base.myWallpaperId,
     };
   } catch {
     return defaultState();
@@ -189,6 +194,11 @@ export const playerActions = {
   },
   setNowWatching(nowWatching: { title: string; status?: string }) {
     set({ myNowWatching: { ...nowWatching } });
+  },
+  setWallpaper(itemId: string) {
+    if (state.myWallpaperId === itemId) return;
+    set({ myWallpaperId: itemId });
+    sfx.placeItem();
   },
   toggleMute() {
     const muted = !state.muted;

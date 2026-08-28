@@ -8,7 +8,11 @@ export interface ItemDef {
   footprint: { w: number; h: number };
   solid: boolean;
   /** which popup this triggers, if any */
-  interactive?: "songs" | "bulletin" | "companion" | "watching";
+  interactive?: "songs" | "bulletin" | "companion" | "watching" | "art";
+  /** wallpaper items only: the wall base colour applied when equipped */
+  wallColor?: number;
+  /** wallpaper items only: pattern drawn over the wall base */
+  wallPattern?: "flat" | "stripes" | "checker" | "botanical" | "night" | "graph" | "sunset";
   /** optional recolor applied to the (neutral-authored) texture */
   tint?: number;
   /** coin cost in the shop; 0 for starter items */
@@ -96,6 +100,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_default",
     name: "Wall Poster",
     category: "poster",
+    interactive: "art",
     textureKey: "poster",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -180,6 +185,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
   wallpaper_sunset: {
     id: "wallpaper_sunset",
+    wallColor: 0xe0a87c,
+    wallPattern: "sunset",
     name: "Sunset Wallpaper",
     category: "wallpaper",
     textureKey: "wallpaper_sunset",
@@ -192,10 +199,79 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_gig",
     name: "Gig Poster",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-band",
     footprint: { w: 1, h: 1 },
     solid: false,
     price: 25,
+    unlockedByDefault: false,
+  },
+
+  // ---- iteration 14: speaker + TV variants (functionally identical, visually distinct) ----
+  speaker_boombox: {
+    id: "speaker_boombox",
+    name: "Retro Boombox",
+    category: "furniture",
+    textureKey: "boombox",
+    footprint: { w: 2, h: 2 },
+    solid: false,
+    interactive: "songs",
+    price: 45,
+    unlockedByDefault: false,
+  },
+  speaker_tower: {
+    id: "speaker_tower",
+    name: "Tower Speaker",
+    category: "furniture",
+    textureKey: "tower",
+    footprint: { w: 1, h: 3 },
+    solid: true,
+    interactive: "songs",
+    price: 65,
+    unlockedByDefault: false,
+  },
+  speaker_vintage: {
+    id: "speaker_vintage",
+    name: "Vintage Hi-Fi Cabinet",
+    category: "furniture",
+    textureKey: "hifi",
+    footprint: { w: 2, h: 2 },
+    solid: true,
+    interactive: "songs",
+    price: 105,
+    unlockedByDefault: false,
+  },
+  tv_crt: {
+    id: "tv_crt",
+    name: "Retro CRT TV",
+    category: "furniture",
+    textureKey: "crt",
+    footprint: { w: 2, h: 2 },
+    solid: false,
+    interactive: "watching",
+    price: 40,
+    unlockedByDefault: false,
+  },
+  tv_mounted: {
+    id: "tv_mounted",
+    name: "Mounted Flatscreen + Soundbar",
+    category: "furniture",
+    textureKey: "flatscreen",
+    footprint: { w: 3, h: 2 },
+    solid: false,
+    interactive: "watching",
+    price: 120,
+    unlockedByDefault: false,
+  },
+  tv_gaming: {
+    id: "tv_gaming",
+    name: "Gaming TV Setup",
+    category: "furniture",
+    textureKey: "tvgaming",
+    footprint: { w: 3, h: 2 },
+    solid: true,
+    interactive: "watching",
+    price: 95,
     unlockedByDefault: false,
   },
 
@@ -360,6 +436,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
 
   wallpaper_stripes: {
     id: "wallpaper_stripes",
+    wallColor: 0xe9d6e2,
+    wallPattern: "stripes",
     name: "Pastel Stripes",
     category: "wallpaper",
     textureKey: "wallpaper_stripes",
@@ -370,6 +448,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
   wallpaper_checker: {
     id: "wallpaper_checker",
+    wallColor: 0xdccfb6,
+    wallPattern: "checker",
     name: "Retro Checkerboard",
     category: "wallpaper",
     textureKey: "wallpaper_checker",
@@ -380,6 +460,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
   wallpaper_botanical: {
     id: "wallpaper_botanical",
+    wallColor: 0xd8dfc9,
+    wallPattern: "botanical",
     name: "Botanical Leaf Print",
     category: "wallpaper",
     textureKey: "wallpaper_botanical",
@@ -390,6 +472,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
   wallpaper_night: {
     id: "wallpaper_night",
+    wallColor: 0x3b4468,
+    wallPattern: "night",
     name: "Night Sky",
     category: "wallpaper",
     textureKey: "wallpaper_night",
@@ -400,6 +484,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
   wallpaper_graph: {
     id: "wallpaper_graph",
+    wallColor: 0xdfe6da,
+    wallPattern: "graph",
     name: "Graph Paper Grid",
     category: "wallpaper",
     textureKey: "wallpaper_graph",
@@ -413,6 +499,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_tour",
     name: "Band Tour Poster",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-tour",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -423,6 +510,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_travel",
     name: "Vintage Travel Print",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-travel",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -433,6 +521,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_space",
     name: "Astronomy Print",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-space",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -443,6 +532,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_abstract",
     name: "Abstract Art Print",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-abstract",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -453,6 +543,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_quote",
     name: "'Hang In There' Poster",
     category: "poster",
+    interactive: "art",
     textureKey: "poster-quote",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -463,6 +554,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
 
 /** items eligible for the daily rotating "featured" slot — the desirable ones */
 export const ROTATING_ITEM_IDS: string[] = [
+  "speaker_vintage",
+  "tv_gaming",
   "disco_ball",
   "arcade_cabinet",
   "pet_axolotl",
@@ -504,6 +597,14 @@ export const rotatedFootprint = (item: ItemDef, rotation: Rotation = 0) =>
     ? { w: item.footprint.h, h: item.footprint.w }
     : { w: item.footprint.w, h: item.footprint.h };
 
+
+/** popup viewer texture for a poster's in-room texture key */
+export const zoomTextureKey = (textureKey: string) => `${textureKey}-zoom`;
+
+/** every wallpaper the player can equip, in catalog order */
+export const WALLPAPER_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "wallpaper")
+  .map((i) => i.id);
 
 export const WALLPAPER_DEFAULT = "wallpaper_default";
 export const POSTER_DEFAULT = "poster_default";

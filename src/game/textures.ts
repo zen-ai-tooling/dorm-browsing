@@ -1104,6 +1104,249 @@ export const buildTextures = (scene: Phaser.Scene) => {
       r(g, 7, ly, lw, 2, 0x5a5350);
     r(g, 7, 21, 10, 1, 0x8b847e);
   }));
+
+  /* ------------- iteration 14: speaker + tv variants ------------- */
+
+  // boombox 30x20 — carry handle, twin round-ish drivers, cassette deck panel
+  make(scene, "boombox", 30, 20, (g) => {
+    foot(g, 15, 18, 22);
+    r(g, 10, 1, 10, 1, 0x3a3440);
+    r(g, 10, 1, 1, 4, 0x3a3440);
+    r(g, 19, 1, 1, 4, 0x3a3440);
+    panel(g, 1, 4, 28, 13, 0x5f5560, 0x453d47, 0x7b6f7c);
+    for (const cx of [5, 20]) {
+      r(g, cx, 7, 6, 6, 0x2f2a33);
+      line(g, cx, 7, 6, 6);
+      r(g, cx + 1, 8, 4, 4, 0x6d6672);
+      r(g, cx + 2, 9, 2, 2, 0x2f2a33);
+    }
+    r(g, 12, 7, 7, 4, 0x342f38);
+    line(g, 12, 7, 7, 4);
+    r(g, 13, 8, 2, 2, 0x9dc6cf);
+    r(g, 16, 8, 2, 2, 0x9dc6cf);
+    r(g, 12, 13, 7, 1, 0x8f8896);
+    r(g, 13, 15, 2, 1, 0x7fd6b0);
+  });
+
+  // tower speaker 16x44 — narrow floor-standing silhouette, three drivers
+  make(scene, "tower", 16, 44, (g) => {
+    foot(g, 8, 42, 12);
+    panel(g, 2, 1, 12, 40, 0x4a444f, 0x332f38, 0x655e6c);
+    dither(g, 3, 3, 10, 36, 0x413b46);
+    for (const [cy, s] of [[4, 8], [15, 8], [27, 6]] as const) {
+      r(g, (16 - s) / 2, cy, s, s, 0x2b262f);
+      line(g, (16 - s) / 2, cy, s, s);
+      r(g, (16 - s) / 2 + 2, cy + 2, s - 4, s - 4, 0x6d6672);
+    }
+    r(g, 6, 36, 4, 1, 0x8f8896);
+  });
+
+  // vintage hi-fi cabinet 30x24 — wood panel, cloth grille, brass knobs
+  make(scene, "hifi", 30, 24, (g) => {
+    foot(g, 15, 22, 24);
+    panel(g, 1, 2, 28, 19, WOOD, 0x6d4e33, WOOD_HI);
+    r(g, 3, 5, 17, 13, 0xbaa98c);
+    dither(g, 3, 5, 17, 13, 0xa39374);
+    line(g, 3, 5, 17, 13, 0x5a4432);
+    r(g, 22, 5, 5, 13, 0x6d4e33);
+    line(g, 22, 5, 5, 13, 0x4a3324);
+    for (const ky of [7, 12]) {
+      r(g, 23, ky, 3, 3, 0xd8b25c);
+      line(g, 23, ky, 3, 3, 0x8a6c2f);
+      r(g, 24, ky + 1, 1, 1, 0xf2e0ad);
+    }
+    r(g, 23, 16, 3, 1, 0xd8b25c);
+    r(g, 4, 20, 22, 1, 0x4a3324);
+  });
+
+  // CRT tube TV 34x32 — deep boxy body, curved-look bezel, rabbit-ear antenna
+  make(scene, "crt", 34, 32, (g) => {
+    foot(g, 17, 30, 26);
+    r(g, 15, 0, 1, 6, 0x3a3440);
+    r(g, 12, 1, 3, 3, 0x3a3440);
+    r(g, 19, 0, 1, 6, 0x3a3440);
+    r(g, 20, 1, 3, 3, 0x3a3440);
+    panel(g, 2, 5, 30, 23, 0x6b5f52, 0x4b423a, 0x8a7c6c);
+    r(g, 4, 8, 20, 15, 0x2f3a3d);
+    line(g, 4, 8, 20, 15);
+    dither(g, 5, 9, 18, 13, 0x3b4a4e);
+    r(g, 6, 10, 7, 4, 0x9dc6cf);
+    r(g, 26, 9, 4, 4, 0x342f38);
+    line(g, 26, 9, 4, 4);
+    r(g, 27, 15, 2, 2, 0xd8b25c);
+    r(g, 26, 19, 4, 1, 0x4b423a);
+  });
+
+  // mounted flatscreen + soundbar 48x30 — slim panel, wall bracket, bar beneath
+  make(scene, "flatscreen", 48, 30, (g) => {
+    r(g, 2, 1, 44, 17, INK);
+    r(g, 4, 3, 40, 13, 0x33454c);
+    dither(g, 4, 3, 40, 13, 0x3c5158);
+    r(g, 6, 5, 12, 4, 0x9dc6cf);
+    r(g, 30, 11, 10, 3, 0x6f939c);
+    r(g, 22, 18, 4, 3, 0x342f38);
+    panel(g, 8, 21, 32, 6, 0x4c4650, 0x342f38, 0x6a6370);
+    for (let i = 0; i < 12; i++) r(g, 11 + i * 2, 23, 1, 2, 0x2b262f);
+    foot(g, 24, 28, 30);
+  });
+
+  // gamer TV setup 46x36 — screen on a stand with a console box + controller
+  make(scene, "tvgaming", 46, 36, (g) => {
+    foot(g, 23, 34, 36);
+    r(g, 1, 1, 34, 20, INK);
+    r(g, 3, 3, 30, 16, 0x2f3f4a);
+    dither(g, 3, 3, 30, 16, 0x3a4d59);
+    r(g, 5, 5, 9, 4, 0x9dc6cf);
+    r(g, 20, 13, 9, 3, 0x7fd6b0);
+    r(g, 16, 21, 4, 3, 0x342f38);
+    panel(g, 1, 24, 44, 8, 0x6b5f52, 0x4b423a, 0x8a7c6c);
+    // console box on the shelf
+    panel(g, 26, 17, 16, 7, 0x3d3a45, 0x2a2830, 0x565261);
+    r(g, 28, 19, 9, 1, 0x211f26);
+    r(g, 39, 19, 2, 2, 0x7fd6b0);
+    // controller resting on the stand
+    r(g, 5, 26, 9, 4, 0x4a4753);
+    line(g, 5, 26, 9, 4);
+    r(g, 7, 27, 2, 1, 0x9a94a4);
+    r(g, 11, 27, 1, 1, 0xd97b6c);
+  });
+
+  /* ------------- iteration 14: zoomed poster art (popup viewer) ------------- */
+
+  // 90x55 art px (=180x110 canvas) — real motif content, not an upscale.
+  const ZF = 0xe9e2d4; // paper field
+  const ZI = 0x3f3a38; // ink motif
+  const ZM = 0x8b847e; // mid tone
+  const ZL = 0xf6f1e6; // paper highlight
+  const zoom = (field: number, draw: (g: G) => void) => (g: G) => {
+    r(g, 0, 0, 90, 55, INK);
+    r(g, 2, 2, 86, 51, field);
+    line(g, 4, 4, 82, 47, 0x6b625c);
+    draw(g);
+  };
+  const typeLine = (g: G, x: number, y: number, w: number, c = ZM) => r(g, x, y, w, 2, c);
+
+  // default: gallery banner with a rule bar and caption lines
+  make(scene, "poster-zoom", 90, 55, zoom(ZF, (g) => {
+    r(g, 12, 9, 66, 18, ZL);
+    line(g, 12, 9, 66, 18, 0x6b625c);
+    r(g, 18, 15, 54, 4, ZI);
+    r(g, 18, 21, 34, 2, ZM);
+    typeLine(g, 20, 34, 50);
+    typeLine(g, 20, 39, 38);
+    r(g, 20, 45, 18, 3, 0xc8765c);
+  }));
+
+  // band: lone silhouette figure with mic stand + bold pixel-type title bar
+  make(scene, "poster-band-zoom", 90, 55, zoom(0x2f2b2a, (g) => {
+    dither(g, 6, 6, 78, 43, 0x3a3534);
+    r(g, 8, 8, 74, 9, 0xd8b25c);
+    for (let i = 0; i < 6; i++) r(g, 12 + i * 12, 10, 8, 5, 0x2f2b2a);
+    // figure
+    r(g, 42, 24, 8, 6, 0x1f1c1c);
+    r(g, 40, 30, 12, 14, 0x1f1c1c);
+    r(g, 36, 32, 4, 9, 0x1f1c1c);
+    r(g, 52, 31, 4, 8, 0x1f1c1c);
+    r(g, 41, 44, 4, 6, 0x1f1c1c);
+    r(g, 47, 44, 4, 6, 0x1f1c1c);
+    r(g, 34, 26, 3, 3, 0xd8b25c); // mic
+    r(g, 35, 29, 1, 14, 0x6b625c);
+    for (const [ly, lw] of [[26, 20], [31, 16], [36, 22]] as const) {
+      typeLine(g, 8, ly, lw, 0x8f8a86);
+      typeLine(g, 64, ly, lw - 4, 0x8f8a86);
+    }
+  }));
+
+  // film: letterbox still + credits block
+  make(scene, "poster-film-zoom", 90, 55, zoom(0x2a2726, (g) => {
+    r(g, 8, 8, 74, 28, 0x1c1a1a);
+    line(g, 8, 8, 74, 28, 0x6b625c);
+    r(g, 12, 14, 30, 18, 0x8f8a86);
+    dither(g, 42, 12, 36, 20, 0x4a4544);
+    r(g, 20, 20, 10, 8, 0xd9d2c4);
+    typeLine(g, 12, 40, 66, 0x8f8a86);
+    typeLine(g, 12, 45, 44, 0x6b625c);
+    r(g, 66, 44, 12, 4, 0xc8765c);
+  }));
+
+  // tour: type block, silhouette, date rows
+  make(scene, "poster-tour-zoom", 90, 55, zoom(0xe4d8bf, (g) => {
+    r(g, 8, 7, 74, 8, ZI);
+    r(g, 12, 9, 20, 4, 0xe4d8bf);
+    r(g, 36, 9, 14, 4, 0xe4d8bf);
+    r(g, 54, 9, 24, 4, 0xe4d8bf);
+    r(g, 40, 22, 10, 18, ZI);
+    r(g, 41, 17, 8, 5, ZI);
+    r(g, 30, 26, 10, 3, ZI);
+    r(g, 50, 26, 10, 3, ZI);
+    for (const ly of [44, 48]) {
+      typeLine(g, 10, ly, 30, 0x8b7f66);
+      typeLine(g, 52, ly, 28, 0x8b7f66);
+    }
+  }));
+
+  // travel: stylized city skyline silhouette under a sun disc
+  make(scene, "poster-travel-zoom", 90, 55, zoom(0xf0d9b5, (g) => {
+    r(g, 6, 6, 78, 24, 0xf3c98a);
+    r(g, 60, 10, 14, 14, 0xe98d70);
+    line(g, 60, 10, 14, 14, 0xa85c48);
+    const towers: Array<[number, number, number]> = [
+      [8, 22, 8], [17, 16, 7], [25, 26, 6], [32, 12, 9], [42, 20, 7],
+      [50, 24, 6], [57, 17, 8], [66, 23, 7], [74, 14, 8],
+    ];
+    for (const [tx, ty, tw] of towers) {
+      r(g, tx, ty, tw, 40 - ty, 0x3c4a55);
+      for (let wy = ty + 3; wy < 38; wy += 5)
+        for (let wx = tx + 2; wx < tx + tw - 1; wx += 3) r(g, wx, wy, 1, 2, 0xf3c98a);
+    }
+    r(g, 6, 40, 78, 3, 0x2c3742);
+    typeLine(g, 22, 47, 46, 0x6f6353);
+  }));
+
+  // space: ringed planet, moon, star field
+  make(scene, "poster-space-zoom", 90, 55, zoom(0x191d33, (g) => {
+    dither(g, 6, 6, 78, 43, 0x212747);
+    for (const [sx, sy] of [
+      [10, 10], [22, 15], [34, 8], [50, 12], [66, 9], [78, 18],
+      [14, 34], [28, 42], [44, 46], [62, 38], [76, 44], [8, 22],
+    ] as const)
+      r(g, sx, sy, 1, 1, 0xf6f2e2);
+    r(g, 34, 16, 22, 22, 0xd8956c);
+    r(g, 34, 28, 22, 10, 0xa9694a);
+    dither(g, 36, 18, 18, 8, 0xe8b088);
+    line(g, 34, 16, 22, 22, 0x6b3f2c);
+    r(g, 24, 25, 42, 2, 0xe9e2d4);
+    r(g, 22, 27, 46, 1, 0xa9a3b8);
+    r(g, 68, 40, 6, 6, 0xc9c4d8);
+    r(g, 68, 43, 6, 3, 0x8d88a0);
+    typeLine(g, 28, 48, 34, 0x6f6a86);
+  }));
+
+  // abstract: overlapping geometry, stepped arc, dithered field
+  make(scene, "poster-abstract-zoom", 90, 55, zoom(0xece4d6, (g) => {
+    r(g, 10, 10, 26, 34, 0x3f6f7a);
+    r(g, 24, 20, 30, 24, 0xd97b6c);
+    dither(g, 26, 22, 26, 20, 0xe89a8c);
+    r(g, 46, 8, 18, 18, 0xd8b25c);
+    line(g, 46, 8, 18, 18, 0x8a6c2f);
+    // stepped quarter arc
+    for (let i = 0; i < 9; i++) r(g, 62 + i, 40 - i * 3, 3, 3 + i * 3, 0x2f2b3a);
+    r(g, 10, 47, 44, 3, 0x2f2b3a);
+    r(g, 16, 16, 8, 8, 0xece4d6);
+  }));
+
+  // quote: framed short-line pixel type treatment
+  make(scene, "poster-quote-zoom", 90, 55, zoom(0xf2ece0, (g) => {
+    line(g, 8, 8, 74, 39, 0x8b847e);
+    r(g, 12, 12, 5, 8, ZI);
+    r(g, 19, 12, 5, 8, ZI);
+    // three short type lines, centered-ish
+    r(g, 20, 24, 50, 3, ZI);
+    r(g, 26, 30, 38, 3, ZI);
+    r(g, 32, 36, 26, 3, 0x6b625c);
+    r(g, 60, 41, 14, 2, 0xc8765c);
+    r(g, 74, 12, 5, 8, ZM);
+  }));
 };
 
 

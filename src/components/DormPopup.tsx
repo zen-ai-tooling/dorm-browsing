@@ -407,7 +407,13 @@ const CorkboardPopup = () => {
 
 /* ---------------- root ---------------- */
 
-export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
+export const DormPopup = ({
+  payload,
+  thumbnails = {},
+}: {
+  payload: PopupPayload | null;
+  thumbnails?: Record<string, string>;
+}) => {
   const { mySongs, myBulletin, myNowWatching } = usePlayerState();
   const [editing, setEditing] = useState(false);
   const kind = payload?.kind ?? null;
@@ -522,6 +528,30 @@ export const DormPopup = ({ payload }: { payload: PopupPayload | null }) => {
   }
 
   if (payload.kind === "corkboard") return <CorkboardPopup />;
+
+  if (payload.kind === "art") {
+    const src = thumbnails[payload.textureKey];
+    return (
+      <Shell accent={payload.accent ?? "#8d8090"} title={payload.title} subtitle="wall art">
+        <div className="flex flex-col items-center gap-2 border-2 border-ink bg-panel-foreground/5 p-3">
+          {src ? (
+            <img
+              src={src}
+              alt={payload.title}
+              width={360}
+              height={220}
+              className="w-full max-w-[340px] border-2 border-ink [image-rendering:pixelated]"
+            />
+          ) : (
+            <span className="font-body text-xs text-panel-muted">loading art…</span>
+          )}
+          <span className="font-display text-sm font-bold text-panel-foreground">
+            {payload.title}
+          </span>
+        </div>
+      </Shell>
+    );
+  }
 
   return (
     <Shell accent={payload.accent ?? "#8d8090"} title={payload.title}>

@@ -250,4 +250,5 @@ export type PopupPayload =
   | { kind: "companion"; room: PersonRoom }
   | { kind: "watching"; room: PersonRoom }
   | { kind: "corkboard" }
+  | { kind: "art"; title: string; textureKey: string; accent?: string }
   | { kind: "flavor"; title: string; lines: string[]; accent?: string };

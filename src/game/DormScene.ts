@@ -9,7 +9,13 @@ import {
   type PlacedItem,
   type PopupPayload,
 } from "@/data/dorm";
-import { ITEM_CATALOG, rotatedFootprint, type ItemDef, type Rotation } from "@/data/items";
+import {
+  ITEM_CATALOG,
+  rotatedFootprint,
+  zoomTextureKey,
+  type ItemDef,
+  type Rotation,
+} from "@/data/items";
 import { buildTextures } from "./textures";
 
 export const TILE = 32;
@@ -191,6 +197,9 @@ export class DormScene extends Phaser.Scene {
   private onLayoutChange: (l: PlacedItem[]) => void = () => {};
   private onInsideRoom: (v: boolean) => void = () => {};
   private onReady: (scene: DormScene) => void = () => {};
+  private getWallpaperId: () => string = () => ROOMS[0]!.wallpaperId;
+  private onWallTap: () => void = () => {};
+  private wallGfx: Phaser.GameObjects.Graphics | null = null;
 
 
   constructor() {
@@ -204,6 +213,8 @@ export class DormScene extends Phaser.Scene {
     onInsideRoom?: (v: boolean) => void;
     onPlacingChange?: (itemId: string | null) => void;
     onReady?: (scene: DormScene) => void;
+    getWallpaperId?: () => string;
+    onWallTap?: () => void;
   }) {
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
@@ -211,6 +222,8 @@ export class DormScene extends Phaser.Scene {
     if (data?.onInsideRoom) this.onInsideRoom = data.onInsideRoom;
     if (data?.onPlacingChange) this.onPlacingChange = data.onPlacingChange;
     if (data?.onReady) this.onReady = data.onReady;
+    if (data?.getWallpaperId) this.getWallpaperId = data.getWallpaperId;
+    if (data?.onWallTap) this.onWallTap = data.onWallTap;
   }
 
 
@@ -228,6 +241,7 @@ export class DormScene extends Phaser.Scene {
     this.setupCamera();
     this.setupInput();
     this.setupEditorInput();
+    this.applyWallpaper();
     this.onReady(this);
   }
 
@@ -339,6 +353,96 @@ export class DormScene extends Phaser.Scene {
     }
   }
 
+  /** one wall block: flat 3-tone bands, hard edges, optional wallpaper pattern */
+  private drawWallTile(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    base: number,
+    pattern: NonNullable<ItemDef["wallPattern"]> = "flat",
+  ) {
+    const shade = mix(base, 0x2b2027, 0.32);
+    const deep = mix(base, 0x2b2027, 0.52);
+    const hi = mix(base, 0xfaf0e0, 0.4);
+    const bx = t(x);
+    const by = t(y);
+    const fill = (c: number, px: number, py: number, w: number, h: number) => {
+      g.fillStyle(c, 1);
+      g.fillRect(bx + px, by + py, w, h);
+    };
+    fill(base, 0, 0, TILE, TILE);
+    // wallpaper pattern lives in the field between the trim rail and the baseboard
+    if (pattern !== "flat") {
+      const accent = mix(base, 0x2b2027, 0.24);
+      const light = mix(base, 0xfaf0e0, 0.34);
+      if (pattern === "stripes") {
+        for (let i = 0; i < TILE; i += 8) fill(accent, i, 8, 4, TILE - 18);
+      } else if (pattern === "checker") {
+        for (let cy = 8; cy < TILE - 10; cy += 8)
+          for (let cx = 0; cx < TILE; cx += 8)
+            if (((cx + cy) / 8) % 2 === 0) fill(accent, cx, cy, 8, 8);
+      } else if (pattern === "botanical") {
+        for (const [lx, ly] of [
+          [5, 10],
+          [19, 14],
+          [11, 20],
+        ] as const) {
+          fill(accent, lx, ly, 6, 2);
+          fill(accent, lx + 2, ly - 3, 2, 8);
+        }
+      } else if (pattern === "night") {
+        for (const [sx, sy] of [
+          [4, 11],
+          [14, 9],
+          [24, 15],
+          [9, 19],
+          [21, 22],
+        ] as const)
+          fill(light, sx, sy, 2, 2);
+      } else if (pattern === "graph") {
+        for (let i = 0; i < TILE; i += 8) {
+          fill(accent, i, 8, 2, TILE - 18);
+          fill(accent, 0, 8 + i, TILE, 2);
+        }
+      } else if (pattern === "sunset") {
+        fill(light, 0, 8, TILE, 6);
+        fill(accent, 0, 18, TILE, TILE - 28);
+      }
+    }
+    fill(hi, 0, 2, TILE, 4); // trim rail highlight
+    fill(shade, 0, 6, TILE, 2);
+    fill(deep, 0, TILE - 6, TILE, 6); // baseboard
+    fill(shade, 0, TILE - 8, TILE, 2);
+    // 2px dither band above the baseboard: fakes volume without any blur
+    for (let i = 0; i < TILE; i += 4) fill(shade, i, TILE - 10, 2, 2);
+    fill(deep, 0, 0, 2, TILE); // 1 art-pixel seam between wall blocks
+  }
+
+  /** wall tiles that ring my room — the tappable wallpaper surface */
+  private myWallTiles(): Array<[number, number]> {
+    const r = PERSONAL_RECTS[0]!;
+    const out: Array<[number, number]> = [];
+    for (let y = r.y - 1; y <= r.y + r.h; y++)
+      for (let x = r.x - 1; x <= r.x + r.w; x++)
+        if (this.grid[y]?.[x] === WALL) out.push([x, y]);
+    return out;
+  }
+
+  /**
+   * Repaints my room's walls from the equipped wallpaper item. Drawn as an overlay
+   * on top of the baked floormap so swapping is instant and never rebuilds the world.
+   */
+  applyWallpaper() {
+    const item = ITEM_CATALOG[this.getWallpaperId()];
+    this.wallGfx?.destroy();
+    this.wallGfx = null;
+    if (!item || item.wallColor === undefined) return; // default: keep the mood trim
+    const g = this.add.graphics().setDepth(0.5);
+    for (const [x, y] of this.myWallTiles())
+      this.drawWallTile(g, x, y, item.wallColor, item.wallPattern ?? "flat");
+    this.wallGfx = g;
+  }
+
   private paintFloor(zones: Zone[]) {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
     for (const z of zones) this.paintZoneFloor(g, z);
@@ -348,31 +452,10 @@ export class DormScene extends Phaser.Scene {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
         const zone = this.zoneNear(x, y, zones);
-        const base = zone?.wall ?? NEUTRAL_WALL;
-        const shade = mix(base, 0x2b2027, 0.32);
-        const deep = mix(base, 0x2b2027, 0.52);
-        const hi = mix(base, 0xfaf0e0, 0.4);
-        const bx = t(x);
-        const by = t(y);
-        g.fillStyle(base, 1);
-        g.fillRect(bx, by, TILE, TILE);
-        g.fillStyle(hi, 1);
-        g.fillRect(bx, by + 2, TILE, 4); // trim rail highlight
-        g.fillStyle(shade, 1);
-        g.fillRect(bx, by + 6, TILE, 2);
-        g.fillStyle(deep, 1);
-        g.fillRect(bx, by + TILE - 6, TILE, 6); // baseboard
-        g.fillStyle(shade, 1);
-        g.fillRect(bx, by + TILE - 8, TILE, 2);
-        // 2px dither band above the baseboard: fakes volume without any blur
-        for (let i = 0; i < TILE; i += 4) {
-          g.fillStyle(shade, 1);
-          g.fillRect(bx + i, by + TILE - 10, 2, 2);
-        }
-        g.fillStyle(deep, 1);
-        g.fillRect(bx, by, 2, TILE); // 1 art-pixel seam between wall blocks
+        this.drawWallTile(g, x, y, zone?.wall ?? NEUTRAL_WALL);
       }
     }
+
 
     // ---- doorway thresholds: pixel stone sill ----
     for (const [x, y] of DOORWAYS) {
@@ -591,7 +674,14 @@ export class DormScene extends Phaser.Scene {
           ? { kind: "companion", room }
           : item.interactive === "watching"
             ? { kind: "watching", room }
-            : undefined;
+            : item.interactive === "art"
+              ? {
+                  kind: "art" as const,
+                  title: item.name,
+                  textureKey: zoomTextureKey(item.textureKey),
+                  accent: room.accentColor,
+                }
+              : undefined;
   }
 
   /**
@@ -1394,6 +1484,14 @@ export class DormScene extends Phaser.Scene {
         }
         // tapping empty floor deselects; tapping an item or a control is handled elsewhere
         const wp0 = this.cameras.main.getWorldPoint(p.x, p.y);
+        // tapping my room's wall opens the wallpaper picker, Animal Crossing style
+        const wtx = Math.floor(wp0.x / TILE);
+        const wty = Math.floor(wp0.y / TILE);
+        if (this.myWallTiles().some(([mx, my]) => mx === wtx && my === wty)) {
+          this.clearSelection();
+          this.onWallTap();
+          return;
+        }
         const hitItem = this.placed.some((q) => q.sprite.getBounds().contains(wp0.x, wp0.y));
         const ub = this.selectionUi?.getBounds();
         const hitUi = !!ub && ub.contains(wp0.x, wp0.y);
