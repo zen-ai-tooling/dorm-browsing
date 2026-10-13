@@ -1323,6 +1323,25 @@ export class DormScene extends Phaser.Scene {
     }
 
 
+    // ---- Iteration 16: newer catalog pieces as ambient set dressing (not editable) ----
+    // games corner: arcade cabinet beside the foosball table (floor-standing → solid)
+    this.prop({ key: "arcade", x: t(L.x + 10.5), y: t(L.y + 8.0), solid: true });
+    // extra seating texture in the open floor between couch and record player (solid)
+    this.prop({ key: "papasan", x: t(L.x + 11.7), y: t(L.y + 5.4), solid: true });
+    // wall-mounted neon focal piece (non-solid)
+    this.add.image(t(L.x + 8.2), t(L.y + 0.45), "neon").setScale(0.9).setDepth(4);
+    // disco ball hangs over the seating cluster; a stepped scaleX yoyo fakes a slow spin
+    const disco = this.add.image(t(L.x + 6.6), t(L.y + 3.1), "discoball").setTint(0xc9d6ec).setDepth(t(L.y + 12));
+    this.add.rectangle(disco.x, disco.y - 26, 2, 22, 0x2b2420).setDepth(disco.depth - 1);
+    this.tweens.add({
+      targets: disco,
+      scaleX: { from: 1, to: -1 },
+      duration: 2400,
+      yoyo: true,
+      repeat: -1,
+      onUpdate: () => disco.setScale(Math.round(disco.scaleX * 4) / 4 || 0.25, 1),
+    });
+
     // ---- Study Lounge ----
     const S = COMMON[1]!;
     this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 2.6), solid: true });
@@ -1336,6 +1355,9 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({ key: "plant", x: t(S.x + 11.6), y: t(S.y + 8.2) });
 
+    this.prop({ key: "vinylcrate", x: t(S.x + 8.2), y: t(S.y + 1.8), solid: true });
+    this.prop({ key: "cushions", x: t(S.x + 9.4), y: t(S.y + 7.8) });
+
     // ---- Kitchenette ----
     const K = COMMON[2]!;
     this.prop({ key: "counter", x: t(K.x + 6), y: t(K.y + 8) , solid: true });
@@ -1348,6 +1370,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({ key: "table", x: t(K.x + 8.6), y: t(K.y + 3.4) });
     this.prop({ key: "plant", x: t(K.x + 10.4), y: t(K.y + 7.6), scale: 0.9 });
+    this.prop({ key: "cushions", x: t(K.x + 4.2), y: t(K.y + 4.4), tint: 0xf0d8b0 });
 
     // ---- Courtyard ----
     const C = COMMON[3]!;
