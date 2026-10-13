@@ -23,7 +23,11 @@ const DormGame = () => {
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
-  const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId } = usePlayerState();
+  const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId, seenControls } =
+    usePlayerState();
+  const [hintOpen, setHintOpen] = useState<boolean | null>(null);
+  const showHint = hintOpen ?? !seenControls;
+  const trayWrapRef = useRef<HTMLDivElement>(null);
   const hasNewFeatured = featuredForToday().length > 0 && lastShopSeenDate !== todayKey();
 
 
@@ -96,6 +100,50 @@ const DormGame = () => {
     };
   }, []);
 
+  // collapse the controls card after the first move (or 10s); returning players start collapsed
+  useEffect(() => {
+    if (seenControls) return;
+    const done = () => {
+      playerActions.markControlsSeen();
+      setHintOpen(null);
+    };
+    const moveKeys = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]);
+    const onKey = (e: KeyboardEvent) => {
+      if (moveKeys.has(e.key.toLowerCase())) done();
+    };
+    const el = containerRef.current;
+    window.addEventListener("keydown", onKey);
+    el?.addEventListener("pointerdown", done);
+    const timer = window.setTimeout(done, 10000);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      el?.removeEventListener("pointerdown", done);
+      window.clearTimeout(timer);
+    };
+  }, [seenControls]);
+
+  // edit mode: frame the room above the tray (measured from the DOM)
+  useEffect(() => {
+    if (!editing) return;
+    const frame = () => {
+      const tray = trayWrapRef.current?.firstElementChild as HTMLElement | null;
+      const host = containerRef.current;
+      if (!host) return;
+      let inset = 0;
+      if (tray) {
+        const hr = host.getBoundingClientRect();
+        inset = Math.max(0, hr.bottom - tray.getBoundingClientRect().top);
+      }
+      sceneRef.current?.frameMyRoom(inset);
+    };
+    const raf = requestAnimationFrame(frame);
+    window.addEventListener("resize", frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", frame);
+    };
+  }, [editing, wallpaperOpen]);
+
   useEffect(() => {
     sceneRef.current?.applyWallpaper();
   }, [myWallpaperId]);
@@ -113,6 +161,7 @@ const DormGame = () => {
     setEditing(on);
     if (!on) setWallpaperOpen(false);
     sceneRef.current?.setEditMode(on);
+    if (!on) sceneRef.current?.restoreCamera();
   };
 
 
@@ -138,16 +187,25 @@ const DormGame = () => {
       />
 
       <div className="pointer-events-none absolute left-4 top-4 space-y-2">
-        <GamePanel accent="#7f9c86" className="px-3 py-2">
-          <p className="font-display text-sm font-bold tracking-wide text-panel-foreground">
+        <GamePanel accent="#7f9c86" className="pointer-events-auto px-3 py-2">
+          <button
+            type="button"
+            aria-expanded={showHint}
+            onClick={() => setHintOpen(!showHint)}
+            className="block text-left font-display text-sm font-bold tracking-wide text-panel-foreground"
+          >
             Dorm Vibes · Floor 3
-          </p>
-          <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-            WASD / arrows or click a tile to walk
-          </p>
-          <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-            Wander up to things — they open on their own
-          </p>
+          </button>
+          {showHint ? (
+            <>
+              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                WASD / arrows or click a tile to walk
+              </p>
+              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                Wander up to things — they open on their own
+              </p>
+            </>
+          ) : null}
         </GamePanel>
         <div className="pointer-events-auto flex flex-wrap items-center gap-2">
           <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
@@ -210,7 +268,7 @@ const DormGame = () => {
               />
             ) : null}
           </div>
-          {inMyRoom || editing ? (
+          {inMyRoom && !editing ? (
             <Button
               size="sm"
               variant={editing ? "default" : "secondary"}
@@ -244,6 +302,7 @@ const DormGame = () => {
       ) : null}
 
       {editing && !wallpaperOpen ? (
+        <div ref={trayWrapRef} className="contents">
         <RoomEditorTray
           onDone={() => toggleEdit(false)}
           onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
@@ -251,7 +310,7 @@ const DormGame = () => {
           placingItemId={placingItemId}
           thumbnails={thumbs}
         />
-
+        </div>
       ) : (
         <DormPopup payload={popup} thumbnails={thumbs} />
       )}
