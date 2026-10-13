@@ -1370,7 +1370,7 @@ export class DormScene extends Phaser.Scene {
     // dorm-door signs in the hallway, just above each common room's doorway
     for (const z of COMMON) {
       if (z.kind !== "common") continue;
-      const door = DOORWAYS.filter(([, dy]) => dy === z.y - 1).map(([dx]) => dx);
+      const door = DOORWAYS.filter(([dx, dy]) => dy === z.y - 1 && dx >= z.x && dx < z.x + z.w).map(([dx]) => dx);
       const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
       this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
     }
