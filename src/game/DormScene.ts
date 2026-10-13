@@ -700,7 +700,7 @@ export class DormScene extends Phaser.Scene {
 
     // accent trim strip along the top wall — accent as trim, not as base tone
     this.add
-      .rectangle(t(rect.x), t(rect.y), t(rect.w), 4, accent, 1)
+      .rectangle(t(rect.x), t(rect.y - 1) + 8, t(rect.w), 2, accent, 1)
       .setOrigin(0, 0)
       .setDepth(1);
 
