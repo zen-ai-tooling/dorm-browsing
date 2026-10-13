@@ -41,6 +41,7 @@ interface Zone extends Rect {
   floor: number;
   wall: number;
   kind: "hall" | "personal" | "common" | "outdoor";
+  floorStyle?: "planks" | "linoleum";
 }
 
 const mix = (a: number, b: number, t: number) =>
@@ -106,6 +107,7 @@ const COMMON: Zone[] = [
     h: 10,
     floor: 0xdcc9a0,
     wall: mix(NEUTRAL_WALL, 0xc9a35e, 0.3),
+    floorStyle: "linoleum",
     kind: "common",
   },
   {
@@ -350,6 +352,16 @@ export class DormScene extends Phaser.Scene {
             const tone = tones[(seed + i) % tones.length]!;
             px(ox + sx, oy + sy, 1 + ((seed + i) % 2), 1, tone);
           }
+        } else if (z.floorStyle === "linoleum") {
+          // two-tone 16px checker (8 art px) with 1px grout
+          const half = U / 2;
+          for (let cy = 0; cy < 2; cy++)
+            for (let cx = 0; cx < 2; cx++) {
+              const c = (cx + cy) % 2 === 0 ? z.floor : mix(z.floor, 0x3d3128, 0.12);
+              px(ox + cx * half, oy + cy * half, half, half, c);
+              px(ox + cx * half, oy + cy * half, half, 1, darker);
+              px(ox + cx * half, oy + cy * half, 1, half, darker);
+            }
         } else {
           // wood planks: staggered joints + seeded per-tile grain variation
           const stagger = ty % 2 === 0 ? 0 : U / 2;
@@ -725,13 +737,14 @@ export class DormScene extends Phaser.Scene {
     const dy = t(16) + TILE / 2;
     this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
     this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
-    this.label(dx, dy - 46, room.name, "#241c26", 13).setDepth(5);
+    // hallway-side name sign, matching the common-room labels
+    this.label(dx, dy + (room.awayNote && !room.isActive ? 50 : 30), room.name, "#3a2f34", 12).setDepth(5);
 
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
       if (!this.textures.exists(key)) return;
       this.add
-        .image(dx - 18 + i * 18, dy + 4, key)
+        .image(dx - 18 + i * 18, dy + 2, key)
         .setDepth(6)
         .setScale(0.8)
         .setTint(0xfffdf5);
@@ -1127,10 +1140,16 @@ export class DormScene extends Phaser.Scene {
     this.showMountGuide(p.itemId);
     p.sprite.setTint(0xfff3b0);
     const remove = this.iconButton("X", 0x9b2f2f, () => this.removeSelected());
-    const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
-    remove.setPosition(14, 0);
-    rotate.setPosition(-14, 0);
-    this.selectionUi = this.add.container(p.sprite.x, 0, [rotate, remove]).setDepth(5000);
+    const def = ITEM_CATALOG[p.itemId];
+    const buttons: Phaser.GameObjects.Container[] = [remove];
+    if (def && !isWallItem(def)) {
+      // wall items never rotate, so they get only the remove button
+      const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
+      remove.setPosition(14, 0);
+      rotate.setPosition(-14, 0);
+      buttons.unshift(rotate);
+    }
+    this.selectionUi = this.add.container(p.sprite.x, 0, buttons).setDepth(5000);
     this.positionSelectionUi();
   }
 
