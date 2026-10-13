@@ -11,12 +11,14 @@ import {
 } from "@/data/dorm";
 import {
   ITEM_CATALOG,
-  rotatedFootprint,
+  effectiveFootprint,
+  isWallItem,
   zoomTextureKey,
   type ItemDef,
   type Rotation,
 } from "@/data/items";
 import { buildTextures } from "./textures";
+import { canPlaceIn } from "@/data/placement";
 
 export const TILE = 32;
 const GRID_W = 88;
@@ -200,6 +202,10 @@ export class DormScene extends Phaser.Scene {
   private getWallpaperId: () => string = () => ROOMS[0]!.wallpaperId;
   private onWallTap: () => void = () => {};
   private wallGfx: Phaser.GameObjects.Graphics | null = null;
+  /** "x,y" keys of back-wall face tiles (2 rows tall) in personal + common rooms */
+  private faceTiles = new Set<string>();
+  /** subtle outline showing where the selected item may go (wall face vs floor) */
+  private mountGuide: Phaser.GameObjects.Rectangle | null = null;
 
 
   constructor() {
@@ -247,6 +253,9 @@ export class DormScene extends Phaser.Scene {
 
   // ---------- world ----------
 
+  /** my room's trim colour, used under equipped wallpaper */
+  private myTrim = NEUTRAL_WALL;
+
   private buildZones(): Zone[] {
     const personal: Zone[] = ROOMS.map((room, i) => {
       const mood = MOODS[room.mood];
@@ -262,6 +271,7 @@ export class DormScene extends Phaser.Scene {
         kind: "personal" as const,
       };
     });
+    this.myTrim = personal[0]!.wall;
     return [HALL, ...personal, ...COMMON];
   }
 
@@ -278,6 +288,19 @@ export class DormScene extends Phaser.Scene {
           if (this.grid[y]![x] === VOID) this.grid[y]![x] = WALL;
         }
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
+
+    // back-wall face: the top ring row + the first interior row read as one tall wall
+    this.faceTiles.clear();
+    for (const z of zones) {
+      if (z.kind !== "personal" && z.kind !== "common") continue;
+      const topDoor = new Set(DOORWAYS.filter(([, dy]) => dy === z.y - 1).map(([dx]) => dx));
+      for (let x = z.x; x < z.x + z.w; x++) {
+        if (topDoor.has(x)) continue;
+        this.grid[z.y]![x] = WALL;
+        this.faceTiles.add(`${x},${z.y - 1}`);
+        this.faceTiles.add(`${x},${z.y}`);
+      }
+    }
   }
 
   /** per-tile pixel texture: plank grain, woven tile, grass tufts — hard edges only */
@@ -418,13 +441,89 @@ export class DormScene extends Phaser.Scene {
     fill(deep, 0, 0, 2, TILE); // 1 art-pixel seam between wall blocks
   }
 
-  /** wall tiles that ring my room — the tappable wallpaper surface */
+  /** wallpaper field of a back-wall face tile; crown on the top row, rail + baseboard on the bottom */
+  private drawFaceTile(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    paper: number,
+    trim: number,
+    isTopRow: boolean,
+    pattern: NonNullable<ItemDef["wallPattern"]> = "flat",
+  ) {
+    const bx = t(x);
+    const by = t(y);
+    const fill = (c: number, px: number, py: number, w: number, h: number) => {
+      g.fillStyle(c, 1);
+      g.fillRect(bx + px, by + py, w, h);
+    };
+    const accent = mix(paper, 0x2b2027, 0.2);
+    const light = mix(paper, 0xfaf0e0, 0.4);
+    const shade = mix(trim, 0x2b2027, 0.32);
+    const deep = mix(trim, 0x2b2027, 0.55);
+    const hi = mix(trim, 0xfaf0e0, 0.45);
+    fill(paper, 0, 0, TILE, TILE);
+    // pattern is phased on the 2-row face so it reads as one continuous wall
+    const oy = isTopRow ? 0 : TILE;
+    if (pattern === "flat") {
+      for (let i = 2; i < TILE; i += 8) fill(mix(paper, 0x2b2027, 0.07), i, 0, 2, TILE);
+    } else if (pattern === "stripes") {
+      for (let i = 0; i < TILE; i += 8) fill(accent, i, 0, 4, TILE);
+    } else if (pattern === "checker") {
+      for (let cy = 0; cy < TILE; cy += 8)
+        for (let cx = 0; cx < TILE; cx += 8)
+          if (((cx + cy + oy) / 8) % 2 === 0) fill(accent, cx, cy, 8, 8);
+    } else if (pattern === "botanical") {
+      const leaves = isTopRow
+        ? ([[5, 12], [20, 20]] as const)
+        : ([[12, 6], [24, 14], [4, 18]] as const);
+      for (const [lx, ly] of leaves) {
+        fill(accent, lx, ly, 6, 2);
+        fill(accent, lx + 2, ly - 3, 2, 8);
+      }
+    } else if (pattern === "night") {
+      const stars = isTopRow
+        ? ([[4, 10], [16, 14], [26, 9], [10, 24]] as const)
+        : ([[6, 4], [20, 8], [13, 14], [27, 18]] as const);
+      for (const [sx, sy] of stars) fill(light, sx, sy, 2, 2);
+    } else if (pattern === "graph") {
+      for (let i = 0; i < TILE; i += 8) {
+        fill(accent, i, 0, 2, TILE);
+        fill(accent, 0, i, TILE, 2);
+      }
+    } else if (pattern === "sunset") {
+      if (isTopRow) fill(light, 0, 8, TILE, TILE - 8);
+      else fill(accent, 0, 0, TILE, TILE);
+    }
+    if (isTopRow) {
+      fill(deep, 0, 0, TILE, 6); // crown
+      fill(hi, 0, 6, TILE, 2);
+    } else {
+      fill(shade, 0, 4, TILE, 2); // chair rail
+      fill(hi, 0, 6, TILE, 1);
+      fill(shade, 0, TILE - 9, TILE, 2);
+      fill(deep, 0, TILE - 7, TILE, 7); // baseboard
+    }
+  }
+
+  /** side / bottom wall seen from above: dark cap with a lighter inset — wall thickness */
+  private drawCapTile(g: Phaser.GameObjects.Graphics, x: number, y: number, base: number) {
+    const cap = mix(base, 0x2b2027, 0.5);
+    g.fillStyle(cap, 1);
+    g.fillRect(t(x), t(y), TILE, TILE);
+    g.fillStyle(mix(cap, 0xfaf0e0, 0.14), 1);
+    g.fillRect(t(x) + 4, t(y) + 4, TILE - 8, TILE - 8);
+    g.fillStyle(mix(cap, 0x2b2027, 0.4), 1);
+    g.fillRect(t(x), t(y), 2, TILE);
+  }
+
+  /** face tiles of my room — the tappable wallpaper surface */
   private myWallTiles(): Array<[number, number]> {
     const r = PERSONAL_RECTS[0]!;
     const out: Array<[number, number]> = [];
-    for (let y = r.y - 1; y <= r.y + r.h; y++)
-      for (let x = r.x - 1; x <= r.x + r.w; x++)
-        if (this.grid[y]?.[x] === WALL) out.push([x, y]);
+    for (const y of [r.y - 1, r.y])
+      for (let x = r.x; x < r.x + r.w; x++)
+        if (this.faceTiles.has(`${x},${y}`)) out.push([x, y]);
     return out;
   }
 
@@ -438,8 +537,10 @@ export class DormScene extends Phaser.Scene {
     this.wallGfx = null;
     if (!item || item.wallColor === undefined) return; // default: keep the mood trim
     const g = this.add.graphics().setDepth(0.5);
+    const trim = this.myTrim;
+    const r = PERSONAL_RECTS[0]!;
     for (const [x, y] of this.myWallTiles())
-      this.drawWallTile(g, x, y, item.wallColor, item.wallPattern ?? "flat");
+      this.drawFaceTile(g, x, y, item.wallColor, trim, y === r.y - 1, item.wallPattern ?? "flat");
     this.wallGfx = g;
   }
 
@@ -452,7 +553,12 @@ export class DormScene extends Phaser.Scene {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
         const zone = this.zoneNear(x, y, zones);
-        this.drawWallTile(g, x, y, zone?.wall ?? NEUTRAL_WALL);
+        const base = zone?.wall ?? NEUTRAL_WALL;
+        if (this.faceTiles.has(`${x},${y}`) && zone)
+          this.drawFaceTile(g, x, y, mix(base, 0xf3e6d0, 0.38), base, y === zone.y - 1);
+        else if (zone && (zone.kind === "personal" || zone.kind === "common"))
+          this.drawCapTile(g, x, y, base);
+        else this.drawWallTile(g, x, y, base);
       }
     }
 
@@ -701,7 +807,7 @@ export class DormScene extends Phaser.Scene {
       const item = ITEM_CATALOG[placed.itemId];
       if (!item) continue;
       const rotation = placed.rotation ?? 0;
-      const f = rotatedFootprint(item, rotation);
+      const f = effectiveFootprint(item, rotation);
       const payload = this.payloadFor(room, item);
       const def: PropDef = {
         key: item.textureKey,
@@ -737,7 +843,7 @@ export class DormScene extends Phaser.Scene {
   private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation): number {
     const item = ITEM_CATALOG[itemId];
     if (!item) return -1;
-    const f = rotatedFootprint(item, rotation);
+    const f = effectiveFootprint(item, rotation);
     const c = this.centerOf(gx, gy, f.w, f.h);
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
     const tint = this.moodTint(ROOMS[0]!, item);
@@ -823,7 +929,7 @@ export class DormScene extends Phaser.Scene {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
-    const f = rotatedFootprint(item, entry.rotation);
+    const f = effectiveFootprint(item, entry.rotation);
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     entry.gx = gx;
     entry.gy = gy;
@@ -841,15 +947,19 @@ export class DormScene extends Phaser.Scene {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
+    if (isWallItem(item)) {
+      this.flashReject(entry.sprite);
+      return;
+    }
     const next = ((entry.rotation + 90) % 360) as Rotation;
     if (!this.canPlace(entry.itemId, entry.gx, entry.gy, next, idx)) {
       this.flashReject(entry.sprite);
       return;
     }
-    const old = rotatedFootprint(item, entry.rotation);
+    const old = effectiveFootprint(item, entry.rotation);
     if (item.solid) this.markTiles(entry.gx, entry.gy, old.w, old.h, false);
     entry.rotation = next;
-    const f = rotatedFootprint(item, next);
+    const f = effectiveFootprint(item, next);
     const c = this.centerOf(entry.gx, entry.gy, f.w, f.h);
     entry.sprite.setAngle(next).setPosition(c.x, c.y).setDepth(c.y);
     entry.ring?.setPosition(c.x, c.y + 6);
@@ -866,7 +976,7 @@ export class DormScene extends Phaser.Scene {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
-    const f = rotatedFootprint(item, entry.rotation);
+    const f = effectiveFootprint(item, entry.rotation);
     this.clearSelection();
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     this.interactives = this.interactives.filter((i) => i.sprite !== entry.sprite);
@@ -892,12 +1002,6 @@ export class DormScene extends Phaser.Scene {
     });
   }
 
-  /** tiles just inside my door — kept clear so the room stays enterable */
-  private isDoorLane(gx: number, gy: number) {
-    const rect = PERSONAL_RECTS[0]!;
-    return gy === rect.h - 1 && (gx === 5 || gx === 6);
-  }
-
   private canPlace(
     itemId: string,
     gx: number,
@@ -905,18 +1009,29 @@ export class DormScene extends Phaser.Scene {
     rotation: Rotation = 0,
     ignoreIdx = -1,
   ) {
-    const item = ITEM_CATALOG[itemId];
-    const rect = PERSONAL_RECTS[0]!;
-    if (!item) return false;
-    const { w, h } = rotatedFootprint(item, rotation);
-    if (gx < 0 || gy < 0 || gx + w > rect.w || gy + h > rect.h) return false;
-    for (let y = gy; y < gy + h; y++)
-      for (let x = gx; x < gx + w; x++) if (this.isDoorLane(x, y)) return false;
-    return !this.placed.some((p, i) => {
-      if (i === ignoreIdx) return false;
-      const o = rotatedFootprint(ITEM_CATALOG[p.itemId]!, p.rotation);
-      return gx < p.gx + o.w && gx + w > p.gx && gy < p.gy + o.h && gy + h > p.gy;
-    });
+    const layout = this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy, rotation: p.rotation }));
+    return canPlaceIn(layout, itemId, gx, gy, rotation, ignoreIdx);
+  }
+
+  /** outlines the wall face or the floor, depending on where the item can go */
+  private showMountGuide(itemId: string | null) {
+    const item = itemId ? ITEM_CATALOG[itemId] : undefined;
+    if (!item || !this.editMode) {
+      this.mountGuide?.setVisible(false);
+      return;
+    }
+    const r = PERSONAL_RECTS[0]!;
+    if (!this.mountGuide)
+      this.mountGuide = this.add
+        .rectangle(0, 0, 10, 10, 0xffffff, 0)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, 0xfaf0e0, 0.8)
+        .setDepth(6300);
+    const wall = isWallItem(item);
+    this.mountGuide
+      .setPosition(t(r.x) + 2, t(wall ? r.y : r.y + 1) + 2)
+      .setSize(t(r.w) - 4, t(wall ? 1 : r.h - 1) - 4)
+      .setVisible(true);
   }
 
   private currentLayout(): PlacedItem[] {
@@ -1093,7 +1208,7 @@ export class DormScene extends Phaser.Scene {
     const itemId = this.pendingPlaceItemId;
     if (!itemId || !this.ghost) return;
     const item = ITEM_CATALOG[itemId]!;
-    const f = rotatedFootprint(item, 0);
+    const f = effectiveFootprint(item, 0);
     const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
     const c = this.centerOf(gx, gy, f.w, f.h);
     this.ghost.setPosition(c.x, c.y);
@@ -1107,7 +1222,7 @@ export class DormScene extends Phaser.Scene {
     const itemId = this.pendingPlaceItemId;
     if (!itemId) return;
     const item = ITEM_CATALOG[itemId]!;
-    const f = rotatedFootprint(item, 0);
+    const f = effectiveFootprint(item, 0);
     const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
     if (!this.canPlace(itemId, gx, gy, 0)) {
       // stay in placing mode so the next tap can try again
@@ -1123,7 +1238,7 @@ export class DormScene extends Phaser.Scene {
     const rect = PERSONAL_RECTS[0]!;
     const item = ITEM_CATALOG[itemId];
     if (!item) return false;
-    const f = rotatedFootprint(item, 0);
+    const f = effectiveFootprint(item, 0);
     let spot: { gx: number; gy: number } | null = null;
     if (screen) {
       const wp = this.cameras.main.getWorldPoint(screen.x, screen.y);
@@ -1170,7 +1285,7 @@ export class DormScene extends Phaser.Scene {
         const entry = this.placed[idx];
         if (!entry) return;
         const item = ITEM_CATALOG[entry.itemId]!;
-        const f = rotatedFootprint(item, entry.rotation);
+        const f = effectiveFootprint(item, entry.rotation);
         const halfW = t(f.w) / 2;
         const halfH = t(f.h) / 2;
         const cx = Phaser.Math.Clamp(dx, t(rect.x) + halfW, t(rect.x + rect.w) - halfW);
@@ -1190,7 +1305,7 @@ export class DormScene extends Phaser.Scene {
       const entry = this.placed[idx];
       if (!entry) return;
       const item = ITEM_CATALOG[entry.itemId]!;
-      const f = rotatedFootprint(item, entry.rotation);
+      const f = effectiveFootprint(item, entry.rotation);
       const gx = Math.round(obj.x / TILE - f.w / 2) - rect.x;
       const gy = Math.round(obj.y / TILE - f.h / 2) - rect.y;
       if (this.canPlace(entry.itemId, gx, gy, entry.rotation, idx)) {
@@ -1248,7 +1363,13 @@ export class DormScene extends Phaser.Scene {
     );
 
     // zone labels
-    for (const z of COMMON) this.label(t(z.x + z.w / 2), t(z.y) + 14, z.label, "#3a2f34", 15);
+    // dorm-door signs in the hallway, just above each common room's doorway
+    for (const z of COMMON) {
+      if (z.kind !== "common") continue;
+      const door = DOORWAYS.filter(([, dy]) => dy === z.y - 1).map(([dx]) => dx);
+      const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
+      this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
+    }
     this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#6b5c50", 14);
 
     // ---- Common Lounge ----
@@ -1510,7 +1631,8 @@ export class DormScene extends Phaser.Scene {
         // tapping my room's wall opens the wallpaper picker, Animal Crossing style
         const wtx = Math.floor(wp0.x / TILE);
         const wty = Math.floor(wp0.y / TILE);
-        if (this.myWallTiles().some(([mx, my]) => mx === wtx && my === wty)) {
+        const onItem = this.placed.some((q) => q.sprite.getBounds().contains(wp0.x, wp0.y));
+        if (!onItem && this.myWallTiles().some(([mx, my]) => mx === wtx && my === wty)) {
           this.clearSelection();
           this.onWallTap();
           return;
