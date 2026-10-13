@@ -214,3 +214,9 @@
     radial-gradient(circle at 20% 10%, #f7ecdc 0%, transparent 55%),
     radial-gradient(circle at 85% 90%, #e4d3bd 0%, transparent 60%);
 }
+
+@keyframes shop-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}

@@ -1,6 +1,8 @@
 export interface ItemDef {
   id: string;
   name: string;
+  /** one line of shop flavor text */
+  blurb: string;
   category: "furniture" | "wallpaper" | "poster" | "companion";
   /** matches a texture key generated in game/textures.ts */
   textureKey: string;
@@ -22,6 +24,7 @@ export interface ItemDef {
 
 export const ITEM_CATALOG: Record<string, ItemDef> = {
   bed_basic: {
+    blurb: "Squeaks a little. Holds secrets a lot.",
     id: "bed_basic",
     name: "Basic Bed",
     category: "furniture",
@@ -32,6 +35,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   desk_basic: {
+    blurb: "Where essays go to be started at 2am.",
     id: "desk_basic",
     name: "Basic Desk",
     category: "furniture",
@@ -42,6 +46,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   speaker_basic: {
+    blurb: "Small box, big opinions about bass.",
     id: "speaker_basic",
     name: "Speaker",
     category: "furniture",
@@ -53,6 +58,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   board_basic: {
+    blurb: "Pin it or it didn't happen.",
     id: "board_basic",
     name: "Bulletin Board",
     category: "furniture",
@@ -64,6 +70,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   plant_basic: {
+    blurb: "Low-maintenance, high standards.",
     id: "plant_basic",
     name: "Potted Plant",
     category: "companion",
@@ -75,6 +82,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   pet_cat_basic: {
+    blurb: "Will sit on your keyboard mid-sentence.",
     id: "pet_cat_basic",
     name: "Cat",
     category: "companion",
@@ -86,6 +94,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   tv_basic: {
+    blurb: "Autoplay's most loyal enabler.",
     id: "tv_basic",
     name: "TV",
     category: "furniture",
@@ -97,6 +106,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   poster_default: {
+    blurb: "Proof you have taste. Allegedly.",
     id: "poster_default",
     name: "Wall Poster",
     category: "poster",
@@ -108,6 +118,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   rug_woven: {
+    blurb: "Ties the room together, man.",
     id: "rug_woven",
     name: "Woven Rug",
     category: "furniture",
@@ -120,6 +131,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
 
   // ---- shop inventory (locked by default) ----
   bed_loft: {
+    blurb: "Sleep up top, chaos underneath.",
     id: "bed_loft",
     name: "Lofted Bed",
     category: "furniture",
@@ -131,6 +143,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   rug_shag: {
+    blurb: "Shag carpet, zero regrets.",
     id: "rug_shag",
     name: "Shag Rug",
     category: "furniture",
@@ -142,6 +155,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   chair_lounge: {
+    blurb: "Seats three, naps one.",
     id: "chair_lounge",
     name: "Lounge Couch",
     category: "furniture",
@@ -152,6 +166,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   shelf_books: {
+    blurb: "Half read, fully displayed.",
     id: "shelf_books",
     name: "Book Shelf",
     category: "furniture",
@@ -162,6 +177,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   record_player: {
+    blurb: "Vinyl sounds warmer. You'll tell everyone.",
     id: "record_player",
     name: "Record Player",
     category: "furniture",
@@ -172,6 +188,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   pet_dog: {
+    blurb: "Good boy. Questionable hygiene.",
     id: "pet_dog",
     name: "Scruffy Dog",
     category: "companion",
@@ -184,6 +201,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   wallpaper_sunset: {
+    blurb: "Golden hour, all hours.",
     id: "wallpaper_sunset",
     wallColor: 0xe0a87c,
     wallPattern: "sunset",
@@ -196,6 +214,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_gig: {
+    blurb: "You were there. Probably.",
     id: "poster_gig",
     name: "Gig Poster",
     category: "poster",
@@ -209,6 +228,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
 
   // ---- iteration 14: speaker + TV variants (functionally identical, visually distinct) ----
   speaker_boombox: {
+    blurb: "Shoulder not included.",
     id: "speaker_boombox",
     name: "Retro Boombox",
     category: "furniture",
@@ -220,6 +240,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   speaker_tower: {
+    blurb: "Tall, dark, and loud.",
     id: "speaker_tower",
     name: "Tower Speaker",
     category: "furniture",
@@ -231,6 +252,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   speaker_vintage: {
+    blurb: "Brass knobs, warm hiss, grown-up energy.",
     id: "speaker_vintage",
     name: "Vintage Hi-Fi Cabinet",
     category: "furniture",
@@ -242,6 +264,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   tv_crt: {
+    blurb: "Static included at no extra charge.",
     id: "tv_crt",
     name: "Retro CRT TV",
     category: "furniture",
@@ -253,6 +276,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   tv_mounted: {
+    blurb: "For people who own a wall anchor.",
     id: "tv_mounted",
     name: "Mounted Flatscreen + Soundbar",
     category: "furniture",
@@ -264,6 +288,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   tv_gaming: {
+    blurb: "Just one more match. Again.",
     id: "tv_gaming",
     name: "Gaming TV Setup",
     category: "furniture",
@@ -277,6 +302,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
 
   // ---- iteration 13: catalog expansion ----
   lava_lamp: {
+    blurb: "Blobs rise. Worries sink.",
     id: "lava_lamp",
     name: "Lava Lamp",
     category: "furniture",
@@ -287,6 +313,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   disco_ball: {
+    blurb: "Every Tuesday is Friday now.",
     id: "disco_ball",
     name: "Mini Disco Ball",
     category: "furniture",
@@ -298,6 +325,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   arcade_cabinet: {
+    blurb: "Your high score, your rules.",
     id: "arcade_cabinet",
     name: "Tabletop Arcade",
     category: "furniture",
@@ -308,6 +336,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   hammock_chair: {
+    blurb: "Gently swaying away from deadlines.",
     id: "hammock_chair",
     name: "Hammock Chair",
     category: "furniture",
@@ -318,6 +347,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   neon_sign: {
+    blurb: "Says it so you don't have to.",
     id: "neon_sign",
     name: "Neon 'Vibes' Sign",
     category: "furniture",
@@ -328,6 +358,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   papasan_chair: {
+    blurb: "Sink in. Never leave.",
     id: "papasan_chair",
     name: "Papasan Chair",
     category: "furniture",
@@ -338,6 +369,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   vinyl_crate: {
+    blurb: "Alphabetized by mood.",
     id: "vinyl_crate",
     name: "Vinyl Crate Shelf",
     category: "furniture",
@@ -348,6 +380,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   projector_screen: {
+    blurb: "Movie night, wall-sized.",
     id: "projector_screen",
     name: "Projector + Screen",
     category: "furniture",
@@ -358,6 +391,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   bed_canopy: {
+    blurb: "Royalty, but with a meal plan.",
     id: "bed_canopy",
     name: "Canopy Bed",
     category: "furniture",
@@ -368,6 +402,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   cushion_stack: {
+    blurb: "Instant seating for surprise guests.",
     id: "cushion_stack",
     name: "Floor Cushion Stack",
     category: "furniture",
@@ -379,6 +414,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
 
   pet_hamster: {
+    blurb: "Runs marathons at 3am. Every night.",
     id: "pet_hamster",
     name: "Hamster + Wheel",
     category: "companion",
@@ -390,6 +426,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   pet_betta: {
+    blurb: "Fancy fins, firm boundaries.",
     id: "pet_betta",
     name: "Betta Fish",
     category: "companion",
@@ -401,6 +438,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   pet_axolotl: {
+    blurb: "Permanently smiling. Unbothered.",
     id: "pet_axolotl",
     name: "Axolotl Tank",
     category: "companion",
@@ -412,6 +450,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   pet_corgi: {
+    blurb: "Short legs, enormous personality.",
     id: "pet_corgi",
     name: "Corgi",
     category: "companion",
@@ -423,6 +462,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   plant_bonsai: {
+    blurb: "Patience, in pot form.",
     id: "plant_bonsai",
     name: "Bonsai Tree",
     category: "companion",
@@ -435,6 +475,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
 
   wallpaper_stripes: {
+    blurb: "Soft lines, softer vibes.",
     id: "wallpaper_stripes",
     wallColor: 0xe9d6e2,
     wallPattern: "stripes",
@@ -447,6 +488,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   wallpaper_checker: {
+    blurb: "A diner booth you can live in.",
     id: "wallpaper_checker",
     wallColor: 0xdccfb6,
     wallPattern: "checker",
@@ -459,6 +501,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   wallpaper_botanical: {
+    blurb: "A jungle that never needs watering.",
     id: "wallpaper_botanical",
     wallColor: 0xd8dfc9,
     wallPattern: "botanical",
@@ -471,6 +514,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   wallpaper_night: {
+    blurb: "Stargazing without the cold.",
     id: "wallpaper_night",
     wallColor: 0x3b4468,
     wallPattern: "night",
@@ -483,6 +527,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   wallpaper_graph: {
+    blurb: "For people who plot things. Literally.",
     id: "wallpaper_graph",
     wallColor: 0xdfe6da,
     wallPattern: "graph",
@@ -496,6 +541,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
   },
 
   poster_tour: {
+    blurb: "Twelve cities. One very good summer.",
     id: "poster_tour",
     name: "Band Tour Poster",
     category: "poster",
@@ -507,6 +553,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_travel: {
+    blurb: "Somewhere you'll go. Eventually.",
     id: "poster_travel",
     name: "Vintage Travel Print",
     category: "poster",
@@ -518,6 +565,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_space: {
+    blurb: "Feel small in the nicest way.",
     id: "poster_space",
     name: "Astronomy Print",
     category: "poster",
@@ -529,6 +577,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_abstract: {
+    blurb: "Means whatever you need it to.",
     id: "poster_abstract",
     name: "Abstract Art Print",
     category: "poster",
@@ -540,6 +589,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_quote: {
+    blurb: "Solid advice from a cat on a branch.",
     id: "poster_quote",
     name: "'Hang In There' Poster",
     category: "poster",
@@ -567,6 +617,11 @@ export const ROTATING_ITEM_IDS: string[] = [
   "hammock_chair",
   "poster_space",
 ];
+
+export type RarityTier = "standard" | "nice" | "premium";
+/** visual tier derived purely from price so new items classify themselves */
+export const rarityFor = (price: number): RarityTier =>
+  price >= 40 ? "premium" : price >= 15 ? "nice" : "standard";
 
 export const FEATURED_COUNT = 3;
 
