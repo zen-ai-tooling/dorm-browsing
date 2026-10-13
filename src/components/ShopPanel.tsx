@@ -39,7 +39,7 @@ const groups = (): Array<[ItemDef["category"], ItemDef[]]> =>
 const TIER_CLASS = {
   standard: "",
   nice: "ring-2 ring-primary/40",
-  premium: "ring-2 ring-accent shadow-[0_0_0_4px_var(--color-accent)]/30",
+  premium: "ring-[3px] ring-accent",
 } as const;
 
 /** animates an integer toward its target so coin changes visibly tick */
