@@ -9,6 +9,8 @@ export interface ItemDef {
   /** tile footprint, used for grid snapping and overlap prevention */
   footprint: { w: number; h: number };
   solid: boolean;
+  /** "wall" items hang on the back-wall face (row 0); default "floor" */
+  mount?: "wall" | "floor";
   /** which popup this triggers, if any */
   interactive?: "songs" | "bulletin" | "companion" | "watching" | "art";
   /** wallpaper items only: the wall base colour applied when equipped */
@@ -62,6 +64,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "board_basic",
     name: "Bulletin Board",
     category: "furniture",
+    mount: "wall",
     textureKey: "board",
     footprint: { w: 2, h: 2 },
     solid: false,
@@ -110,6 +113,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_default",
     name: "Wall Poster",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster",
     footprint: { w: 3, h: 1 },
@@ -162,6 +166,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     textureKey: "couch",
     footprint: { w: 4, h: 2 },
     solid: true,
+    tint: 0x7fb0b3,
     price: 55,
     unlockedByDefault: false,
   },
@@ -218,6 +223,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_gig",
     name: "Gig Poster",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-band",
     footprint: { w: 1, h: 1 },
@@ -351,6 +357,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "neon_sign",
     name: "Neon 'Vibes' Sign",
     category: "furniture",
+    mount: "wall",
     textureKey: "neon",
     footprint: { w: 3, h: 1 },
     solid: false,
@@ -545,6 +552,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_tour",
     name: "Band Tour Poster",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-tour",
     footprint: { w: 3, h: 1 },
@@ -557,6 +565,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_travel",
     name: "Vintage Travel Print",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-travel",
     footprint: { w: 3, h: 1 },
@@ -569,6 +578,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_space",
     name: "Astronomy Print",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-space",
     footprint: { w: 3, h: 1 },
@@ -581,6 +591,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_abstract",
     name: "Abstract Art Print",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-abstract",
     footprint: { w: 3, h: 1 },
@@ -593,6 +604,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     id: "poster_quote",
     name: "'Hang In There' Poster",
     category: "poster",
+    mount: "wall",
     interactive: "art",
     textureKey: "poster-quote",
     footprint: { w: 3, h: 1 },
@@ -652,6 +664,12 @@ export const rotatedFootprint = (item: ItemDef, rotation: Rotation = 0) =>
     ? { w: item.footprint.h, h: item.footprint.w }
     : { w: item.footprint.w, h: item.footprint.h };
 
+
+export const isWallItem = (item: ItemDef | undefined) => item?.mount === "wall";
+
+/** footprint used for placement: wall items are always one row tall and never rotate */
+export const effectiveFootprint = (item: ItemDef, rotation: Rotation = 0) =>
+  isWallItem(item) ? { w: item.footprint.w, h: 1 } : rotatedFootprint(item, rotation);
 
 /** popup viewer texture for a poster's in-room texture key */
 export const zoomTextureKey = (textureKey: string) => `${textureKey}-zoom`;

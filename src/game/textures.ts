@@ -309,21 +309,35 @@ export const buildTextures = (scene: Phaser.Scene) => {
     line(g, 5, 13, 7, 4);
   });
 
-  // couch 58x33
+  // couch 58x33 — greyscale-authored so setTint recolours it cleanly
   make(scene, "couch", 58, 33, (g) => {
     foot(g, 29, 31, 48);
-    panel(g, 1, 2, 56, 24, TEAL, 0x466c70, 0x7ea7aa);
-    r(g, 1, 8, 4, 18, 0x466c70); // arms
-    r(g, 53, 8, 4, 18, 0x466c70);
+    panel(g, 1, 2, 56, 24, 0xc4beb5, 0x8f8981, 0xdcd6cd);
+    r(g, 1, 8, 4, 18, 0x8f8981); // arms
+    r(g, 53, 8, 4, 18, 0x8f8981);
     line(g, 1, 2, 56, 24);
     for (const cxp of [6, 30]) {
-      r(g, cxp, 10, 22, 12, 0x6f9ea2);
-      r(g, cxp, 20, 22, 2, 0x466c70);
-      r(g, cxp + 1, 10, 20, 1, 0x8bb7ba);
+      r(g, cxp, 10, 22, 12, 0xb8b2a9);
+      r(g, cxp, 20, 22, 2, 0x8f8981);
+      r(g, cxp + 1, 10, 20, 1, 0xe2dcd3);
       line(g, cxp, 10, 22, 12);
     }
     r(g, 5, 26, 4, 3, WOOD_SH);
     r(g, 49, 26, 4, 3, WOOD_SH);
+  });
+
+  // couch seen from behind 58x30 — tall backrest + arms, no seat cushions visible
+  make(scene, "couch-back", 58, 30, (g) => {
+    foot(g, 29, 28, 48);
+    r(g, 1, 6, 6, 18, 0x8f8981); // arms peek out at the sides
+    r(g, 51, 6, 6, 18, 0x8f8981);
+    line(g, 1, 6, 6, 18);
+    line(g, 51, 6, 6, 18);
+    panel(g, 5, 2, 48, 22, 0xc4beb5, 0x8f8981, 0xdcd6cd);
+    r(g, 29, 4, 1, 17, 0x8f8981); // back panel seam
+    dither(g, 7, 14, 44, 6, 0xb2aca3);
+    r(g, 8, 24, 4, 3, WOOD_SH);
+    r(g, 46, 24, 4, 3, WOOD_SH);
   });
 
   // low table 38x25 with a book
@@ -846,17 +860,27 @@ export const buildTextures = (scene: Phaser.Scene) => {
   });
 
   // neon "VIBES" sign 40x18 — glowing tube letters over dark backer
+  // neon 40x18 — one bold lightning-bolt outline on a dark backing panel
   make(scene, "neon", 40, 18, (g) => {
-    r(g, 0, 0, 40, 18, 0x231d2c);
-    line(g, 0, 0, 40, 18);
-    dither(g, 2, 2, 36, 14, 0x2f2739);
-    const glyph = (x: number, cols: number[]) => {
-      for (const c of cols) r(g, x + c, 4, 1, 9, 0xf07ab8);
-      r(g, x, 4, 5, 1, 0xf07ab8);
-      r(g, x, 12, 5, 1, 0xf07ab8);
-    };
-    for (let i = 0; i < 5; i++) glyph(4 + i * 7, [0, 4]);
-    dither(g, 3, 3, 34, 12, 0xffb7dd);
+    r(g, 6, 0, 28, 18, 0x231d2c);
+    line(g, 6, 0, 28, 18);
+    const PINK = 0xf07ab8;
+    const HOT = 0xffc2e2;
+    // bolt as stacked rows: [x, width] per row, drawn as a 2px pink stroke shape
+    const rows: Array<[number, number]> = [
+      [21, 6], [20, 6], [19, 6], [18, 6], [17, 6], [16, 6], [15, 11],
+      [17, 8], [18, 6], [17, 6], [16, 5], [15, 4], [14, 3], [13, 2],
+    ];
+    rows.forEach(([x, w], i) => {
+      r(g, x, 2 + i, w, 1, PINK);
+    });
+    // hot core down the middle of the bolt
+    rows.forEach(([x, w], i) => {
+      if (w > 3) r(g, x + 2, 2 + i, Math.max(1, w - 4), 1, HOT);
+    });
+    // glow flecks at the panel corners
+    r(g, 8, 2, 1, 1, PINK);
+    r(g, 31, 15, 1, 1, PINK);
   });
 
   // papasan chair 36x28 — round woven bowl on a low frame

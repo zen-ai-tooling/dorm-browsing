@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { ROOMS, type PlacedItem, type Song } from "@/data/dorm";
 import { ITEM_CATALOG } from "@/data/items";
+import { migrateMountLayout } from "@/data/placement";
 import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
 import { setSfxMuted, sfx } from "@/game/sounds";
 
@@ -16,7 +17,7 @@ export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
   { itemId: "tv_basic", gx: 9, gy: 3 },
   { itemId: "desk_basic", gx: 1, gy: 7 },
   { itemId: "speaker_basic", gx: 1, gy: 2 },
-  { itemId: "board_basic", gx: 9, gy: 1 },
+  { itemId: "board_basic", gx: 9, gy: 0 },
   { itemId: "plant_basic", gx: 1, gy: 4 },
 ];
 
@@ -60,7 +61,7 @@ const defaultState = (): PlayerState => ({
 });
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
-const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
+export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
   const next = layout.map((p) => ({ ...p }));
   const tv = next.find((p) => p.itemId === "tv_basic");
   if (tv && tv.gx === 5 && tv.gy === 1) {
@@ -69,7 +70,8 @@ const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
   }
   if (!next.some((p) => p.itemId === "poster_default"))
     next.unshift({ itemId: "poster_default", gx: 4, gy: 0 });
-  return next;
+  // Iteration 17: row 0 is the back-wall face — wall items go there, floor items move off it
+  return migrateMountLayout(next);
 };
 
 let state: PlayerState = defaultState();
