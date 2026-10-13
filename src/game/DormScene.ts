@@ -1389,20 +1389,34 @@ export class DormScene extends Phaser.Scene {
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
     this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
     this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
-    // string lights along the top face row, skipping the doorway span
-    for (let i = 0, sx = lx(0.4); sx < lx(L.w - 0.3); i++, sx += 14) {
-      if (sx > lx(6.8) && sx < lx(9.2)) continue;
-      this.add
-        .image(sx, ly(-0.62) + (i % 2 === 0 ? -3 : 3), "sparkle")
-        .setTint(0xffe3a6)
-        .setScale(0.75)
-        .setDepth(4);
+    // string lights along the top face row, skipping the doorway span — small bulbs on a sagging wire
+    {
+      const wire = this.add.graphics().setDepth(4);
+      wire.fillStyle(0x241c26, 1);
+      let prev: { x: number; y: number } | null = null;
+      for (let i = 0, sx = lx(0.4); sx < lx(L.w - 0.3); i++, sx += 14) {
+        if (sx > lx(6.8) && sx < lx(9.2)) {
+          prev = null;
+          continue;
+        }
+        const by = Math.round(ly(-0.62) + (i % 2 === 0 ? -2 : 2));
+        if (prev) {
+          // 1px wire with a ~3px sag in the middle
+          for (let x = prev.x; x <= sx; x++) {
+            const f = (x - prev.x) / (sx - prev.x);
+            const y = prev.y + (by - prev.y) * f + Math.sin(f * Math.PI) * 3;
+            wire.fillRect(x, Math.round(y) - 3, 1, 1);
+          }
+        }
+        prev = { x: sx, y: by };
+        this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
+      }
     }
 
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
-    this.prop({ key: "console", x: lx(3.3), y: ly(3.1), solid: true });
+    this.prop({ key: "console", x: lx(5.2), y: ly(1.9), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
     this.prop({
       key: "table",
@@ -1417,27 +1431,35 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
     this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
     this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
-    // party-light flecks drifting across the rug (the disco ball's energy, without a ceiling)
+    // party-light flecks: slow drifting, fading spots of colored light across the rug
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
       const f = this.add
-        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(5.0 + Math.floor(i / 3) * 1.1), 4, 4, fleckColors[i % 4]!, 0.7)
+        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 4, 4, fleckColors[i % 4]!, 0)
         .setDepth(1.5);
-      this.tweens.add({
-        targets: f,
-        x: f.x + (i % 2 === 0 ? 26 : -26),
-        y: f.y + (i % 3 === 0 ? 10 : -8),
-        duration: 4200 + i * 500,
-        yoyo: true,
-        repeat: -1,
-        ease: "Stepped",
-        easeParams: [12],
-      });
-      this.time.addEvent({
-        delay: 900 + i * 120,
-        loop: true,
-        callback: () => f.setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 0.7),
-      });
+      const drift = () => {
+        const ox = lx(1.4 + Math.random() * 3.8);
+        const oy = ly(4.6 + Math.random() * 1.6);
+        f.setPosition(ox, oy).setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 0.75);
+        f.setAlpha(0);
+        this.tweens.add({
+          targets: f,
+          x: ox + (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 30),
+          y: oy + (Math.random() - 0.5) * 20,
+          duration: 3200 + Math.random() * 1600,
+          ease: "Sine.easeInOut",
+          onComplete: drift,
+        });
+        this.tweens.add({
+          targets: f,
+          alpha: { from: 0, to: 1 },
+          duration: 1400,
+          yoyo: true,
+          hold: 500,
+          ease: "Sine.easeInOut",
+        });
+      };
+      this.time.delayedCall(i * 650, drift);
     }
 
     // center: the doorway, framed by plants — nothing else in cols 7–8
@@ -1484,9 +1506,15 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
     this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
-    this.prop({ key: "table", x: t(K.x + 8.4), y: t(K.y + 4.8), solid: true });
-    this.prop({ key: "beanbag", x: t(K.x + 8.4), y: t(K.y + 3.4), tint: 0xd98a6c, scale: 0.85 });
-    this.prop({ key: "beanbag", x: t(K.x + 10.6), y: t(K.y + 4.9), tint: 0x9fc3a0, scale: 0.85 });
+    // eating nook, centered in the open floor (door lane cols 5–6 stays clear)
+    this.add.image(t(K.x + 8.4), t(K.y + 5.6), "rug").setTint(0xe0b48a).setScale(0.85, 0.8).setDepth(1);
+    this.prop({ key: "table", x: t(K.x + 8.4), y: t(K.y + 5.6), solid: true });
+    this.prop({ key: "beanbag", x: t(K.x + 7.2) - 22, y: t(K.y + 5.7), tint: 0xd98a6c, scale: 0.85 });
+    this.prop({ key: "beanbag", x: t(K.x + 9.6) + 22, y: t(K.y + 5.7), tint: 0x9fc3a0, scale: 0.85 });
+    // pantry corner, bottom-left
+    this.prop({ key: "crate", x: t(K.x + 0.9), y: t(K.y + 8.3), scale: 0.8, solid: true });
+    this.prop({ key: "crate", x: t(K.x + 0.9), y: t(K.y + 8.3) - 18, scale: 0.7, depthBias: 4 });
+    this.prop({ key: "bin", x: t(K.x + 1.8) + 8, y: t(K.y + 8.6), tint: 0x7fa58a });
     this.prop({ key: "plant", x: t(K.x + 11.3), y: t(K.y + 8.5), scale: 0.9 });
 
     // ---- Courtyard ----
@@ -1547,12 +1575,13 @@ export class DormScene extends Phaser.Scene {
 
     // club flyers / lost-pet posters taped along the hallway walls
     const flyers: Array<[number, number, string, number]> = [
+      // hallway decor never goes on row 22 — that wall's visible side belongs to the rooms below
       [20, 16.55, "flyer-a", 0xfffdf5],
       [27.5, 16.45, "flyer-b", 0xf0ecdc],
       [43.5, 16.6, "flyer-c", 0xfdf3ea],
       [61, 16.5, "flyer-d", 0xf6f0dd],
-      [18.5, 22.5, "flyer-b", 0xfaf4e4],
-      [39.5, 22.45, "flyer-a", 0xf3ecd8],
+      [23.5, 16.5, "flyer-b", 0xfaf4e4],
+      [45.5, 16.45, "flyer-a", 0xf3ecd8],
     ];
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
@@ -1607,6 +1636,30 @@ export class DormScene extends Phaser.Scene {
     cam.setBackgroundColor("#2b2431");
     cam.startFollow(this.player, true, 0.16, 0.16);
     cam.setZoom(1.6);
+  }
+
+  /** edit mode: fit Your Room (wall face included) into the area above the tray */
+  frameMyRoom(bottomInsetPx: number) {
+    const cam = this.cameras.main;
+    const r = PERSONAL_RECTS[0]!;
+    const x0 = t(r.x - 1);
+    const y0 = t(r.y - 1);
+    const w = t(r.w + 2);
+    const h = t(r.h + 2);
+    const visH = Math.max(120, cam.height - bottomInsetPx - 12);
+    const zoom = Math.min(cam.width / w, visH / h) * 0.96;
+    cam.stopFollow();
+    cam.removeBounds();
+    cam.setZoom(zoom);
+    // shift the center down so the room sits in the visible band above the tray
+    cam.centerOn(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom));
+  }
+
+  restoreCamera() {
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
+    cam.setZoom(1.6);
+    cam.startFollow(this.player, true, 0.16, 0.16);
   }
 
   private setupInput() {
