@@ -58,7 +58,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   board_basic: {
-    blurb: "Pin it or it didn"t happen.",
+    blurb: "Pin it or it didn't happen.",
     id: "board_basic",
     name: "Bulletin Board",
     category: "furniture",
@@ -94,7 +94,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: true,
   },
   tv_basic: {
-    blurb: "Autoplay"s most loyal enabler.",
+    blurb: "Autoplay's most loyal enabler.",
     id: "tv_basic",
     name: "TV",
     category: "furniture",
@@ -177,7 +177,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   record_player: {
-    blurb: "Vinyl sounds warmer. You"ll tell everyone.",
+    blurb: "Vinyl sounds warmer. You'll tell everyone.",
     id: "record_player",
     name: "Record Player",
     category: "furniture",
@@ -347,7 +347,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   neon_sign: {
-    blurb: "Says it so you don"t have to.",
+    blurb: "Says it so you don't have to.",
     id: "neon_sign",
     name: "Neon 'Vibes' Sign",
     category: "furniture",
@@ -553,7 +553,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
   },
   poster_travel: {
-    blurb: "Somewhere you"ll go. Eventually.",
+    blurb: "Somewhere you'll go. Eventually.",
     id: "poster_travel",
     name: "Vintage Travel Print",
     category: "poster",
