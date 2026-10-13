@@ -1085,6 +1085,7 @@ export class DormScene extends Phaser.Scene {
   // ---------- selection ----------
 
   private clearSelection() {
+    if (!this.pendingPlaceItemId) this.showMountGuide(null);
     if (this.selectedIdx >= 0) {
       const entry = this.placed[this.selectedIdx];
       if (entry?.sprite.active) {
@@ -1123,6 +1124,7 @@ export class DormScene extends Phaser.Scene {
     const p = this.placed[idx];
     if (!p) return;
     this.selectedIdx = idx;
+    this.showMountGuide(p.itemId);
     p.sprite.setTint(0xfff3b0);
     const remove = this.iconButton("X", 0x9b2f2f, () => this.removeSelected());
     const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
@@ -1156,6 +1158,7 @@ export class DormScene extends Phaser.Scene {
     this.clearSelection();
     this.pendingPlaceItemId = itemId;
     this.onPlacingChange(itemId);
+    this.showMountGuide(itemId);
     const item = ITEM_CATALOG[itemId]!;
     this.ghost?.destroy();
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
@@ -1167,6 +1170,7 @@ export class DormScene extends Phaser.Scene {
     if (!this.pendingPlaceItemId) return;
     this.pendingPlaceItemId = null;
     this.onPlacingChange(null);
+    this.showMountGuide(null);
     this.ghost?.destroy();
     this.ghost = null;
     this.highlight?.setVisible(false);
@@ -1373,125 +1377,116 @@ export class DormScene extends Phaser.Scene {
     this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#6b5c50", 14);
 
     // ---- Common Lounge ----
+    // Composition rules for every shared room: wall decor on the face (row 0),
+    // tall furniture flush against it, only seating/tables/rugs/foosball in open floor,
+    // the door lane kept clear, seating faces what it's for, no overlapping sprites.
+    // SOLIDITY RULE: floor-standing furniture you couldn't walk through is solid: true.
     const L = COMMON[0]!;
+    const lx = (n: number) => t(L.x + n);
+    const ly = (n: number) => t(L.y + n);
 
-    // shared neutral rug anchoring the TV + couch + beanbag cluster as one room-within-a-room
-    this.add
-      .image(t(L.x + 4.6), t(L.y + 5.4), "rug")
-      .setTint(0xbfae97)
-      .setScale(1.5, 1.35)
-      .setDepth(1);
+    // wall face
+    this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
+    this.add.image(lx(14.4), ly(0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
+    this.add.image(lx(11.6), ly(0.0), "neon").setDepth(4);
+    // string lights along the top face row, skipping the doorway span
+    for (let i = 0, sx = lx(0.4); sx < lx(L.w - 0.3); i++, sx += 14) {
+      if (sx > lx(6.8) && sx < lx(9.2)) continue;
+      this.add
+        .image(sx, ly(-0.62) + (i % 2 === 0 ? -3 : 3), "sparkle")
+        .setTint(0xffe3a6)
+        .setScale(0.75)
+        .setDepth(4);
+    }
 
-    // focal cluster: TV hooked up to a console, low table with controllers, couches facing in
-    // SOLIDITY RULE: any floor-standing furniture a person couldn't walk through
-    // (tables, consoles, couches, shelving, appliances, foosball) is solid: true.
-    // Small things resting on a solid surface (controllers), wall-mounted decor
-    // (posters, snack shelf, string lights) and soft/thin floor accents
-    // (beanbags, record player, plants) stay non-solid.
-    this.prop({ key: "tv", x: t(L.x + 4), y: t(L.y + 1.8), solid: true });
-    this.prop({ key: "console", x: t(L.x + 6.1), y: t(L.y + 2.3), solid: true });
+    // left: the TV pit — everything faces the TV
+    this.add.image(lx(3.6), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
+    this.prop({ key: "tv", x: lx(3.6), y: ly(1.55), solid: true });
+    this.prop({ key: "console", x: lx(5.4), y: ly(1.85), solid: true });
+    this.prop({ key: "record", x: lx(0.8), y: ly(1.6), solid: true });
     this.prop({
       key: "table",
-      x: t(L.x + 4),
-      y: t(L.y + 4.9),
+      x: lx(3.6),
+      y: ly(4.3),
       solid: true,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
-    this.prop({ key: "controller", x: t(L.x + 3.3), y: t(L.y + 4.5), depthBias: 20 });
-
-    this.prop({ key: "controller", x: t(L.x + 4.8), y: t(L.y + 4.4), depthBias: 20 });
-    this.prop({ key: "couch", x: t(L.x + 4), y: t(L.y + 7.7), solid: true });
-    // second couch renders as-authored: its texture is baked teal, and setTint
-    // multiplies, so a coral override would crush to mud
-    this.prop({ key: "couch", x: t(L.x + 8.6), y: t(L.y + 5.1), scale: 0.9, solid: true });
-
-    // beanbags — greyscale texture, so these tint cleanly into three different colours
-    this.prop({ key: "beanbag", x: t(L.x + 1.6), y: t(L.y + 3.6), tint: 0xd98a6c });
-    this.prop({ key: "beanbag", x: t(L.x + 1.7), y: t(L.y + 6.6), tint: 0x74a8ab, scale: 0.95 });
-    this.prop({ key: "beanbag", x: t(L.x + 7.2), y: t(L.y + 7.9), tint: 0xd8b25c, scale: 0.9 });
-
-    // secondary zone: foosball, away from the screen so the room has two things to do
-    this.prop({ key: "foosball", x: t(L.x + 12.4), y: t(L.y + 8.2), solid: true });
-
-    // snack corner tucked into the far side
-    this.prop({ key: "fridge", x: t(L.x + 14.4), y: t(L.y + 5.7), scale: 0.8, tint: 0xb8c8cf, solid: true });
-    this.prop({ key: "snackshelf", x: t(L.x + 14.2), y: t(L.y + 3.6) });
-
-    // accent pieces (unchanged in spirit, recomposed around the focal cluster)
-    this.prop({ key: "record", x: t(L.x + 11.2), y: t(L.y + 2.9) });
-    this.prop({ key: "plant", x: t(L.x + 14.4), y: t(L.y + 1.6), scale: 1.05 });
-    this.prop({ key: "shoerack", x: t(L.x + 8.9), y: t(L.y + 1.3), solid: true });
-
-    // decorative band / film posters along the lounge walls — varied tints and motifs
-    const loungePosters: Array<[number, number, string, number]> = [
-      [2.2, 0.55, "poster-band", 0xe2b7a4],
-      [5.6, 0.5, "poster-film", 0xc7cfd8],
-      [11.2, 0.55, "poster", 0xd8c68f],
-    ];
-    for (const [lx, ly, key, tint] of loungePosters)
-      this.add
-        .image(t(L.x + lx), t(L.y + ly), key)
-        .setTint(tint)
-        .setScale(0.62)
-        .setDepth(4);
-
-    // indoor fairy lights strung along the upper wall trim
-    for (let i = 0; i < 18; i++) {
-      const sx = t(L.x + 0.7) + i * 28;
-      const sy = t(L.y + 0.25) + Math.sin(i * 0.85) * 5;
-      if (sx > t(L.x + L.w - 0.4)) break;
-      this.add.image(sx, sy, "sparkle").setTint(0xffe3a6).setDepth(3).setAlpha(0.95);
+    this.prop({ key: "controller", x: lx(3.0), y: ly(4.0), depthBias: 20 });
+    this.prop({ key: "controller", x: lx(4.3), y: ly(3.95), depthBias: 20 });
+    this.prop({ key: "couch-back", x: lx(3.6), y: ly(6.5), tint: 0xd9a27e, solid: true });
+    this.prop({ key: "beanbag", x: lx(1.1), y: ly(4.4), tint: 0xd98a6c });
+    this.prop({ key: "beanbag", x: lx(6.0), y: ly(4.4), tint: 0xd8b25c });
+    this.prop({ key: "lamp", x: lx(0.6), y: ly(7.4) });
+    // party-light flecks drifting across the rug (the disco ball's energy, without a ceiling)
+    const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
+    for (let i = 0; i < 6; i++) {
+      const f = this.add
+        .rectangle(lx(2 + (i % 3) * 1.2), ly(4.6 + Math.floor(i / 3) * 1.1), 4, 4, fleckColors[i % 4]!, 0.7)
+        .setDepth(1.5);
+      this.tweens.add({
+        targets: f,
+        x: f.x + (i % 2 === 0 ? 26 : -26),
+        y: f.y + (i % 3 === 0 ? 10 : -8),
+        duration: 4200 + i * 500,
+        yoyo: true,
+        repeat: -1,
+        ease: "Stepped",
+        easeParams: [12],
+      });
+      this.time.addEvent({
+        delay: 900 + i * 120,
+        loop: true,
+        callback: () => f.setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 0.7),
+      });
     }
 
+    // center: the doorway, framed by plants — nothing else in cols 7–8
+    this.prop({ key: "plant", x: lx(6.3), y: ly(1.4) });
+    this.prop({ key: "plant", x: lx(9.7), y: ly(1.4) });
 
-    // ---- Iteration 16: newer catalog pieces as ambient set dressing (not editable) ----
-    // games corner: arcade cabinet beside the foosball table (floor-standing → solid)
-    this.prop({ key: "arcade", x: t(L.x + 10.5), y: t(L.y + 8.0), solid: true });
-    // extra seating texture in the open floor between couch and record player (solid)
-    this.prop({ key: "papasan", x: t(L.x + 11.7), y: t(L.y + 5.4), solid: true });
-    // wall-mounted neon focal piece (non-solid)
-    this.add.image(t(L.x + 8.2), t(L.y + 0.45), "neon").setScale(0.9).setDepth(4);
-    // disco ball hangs over the seating cluster; a stepped scaleX yoyo fakes a slow spin
-    const disco = this.add.image(t(L.x + 6.6), t(L.y + 3.1), "discoball").setTint(0xc9d6ec).setDepth(t(L.y + 12));
-    this.add.rectangle(disco.x, disco.y - 26, 2, 22, 0x2b2420).setDepth(disco.depth - 1);
-    this.tweens.add({
-      targets: disco,
-      scaleX: { from: 1, to: -1 },
-      duration: 2400,
-      yoyo: true,
-      repeat: -1,
-      onUpdate: () => disco.setScale(Math.round(disco.scaleX * 4) / 4 || 0.25, 1),
-    });
+    // right: the games corner
+    this.prop({ key: "arcade", x: lx(11.0), y: ly(1.7), solid: true });
+    this.prop({ key: "arcade", x: lx(12.2), y: ly(1.7), tint: 0xd7b8e8, solid: true });
+    this.prop({ key: "foosball", x: lx(12.6), y: ly(4.6), solid: true });
+    this.prop({ key: "papasan", x: lx(11.4), y: ly(7.6), solid: true });
+    this.prop({ key: "beanbag", x: lx(13.6), y: ly(7.7), tint: 0x74a8ab });
+    this.prop({ key: "fridge", x: lx(14.9), y: ly(1.9), scale: 0.8, tint: 0xb8c8cf, solid: true });
+    this.prop({ key: "plant", x: lx(15.0), y: ly(8.4) });
 
-    // ---- Study Lounge ----
+    // ---- Study Lounge ---- (door at local cols 6–7, kept clear)
     const S = COMMON[1]!;
-    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 2.6), solid: true });
-    this.prop({ key: "desk", x: t(S.x + 3.2), y: t(S.y + 7.6), solid: true });
+    this.prop({ key: "desk", x: t(S.x + 1.4), y: t(S.y + 1.7), solid: true });
+    this.prop({ key: "desk", x: t(S.x + 4.0), y: t(S.y + 1.7), solid: true });
+    this.prop({ key: "lamp", x: t(S.x + 5.4), y: t(S.y + 1.5) });
     this.prop({
       key: "shelf",
-      x: t(S.x + 11.4),
-      y: t(S.y + 2.4),
+      x: t(S.x + 10.2),
+      y: t(S.y + 1.7),
       payload: { kind: "flavor", ...FLAVOR_PROPS.study },
       solid: true,
     });
-    this.prop({ key: "plant", x: t(S.x + 11.6), y: t(S.y + 8.2) });
+    this.prop({ key: "vinylcrate", x: t(S.x + 12.4), y: t(S.y + 1.8), solid: true });
+    // quiet reading nook, lower right; lower-left left open on purpose
+    this.add.image(t(S.x + 10.6), t(S.y + 7.2), "rug").setTint(0x9fb3c8).setScale(0.7).setDepth(1);
+    this.prop({ key: "cushions", x: t(S.x + 10.4), y: t(S.y + 7.3) });
+    this.prop({ key: "plant", x: t(S.x + 13.2), y: t(S.y + 8.4) });
 
-    this.prop({ key: "vinylcrate", x: t(S.x + 8.2), y: t(S.y + 1.8), solid: true });
-    this.prop({ key: "cushions", x: t(S.x + 9.4), y: t(S.y + 7.8) });
-
-    // ---- Kitchenette ----
+    // ---- Kitchenette ---- (door at local cols 5–6, kept clear)
     const K = COMMON[2]!;
-    this.prop({ key: "counter", x: t(K.x + 6), y: t(K.y + 8) , solid: true });
     this.prop({
       key: "fridge",
-      x: t(K.x + 1.9),
-      y: t(K.y + 2.6),
+      x: t(K.x + 0.9),
+      y: t(K.y + 1.9),
       payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen },
       solid: true,
     });
-    this.prop({ key: "table", x: t(K.x + 8.6), y: t(K.y + 3.4) });
-    this.prop({ key: "plant", x: t(K.x + 10.4), y: t(K.y + 7.6), scale: 0.9 });
-    this.prop({ key: "cushions", x: t(K.x + 4.2), y: t(K.y + 4.4), tint: 0xf0d8b0 });
+    this.prop({ key: "counter", x: t(K.x + 3.0), y: t(K.y + 1.8), solid: true });
+    this.add.image(t(K.x + 8.4), t(K.y + 0.05), "snackshelf").setDepth(4);
+    this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
+    this.prop({ key: "table", x: t(K.x + 8.4), y: t(K.y + 4.8), solid: true });
+    this.prop({ key: "beanbag", x: t(K.x + 6.9), y: t(K.y + 5.0), tint: 0xd98a6c, scale: 0.85 });
+    this.prop({ key: "beanbag", x: t(K.x + 9.9), y: t(K.y + 5.0), tint: 0x9fc3a0, scale: 0.85 });
+    this.prop({ key: "plant", x: t(K.x + 11.2), y: t(K.y + 8.4), scale: 0.9 });
 
     // ---- Courtyard ----
     const C = COMMON[3]!;
