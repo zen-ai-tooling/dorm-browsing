@@ -1387,8 +1387,8 @@ export class DormScene extends Phaser.Scene {
 
     // wall face
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
-    this.add.image(lx(14.4), ly(0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
-    this.add.image(lx(11.6), ly(0.0), "neon").setDepth(4);
+    this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
+    this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
     // string lights along the top face row, skipping the doorway span
     for (let i = 0, sx = lx(0.4); sx < lx(L.w - 0.3); i++, sx += 14) {
       if (sx > lx(6.8) && sx < lx(9.2)) continue;
@@ -1400,28 +1400,28 @@ export class DormScene extends Phaser.Scene {
     }
 
     // left: the TV pit — everything faces the TV
-    this.add.image(lx(3.6), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
-    this.prop({ key: "tv", x: lx(3.6), y: ly(1.55), solid: true });
-    this.prop({ key: "console", x: lx(5.4), y: ly(1.85), solid: true });
-    this.prop({ key: "record", x: lx(0.8), y: ly(1.6), solid: true });
+    this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
+    this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
+    this.prop({ key: "console", x: lx(3.3), y: ly(3.1), solid: true });
+    this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
     this.prop({
       key: "table",
-      x: lx(3.6),
+      x: lx(3.3),
       y: ly(4.3),
       solid: true,
       payload: { kind: "flavor", ...FLAVOR_PROPS.lounge },
     });
-    this.prop({ key: "controller", x: lx(3.0), y: ly(4.0), depthBias: 20 });
-    this.prop({ key: "controller", x: lx(4.3), y: ly(3.95), depthBias: 20 });
-    this.prop({ key: "couch-back", x: lx(3.6), y: ly(6.5), tint: 0xd9a27e, solid: true });
-    this.prop({ key: "beanbag", x: lx(1.1), y: ly(4.4), tint: 0xd98a6c });
-    this.prop({ key: "beanbag", x: lx(6.0), y: ly(4.4), tint: 0xd8b25c });
-    this.prop({ key: "lamp", x: lx(0.6), y: ly(7.4) });
+    this.prop({ key: "controller", x: lx(2.8), y: ly(4.0), depthBias: 20 });
+    this.prop({ key: "controller", x: lx(3.9), y: ly(4.05), depthBias: 20 });
+    this.prop({ key: "couch-back", x: lx(3.3), y: ly(6.6), tint: 0xd9a27e, solid: true });
+    this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
+    this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
+    this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
     // party-light flecks drifting across the rug (the disco ball's energy, without a ceiling)
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
       const f = this.add
-        .rectangle(lx(2 + (i % 3) * 1.2), ly(4.6 + Math.floor(i / 3) * 1.1), 4, 4, fleckColors[i % 4]!, 0.7)
+        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(5.0 + Math.floor(i / 3) * 1.1), 4, 4, fleckColors[i % 4]!, 0.7)
         .setDepth(1.5);
       this.tweens.add({
         targets: f,
@@ -1445,48 +1445,49 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "plant", x: lx(9.7), y: ly(1.4) });
 
     // right: the games corner
-    this.prop({ key: "arcade", x: lx(11.0), y: ly(1.7), solid: true });
-    this.prop({ key: "arcade", x: lx(12.2), y: ly(1.7), tint: 0xd7b8e8, solid: true });
-    this.prop({ key: "foosball", x: lx(12.6), y: ly(4.6), solid: true });
-    this.prop({ key: "papasan", x: lx(11.4), y: ly(7.6), solid: true });
-    this.prop({ key: "beanbag", x: lx(13.6), y: ly(7.7), tint: 0x74a8ab });
-    this.prop({ key: "fridge", x: lx(14.9), y: ly(1.9), scale: 0.8, tint: 0xb8c8cf, solid: true });
-    this.prop({ key: "plant", x: lx(15.0), y: ly(8.4) });
+    this.prop({ key: "arcade", x: lx(11.22), y: ly(1.7), solid: true });
+    this.prop({ key: "arcade", x: lx(12.85), y: ly(1.7), tint: 0xd7b8e8, solid: true });
+    this.prop({ key: "foosball", x: lx(12.6), y: ly(4.8), solid: true });
+    this.prop({ key: "papasan", x: lx(11.2), y: ly(7.9), solid: true });
+    this.prop({ key: "beanbag", x: lx(13.6), y: ly(8.1), tint: 0x74a8ab });
+    this.prop({ key: "fridge", x: lx(14.9), y: ly(2.0), scale: 0.8, tint: 0xb8c8cf, solid: true });
+    this.prop({ key: "plant", x: lx(15.3), y: ly(8.4) });
 
     // ---- Study Lounge ---- (door at local cols 6–7, kept clear)
     const S = COMMON[1]!;
-    this.prop({ key: "desk", x: t(S.x + 1.4), y: t(S.y + 1.7), solid: true });
-    this.prop({ key: "desk", x: t(S.x + 4.0), y: t(S.y + 1.7), solid: true });
-    this.prop({ key: "lamp", x: t(S.x + 5.4), y: t(S.y + 1.5) });
+    this.prop({ key: "desk", x: t(S.x + 1.5), y: t(S.y + 1.7), solid: true });
+    this.prop({ key: "desk", x: t(S.x + 4.5), y: t(S.y + 1.7), solid: true });
+    this.prop({ key: "lamp", x: t(S.x + 13.3), y: t(S.y + 1.5) });
     this.prop({
       key: "shelf",
-      x: t(S.x + 10.2),
-      y: t(S.y + 1.7),
+      x: t(S.x + 9.4),
+      y: t(S.y + 1.8),
       payload: { kind: "flavor", ...FLAVOR_PROPS.study },
       solid: true,
     });
-    this.prop({ key: "vinylcrate", x: t(S.x + 12.4), y: t(S.y + 1.8), solid: true });
+    this.prop({ key: "vinylcrate", x: t(S.x + 11.6), y: t(S.y + 1.75), solid: true });
     // quiet reading nook, lower right; lower-left left open on purpose
     this.add.image(t(S.x + 10.6), t(S.y + 7.2), "rug").setTint(0x9fb3c8).setScale(0.7).setDepth(1);
     this.prop({ key: "cushions", x: t(S.x + 10.4), y: t(S.y + 7.3) });
-    this.prop({ key: "plant", x: t(S.x + 13.2), y: t(S.y + 8.4) });
+    this.prop({ key: "plant", x: t(S.x + 13.3), y: t(S.y + 8.5) });
 
     // ---- Kitchenette ---- (door at local cols 5–6, kept clear)
     const K = COMMON[2]!;
     this.prop({
       key: "fridge",
-      x: t(K.x + 0.9),
-      y: t(K.y + 1.9),
+      x: t(K.x + 0.88),
+      y: t(K.y + 1.7),
+      scale: 0.9,
       payload: { kind: "flavor", ...FLAVOR_PROPS.kitchen },
       solid: true,
     });
-    this.prop({ key: "counter", x: t(K.x + 3.0), y: t(K.y + 1.8), solid: true });
-    this.add.image(t(K.x + 8.4), t(K.y + 0.05), "snackshelf").setDepth(4);
+    this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
+    this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
     this.prop({ key: "table", x: t(K.x + 8.4), y: t(K.y + 4.8), solid: true });
-    this.prop({ key: "beanbag", x: t(K.x + 6.9), y: t(K.y + 5.0), tint: 0xd98a6c, scale: 0.85 });
-    this.prop({ key: "beanbag", x: t(K.x + 9.9), y: t(K.y + 5.0), tint: 0x9fc3a0, scale: 0.85 });
-    this.prop({ key: "plant", x: t(K.x + 11.2), y: t(K.y + 8.4), scale: 0.9 });
+    this.prop({ key: "beanbag", x: t(K.x + 8.4), y: t(K.y + 3.4), tint: 0xd98a6c, scale: 0.85 });
+    this.prop({ key: "beanbag", x: t(K.x + 10.6), y: t(K.y + 4.9), tint: 0x9fc3a0, scale: 0.85 });
+    this.prop({ key: "plant", x: t(K.x + 11.3), y: t(K.y + 8.5), scale: 0.9 });
 
     // ---- Courtyard ----
     const C = COMMON[3]!;
