@@ -36,6 +36,8 @@ export interface PlayerState {
   myNowWatching: { title: string; status?: string };
   /** equipped wallpaper catalog id; falsy / unknown ids fall back to the mood default */
   myWallpaperId: string;
+  /** collapses the controls hint card for returning players */
+  seenControls: boolean;
 }
 
 const seed = ROOMS[0]!;
@@ -58,6 +60,7 @@ const defaultState = (): PlayerState => ({
   },
   myNowWatching: { ...(seed.nowWatching ?? { title: "Nothing yet", status: "" }) },
   myWallpaperId: seed.wallpaperId,
+  seenControls: false,
 });
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
@@ -103,6 +106,7 @@ const read = (): PlayerState => {
       longestStreak: typeof parsed.longestStreak === "number" ? parsed.longestStreak : 0,
       lastShopSeenDate:
         typeof parsed.lastShopSeenDate === "string" ? parsed.lastShopSeenDate : null,
+      seenControls: parsed.seenControls === true,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
       mySongs:
         Array.isArray(parsed.mySongs) && parsed.mySongs.length > 0
@@ -201,6 +205,10 @@ export const playerActions = {
     if (state.myWallpaperId === itemId) return;
     set({ myWallpaperId: itemId });
     sfx.placeItem();
+  },
+  markControlsSeen() {
+    if (state.seenControls) return;
+    set({ seenControls: true });
   },
   toggleMute() {
     const muted = !state.muted;

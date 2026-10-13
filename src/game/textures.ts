@@ -477,17 +477,32 @@ export const buildTextures = (scene: Phaser.Scene) => {
   });
 
   // record crate / turntable 28x25
+  // record player 28x25 — turntable on a low cabinet with record spines
   make(scene, "record", 28, 25, (g) => {
     foot(g, 14, 23, 22);
-    panel(g, 1, 3, 26, 18, 0x6a5f68, 0x4c434b, 0x877984);
-    r(g, 4, 6, 12, 12, 0x211d24);
-    line(g, 4, 6, 12, 12);
-    r(g, 8, 10, 4, 4, 0xd8b25c);
-    r(g, 9, 11, 2, 2, 0x211d24);
-    r(g, 5, 7, 1, 1, 0x7d7482);
-    r(g, 19, 6, 6, 8, CORAL);
-    line(g, 19, 6, 6, 8);
-    r(g, 18, 16, 8, 3, 0x4c434b);
+    // turntable deck
+    panel(g, 2, 2, 24, 9, 0x8a6a4c, 0x6d5138, 0xa7845f);
+    line(g, 2, 2, 24, 9);
+    // platter (round-ish)
+    r(g, 6, 3, 8, 1, INK);
+    r(g, 5, 4, 10, 5, 0x211d24);
+    r(g, 4, 5, 1, 3, INK);
+    r(g, 15, 5, 1, 3, INK);
+    r(g, 6, 9, 8, 1, INK);
+    r(g, 6, 5, 2, 1, 0x4a4450);
+    r(g, 9, 6, 2, 2, 0xd8b25c); // label dot
+    // tone arm
+    r(g, 20, 3, 2, 2, 0xc9c3b6);
+    r(g, 20, 5, 1, 3, 0xc9c3b6);
+    r(g, 16, 7, 4, 1, 0xc9c3b6);
+    // low cabinet
+    panel(g, 1, 11, 26, 11, WOOD, WOOD_SH, WOOD_HI);
+    line(g, 1, 11, 26, 11);
+    const spines = [CORAL, TEAL, 0xd8b25c, PLUM, 0x8f8a83, CORAL, TEAL];
+    spines.forEach((c, i) => {
+      r(g, 4 + i * 3, 13, 2, 7, c);
+      r(g, 4 + i * 3, 13, 2, 1, INK);
+    });
   });
 
   // woven rug 80x52 — pixel weave, hard edges
@@ -884,17 +899,32 @@ export const buildTextures = (scene: Phaser.Scene) => {
   });
 
   // papasan chair 36x28 — round woven bowl on a low frame
+  // papasan 36x28 — round rattan bowl, darker cushion, small base
   make(scene, "papasan", 36, 28, (g) => {
-    foot(g, 18, 26, 26);
-    r(g, 4, 6, 28, 14, 0xd6c7a6);
-    r(g, 2, 9, 32, 8, 0xd6c7a6);
-    r(g, 4, 15, 28, 5, 0xb39f7d);
-    line(g, 4, 6, 28, 14);
-    dither(g, 6, 8, 24, 9, 0xc4b48f);
-    r(g, 8, 8, 20, 5, CREAM);
-    line(g, 8, 8, 20, 5);
-    r(g, 7, 20, 22, 3, 0x6d5138);
-    line(g, 7, 20, 22, 3);
+    foot(g, 18, 26, 22);
+    // base
+    r(g, 13, 21, 10, 4, 0x6d5138);
+    line(g, 13, 21, 10, 4);
+    // oval rim, built from stacked rows (round silhouette)
+    const rows: Array<[number, number]> = [
+      [10, 16], [6, 24], [4, 28], [3, 30], [2, 32], [2, 32], [2, 32], [2, 32],
+      [3, 30], [3, 30], [4, 28], [6, 24], [8, 20], [11, 14],
+    ];
+    rows.forEach(([x, w], i) => {
+      const y = 4 + i;
+      r(g, x, y, w, 1, INK);
+      r(g, x + 1, y, w - 2, 1, i > 9 ? 0xb39f7d : 0xd6b98a);
+      // woven dither
+      for (let xx = x + 1 + (i % 2); xx < x + w - 1; xx += 2) r(g, xx, y, 1, 1, 0xc29f6c);
+    });
+    r(g, 10, 3, 16, 1, INK);
+    r(g, 11, 18, 14, 1, INK);
+    // cushion bowl
+    const cush: Array<[number, number]> = [[11, 14], [8, 20], [7, 22], [7, 22], [8, 20], [10, 16]];
+    cush.forEach(([x, w], i) => {
+      r(g, x, 6 + i, w, 1, i === 0 ? 0x8a3f52 : i > 3 ? 0x6e2f40 : 0xa24d62);
+    });
+    r(g, 12, 7, 5, 1, 0xc46a80);
   });
 
   // vinyl crate 30x24 — wood crate stuffed with record sleeves
