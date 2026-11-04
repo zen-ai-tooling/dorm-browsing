@@ -1146,7 +1146,8 @@ export class DormScene extends Phaser.Scene {
     const away = !room.isActive ? room.awayNote : undefined;
     const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
     if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
-    this.buildDoorBoard(room, (away ? plate.right + 4 + 44 : plate.right) + 8);
+    // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
+    this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
 
     if (room.isActive) {
       this.tweens.add({
@@ -1183,11 +1184,11 @@ export class DormScene extends Phaser.Scene {
     const text = this.add
       .text(cx, cy - 5, "", {
         fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: "9px",
+        fontSize: "8px",
         color: room.id === ROOMS[0]!.id ? "#2f5fb8" : room.id === "room-2" ? "#c2452f" : "#6b3fa0",
         fontStyle: "600",
         align: "center",
-        wordWrap: { width: 54 },
+        wordWrap: { width: 52 },
         lineSpacing: -2,
       })
       .setOrigin(0.5)
@@ -1216,7 +1217,7 @@ export class DormScene extends Phaser.Scene {
       const isMine = b.residentId === ROOMS[0]!.id;
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
       b.text.setText(answer ? boardText(answer) : "?");
-      b.text.setFontSize(answer ? 9 : 14);
+      b.text.setFontSize(answer ? 8 : 14);
       b.sparkle?.setVisible(isMine && !answer);
     }
     const ready = this.isPackageReady();
@@ -2146,7 +2147,7 @@ export class DormScene extends Phaser.Scene {
       [27.5, 16.9, "flyer-b", 0xf0ecdc],
       [41.5, 16.85, "flyer-a", 0xf3ecd8],
       [43.5, 17.1, "flyer-c", 0xfdf3ea],
-      [61, 17.0, "flyer-d", 0xf6f0dd],
+      [62.9, 17.0, "flyer-d", 0xf6f0dd], // clear of Jordan's door whiteboard
     ];
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
