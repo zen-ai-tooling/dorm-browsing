@@ -60,3 +60,14 @@ describe("dev mode", () => {
     expect(m.getPlayerState().longestStreak).toBe(longest);
   });
 });
+
+describe("hidden dev toggle", () => {
+  test("toggleEnabled turns dev mode off, then back on with unlimited", () => {
+    m.devActions.toggleEnabled();
+    expect(store.has("dorm-vibes-dev")).toBe(false);
+    expect(m.isUnlimited()).toBe(false);
+    expect(m.devActions.toggleEnabled()).toBe(true);
+    expect(store.has("dorm-vibes-dev")).toBe(true);
+    expect(m.isUnlimited()).toBe(true);
+  });
+});

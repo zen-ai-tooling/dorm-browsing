@@ -227,6 +227,11 @@ export const canAfford = (price: number) => isUnlimited() || state.coins >= pric
 const defaultOwned = () => defaultState().ownedItemIds;
 
 export const devActions = {
+  /** hidden triple-tap switch — the only dev action that works while dev mode is off */
+  toggleEnabled() {
+    writeDev(dev.enabled ? DEV_OFF : { enabled: true, unlimited: true });
+    return dev.enabled;
+  },
   setUnlimited(on: boolean) {
     if (!dev.enabled) return;
     writeDev({ ...dev, unlimited: on });

@@ -9,7 +9,9 @@ import { RoomEditorTray } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { ShopPanel } from "./ShopPanel";
 import { todayKey } from "@/data/prompts";
+import { toast } from "sonner";
 import {
+  devActions,
   getPlayerState,
   hydrateDevMode,
   hydratePlayerState,
@@ -169,6 +171,27 @@ const DormGame = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // hidden dev switch: 3 title taps within 1s toggles dev mode and leaves the hint as it was
+  const titleTapsRef = useRef<number[]>([]);
+  const hintBeforeTapsRef = useRef<boolean | null>(null);
+  const onTitleTap = () => {
+    const now = Date.now();
+    let taps = titleTapsRef.current;
+    if (taps.length > 0 && now - taps[0]! > 1000) taps = [];
+    if (taps.length === 0) hintBeforeTapsRef.current = hintOpen;
+    taps = [...taps, now];
+    if (taps.length >= 3) {
+      titleTapsRef.current = [];
+      setHintOpen(hintBeforeTapsRef.current);
+      const on = devActions.toggleEnabled();
+      sfx.uiClick();
+      toast(on ? "Dev mode on" : "Dev mode off");
+      return;
+    }
+    titleTapsRef.current = taps;
+    setHintOpen(!showHint);
+  };
+
   const toggleEdit = (on: boolean) => {
     setEditing(on);
     if (!on) setWallpaperOpen(false);
@@ -203,7 +226,7 @@ const DormGame = () => {
           <button
             type="button"
             aria-expanded={showHint}
-            onClick={() => setHintOpen(!showHint)}
+            onClick={onTitleTap}
             className="block text-left font-display text-sm font-bold tracking-wide text-panel-foreground"
           >
             Dorm Vibes · Floor 3
