@@ -1649,76 +1649,82 @@ export class DormScene extends Phaser.Scene {
 
 
     // ---- hallway shared props ----
+    // Rows 16–17 are the hall's back-wall face (face centre = t(17)); walkable floor is rows 18–21.
+    // Wall decor hangs on the face; floor pieces stand on row 18+ with their tops overlapping it.
+    const faceMid = t(HALL.y);
+    const standOn = (h: number, foot = 22) => t(HALL.y + 1) + foot - h / 2; // bottom lands on row 18
+
     this.prop({
       key: "board",
       x: t(24),
-      y: t(HALL.y) + 22,
+      y: faceMid,
       scale: 1.15,
       payload: { kind: "corkboard" },
       label: COMMUNITY_CORKBOARD.title,
     });
-    this.label(t(24), t(HALL.y) - 4, "Community corkboard", "#4a3d43", 12);
 
     this.prop({
       key: "vending",
       x: t(46),
-      y: t(HALL.y) + 32,
+      y: standOn(98, 20),
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
     this.prop({
       key: "crate",
       x: t(8),
-      y: t(HALL.y) + 34,
+      y: standOn(52),
       payload: { kind: "flavor", ...FLAVOR_PROPS.lostFound },
     });
-    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#4a3d43", 12);
+    // a crate alone is ambiguous, so this one keeps a sign — on the wall above it
+    this.wallSign(t(8), t(16) + 20, ["LOST & FOUND"], "cream", "center");
 
-    // locked "more rooms coming" door on the hallway's south wall
+    // locked "more rooms coming" door set into the corridor's back wall, sill on the baseboard
     this.prop({
       key: "lockdoor",
-      x: t(65.5),
-      y: t(22) + 6,
+      x: t(64.5),
+      y: t(HALL.y + 1) - 32,
+      scale: 0.68,
       payload: { kind: "flavor", ...FLAVOR_PROPS.locked },
     }).setAlpha(0.75);
 
-    // club flyers / lost-pet posters taped along the hallway walls
+    // club flyers / lost-pet posters taped mid-face, slightly staggered
     const flyers: Array<[number, number, string, number]> = [
       // hallway decor never goes on row 22 — that wall's visible side belongs to the rooms below
-      [20, 16.55, "flyer-a", 0xfffdf5],
-      [27.5, 16.45, "flyer-b", 0xf0ecdc],
-      [43.5, 16.6, "flyer-c", 0xfdf3ea],
-      [61, 16.5, "flyer-d", 0xf6f0dd],
-      [23.5, 16.5, "flyer-b", 0xfaf4e4],
-      [45.5, 16.45, "flyer-a", 0xf3ecd8],
+      [20, 16.85, "flyer-a", 0xfffdf5],
+      [21.5, 17.15, "flyer-b", 0xfaf4e4],
+      [27.5, 16.9, "flyer-b", 0xf0ecdc],
+      [41.5, 16.85, "flyer-a", 0xf3ecd8],
+      [43.5, 17.1, "flyer-c", 0xfdf3ea],
+      [61, 17.0, "flyer-d", 0xf6f0dd],
     ];
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
 
-    // a bike leaning against the corridor wall
-    this.prop({ key: "bike", x: t(57), y: t(HALL.y) + 26 });
+    // a bike standing on row 18, leaning against the corridor wall (clear of Jordan's nameplate)
+    this.prop({ key: "bike", x: t(49.5), y: standOn(60) });
 
-    // warm floor lamp lighting an otherwise empty stretch of corridor
-    this.prop({ key: "lamp", x: t(35.4), y: t(HALL.y) + 36 });
+    // warm floor lamp lighting an otherwise empty stretch of corridor (clear of Sam's nameplate)
+    const lampX = t(37.9);
+    this.prop({ key: "lamp", x: lampX, y: standOn(88, 24) });
     this.add
-      .image(t(35.4), t(HALL.y) + 44, "glow")
+      .image(lampX, t(HALL.y + 1) + 20, "glow")
       .setTint(0xffdca0)
       .setAlpha(0.3)
       .setScale(1.8)
       .setDepth(1);
 
     // recycling + trash pair
-    this.prop({ key: "bin", x: t(40), y: t(HALL.y) + 40, tint: 0x7f9ec4 });
-    this.prop({ key: "bin", x: t(40.9), y: t(HALL.y) + 42 });
+    this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
+    this.prop({ key: "bin", x: t(40.9), y: standOn(38, 24) });
 
     // mail cubbies on the hallway wall
     this.prop({
       key: "cubby",
       x: t(30),
-      y: t(HALL.y) + 16,
+      y: faceMid,
       payload: { kind: "flavor", title: "Mail Cubbies", lines: ["Someone's Amazon package again", "One postcard from 2019"] },
     });
-    this.label(t(30), t(HALL.y) - 6, "Mail cubbies", "#4a3d43", 12);
 
     void zones;
   }
