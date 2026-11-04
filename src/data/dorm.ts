@@ -46,7 +46,58 @@ export const MOODS: Record<MoodKey, MoodPreset> = {
 export interface Song {
   title: string;
   artist: string;
+  /** a bit of personal voice, max 40 chars ("2am drive song") */
+  note?: string;
 }
+
+export const SONG_NOTE_MAX = 40;
+
+/** motifs for generated pixel cover art + polaroid pins (see src/lib/coverArt.ts) */
+export const COVER_MOTIFS = [
+  "bands",
+  "sun",
+  "checker",
+  "waves",
+  "diamond",
+  "dots",
+  "split",
+  "diagonal",
+] as const;
+export type CoverMotif = (typeof COVER_MOTIFS)[number];
+
+export const WATCH_VIBES = [
+  "obsessed",
+  "comfort rewatch",
+  "hate-watching",
+  "background noise",
+  "just started",
+] as const;
+export type WatchVibe = (typeof WATCH_VIBES)[number];
+
+export interface NowWatching {
+  title: string;
+  status?: string;
+  /** 0–1 */
+  progress?: number;
+  vibe?: WatchVibe;
+  /** max 3 */
+  upNext?: string[];
+}
+export const UP_NEXT_MAX = 3;
+
+export type Pin =
+  | { kind: "interest"; stickerId: string; text?: string }
+  | { kind: "ticket"; text: string; when?: string }
+  | { kind: "polaroid"; caption: string; motif: CoverMotif }
+  | { kind: "pennant"; text: string }
+  | { kind: "book"; title: string; author?: string };
+export type PinKind = Pin["kind"];
+
+export interface Bulletin {
+  /** max BULLETIN_MAX_PINS */
+  pins: Pin[];
+}
+export const BULLETIN_MAX_PINS = 8;
 
 export interface PlacedItem {
   /** key into ITEM_CATALOG */
@@ -72,10 +123,10 @@ export interface PersonRoom {
   /** shown on a door whiteboard when the room is inactive */
   awayNote?: string;
   songs: Song[];
-  bulletin: { interests: string[]; event: string };
+  bulletin: Bulletin;
   companion: { type: "plant" | "pet"; name: string; breed: string; blurb: string };
   /** what the room's owner is currently watching */
-  nowWatching?: { title: string; status?: string };
+  nowWatching?: NowWatching;
   /** furniture placement — data-driven, ready for a future editor */
   layout: PlacedItem[];
   /** reserved for catalog-driven wallpaper swap */
@@ -94,15 +145,19 @@ export const ROOMS: PersonRoom[] = [
     isActive: true,
     roomNumber: "301",
     songs: [
-      { title: "Midnight City", artist: "M83" },
-      { title: "Redbone", artist: "Childish Gambino" },
-      { title: "Sunflower", artist: "Rex Orange County" },
+      { title: "Midnight City", artist: "M83", note: "2am drive song" },
+      { title: "Redbone", artist: "Childish Gambino", note: "stay woke" },
+      { title: "Sunflower", artist: "Rex Orange County", note: "sunday mornings" },
       { title: "Instant Crush", artist: "Daft Punk" },
-      { title: "Electric Feel", artist: "MGMT" },
+      { title: "Electric Feel", artist: "MGMT", note: "first song I ever skated to" },
     ],
     bulletin: {
-      interests: ["Into ambient techno lately", "Learning to skate"],
-      event: "Rooftop hang — Fri 8pm",
+      pins: [
+        { kind: "interest", stickerId: "skating" },
+        { kind: "interest", stickerId: "custom", text: "into ambient techno lately" },
+        { kind: "ticket", text: "Rooftop hang", when: "Fri 8pm" },
+        { kind: "pennant", text: "Floor 3" },
+      ],
     },
     companion: {
       type: "plant",
@@ -110,7 +165,13 @@ export const ROOMS: PersonRoom[] = [
       breed: "succulent",
       blurb: "low-maintenance, high standards",
     },
-    nowWatching: { title: "The Bear", status: "Season 2, Episode 4" },
+    nowWatching: {
+      title: "The Bear",
+      status: "Season 2, Episode 4",
+      progress: 0.4,
+      vibe: "obsessed",
+      upNext: ["Severance", "Shōgun"],
+    },
     layout: [
       { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
@@ -132,15 +193,22 @@ export const ROOMS: PersonRoom[] = [
     isActive: true,
     roomNumber: "302",
     songs: [
-      { title: "Two Slow Dancers", artist: "Mitski" },
-      { title: "Cherry", artist: "Lucy Dacus" },
-      { title: "Motion Sickness", artist: "Phoebe Bridgers" },
+      { title: "Two Slow Dancers", artist: "Mitski", note: "kitchen floor crying, the good kind" },
+      { title: "Cherry", artist: "Lucy Dacus", note: "wheel-throwing soundtrack" },
+      { title: "Motion Sickness", artist: "Phoebe Bridgers", note: "screamed it at the show" },
       { title: "Emily", artist: "Joanna Sternberg" },
-      { title: "Jubilee", artist: "Japanese Breakfast" },
+      { title: "Jubilee", artist: "Japanese Breakfast", note: "bus window song" },
     ],
     bulletin: {
-      interests: ["Reading way too much sci-fi", "Started pottery class"],
-      event: "Gallery opening — Sat 6pm",
+      pins: [
+        { kind: "interest", stickerId: "pottery" },
+        { kind: "interest", stickerId: "reading" },
+        { kind: "polaroid", caption: "first bowl that didn't crack", motif: "sun" },
+        { kind: "book", title: "The Left Hand of Darkness", author: "Ursula K. Le Guin" },
+        { kind: "pennant", text: "Clay Club" },
+        { kind: "ticket", text: "Gallery opening", when: "Sat 6pm" },
+        { kind: "interest", stickerId: "skating" },
+      ],
     },
     companion: {
       type: "pet",
@@ -148,7 +216,13 @@ export const ROOMS: PersonRoom[] = [
       breed: "round orange cat",
       blurb: "sits in every wet clay bowl exactly once",
     },
-    nowWatching: { title: "Perfect Days", status: "rewatching, third time" },
+    nowWatching: {
+      title: "Perfect Days",
+      status: "rewatching, third time",
+      progress: 0.7,
+      vibe: "comfort rewatch",
+      upNext: ["Past Lives", "Aftersun", "Paterson"],
+    },
     layout: [
       { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
@@ -171,15 +245,22 @@ export const ROOMS: PersonRoom[] = [
     roomNumber: "303",
     awayNote: "at the library",
     songs: [
-      { title: "One More Time", artist: "Daft Punk" },
-      { title: "Move Your Body", artist: "Marshall Jefferson" },
+      { title: "One More Time", artist: "Daft Punk", note: "gym walkout" },
+      { title: "Move Your Body", artist: "Marshall Jefferson", note: "the house music bible" },
       { title: "Losing You", artist: "Solange" },
-      { title: "Silver Soul", artist: "Beach House" },
-      { title: "Digital Love", artist: "Daft Punk" },
+      { title: "Silver Soul", artist: "Beach House", note: "cooldown lap" },
+      { title: "Digital Love", artist: "Daft Punk", note: "mile 9 when it hurts" },
     ],
     bulletin: {
-      interests: ["Deep in a house music phase", "Training for a half marathon"],
-      event: "Show at the warehouse — Sun 9pm",
+      pins: [
+        { kind: "interest", stickerId: "house_music" },
+        { kind: "interest", stickerId: "running" },
+        { kind: "ticket", text: "Show at the warehouse", when: "Sun 9pm" },
+        { kind: "polaroid", caption: "race bib #214", motif: "diagonal" },
+        { kind: "book", title: "Energy Flash", author: "Simon Reynolds" },
+        { kind: "pennant", text: "Floor 3" },
+        { kind: "interest", stickerId: "vinyl" },
+      ],
     },
     companion: {
       type: "plant",
@@ -187,7 +268,13 @@ export const ROOMS: PersonRoom[] = [
       breed: "trailing pothos",
       blurb: "grows toward the speaker, not the window",
     },
-    nowWatching: { title: "Boiler Room sets", status: "on in the background, always" },
+    nowWatching: {
+      title: "Boiler Room sets",
+      status: "on in the background, always",
+      progress: 1,
+      vibe: "background noise",
+      upNext: ["Shōgun", "Paris Is Burning"],
+    },
     layout: [
       { itemId: "poster_default", gx: 4, gy: 0 },
       { itemId: "bed_basic", gx: 9, gy: 5 },
