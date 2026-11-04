@@ -3,7 +3,16 @@ import { ROOMS, type Bulletin, type NowWatching, type PlacedItem, type Song } fr
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
 import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
 import { migrateMountLayout } from "@/data/placement";
-import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
+import {
+  DAILY_COIN_REWARD,
+  normalizeDailyAnswers,
+  promptForToday,
+  todayKey,
+  trimDailyAnswers,
+  type DailyAnswer,
+} from "@/data/prompts";
+import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
+import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
 
 const STORAGE_KEY = "dorm-vibes-player-state";
@@ -41,6 +50,25 @@ export interface PlayerState {
   seenControls: boolean;
   /** collection sets already rewarded — each grants its bonus exactly once, ever */
   completedSets: string[];
+  /** daily question answers by date key, last 30 days */
+  dailyAnswers: Record<string, DailyAnswer>;
+  /** date the daily mail package was last opened */
+  lastPackageDate: string | null;
+  /** the last opened package, so its reward shows the same all day (and dev reset can undo it) */
+  lastPackage: LastPackage | null;
+  /** pity counter: packages opened in a row without a mail exclusive */
+  packagesSinceExclusive: number;
+  /** welcome quests finished (rewarded, or auto-ticked for older saves) */
+  questsDone: string[];
+  /** the one-time "Welcome to Floor 3" celebration has been shown */
+  questsCelebrated: boolean;
+}
+
+export interface LastPackage {
+  date: string;
+  reward: PackageReward;
+  /** pity counter before this package — restored by the dev reset */
+  prevSince: number;
 }
 
 const seed = ROOMS[0]!;
@@ -64,7 +92,21 @@ const defaultState = (): PlayerState => ({
   myWallpaperId: seed.wallpaperId,
   seenControls: false,
   completedSets: [],
+  dailyAnswers: {},
+  lastPackageDate: null,
+  lastPackage: null,
+  packagesSinceExclusive: 0,
+  questsDone: [],
+  questsCelebrated: false,
 });
+
+const normalizeLastPackage = (raw: unknown): LastPackage | null => {
+  const p = raw as Partial<LastPackage> | null;
+  if (!p || typeof p.date !== "string" || !p.reward || typeof p.reward !== "object") return null;
+  const kind = (p.reward as { kind?: unknown }).kind;
+  if (!["coins", "postcard", "item", "allFound", "jackpot"].includes(kind as string)) return null;
+  return { date: p.date, reward: p.reward as PackageReward, prevSince: typeof p.prevSince === "number" ? p.prevSince : 0 };
+};
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
 export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
@@ -92,7 +134,7 @@ const read = (): PlayerState => {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw) as Partial<PlayerState>;
     const base = defaultState();
-    return {
+    const next: PlayerState = {
       coins: typeof parsed.coins === "number" ? parsed.coins : base.coins,
       ownedItemIds: Array.isArray(parsed.ownedItemIds)
         ? Array.from(new Set([...base.ownedItemIds, ...parsed.ownedItemIds])).filter(
@@ -120,7 +162,20 @@ const read = (): PlayerState => {
       myNowWatching: normalizeWatching(parsed.myNowWatching, base.myNowWatching),
       myWallpaperId:
         typeof parsed.myWallpaperId === "string" ? parsed.myWallpaperId : base.myWallpaperId,
+      // Iteration 24: daily answers, mail package and welcome quests
+      dailyAnswers: normalizeDailyAnswers(parsed.dailyAnswers),
+      lastPackageDate: typeof parsed.lastPackageDate === "string" ? parsed.lastPackageDate : null,
+      lastPackage: normalizeLastPackage(parsed.lastPackage),
+      packagesSinceExclusive:
+        typeof parsed.packagesSinceExclusive === "number" ? parsed.packagesSinceExclusive : 0,
+      questsDone: Array.isArray(parsed.questsDone)
+        ? parsed.questsDone.filter((x): x is string => typeof x === "string")
+        : [],
+      questsCelebrated: parsed.questsCelebrated === true,
     };
+    // saves from before quests existed: tick what they've already done, with no rewards
+    if (!Array.isArray(parsed.questsDone)) next.questsDone = migrateQuests(next);
+    return next;
   } catch {
     return defaultState();
   }
