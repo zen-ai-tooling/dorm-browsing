@@ -23,6 +23,8 @@ export interface ItemDef {
   tint?: number;
   /** collection set this item belongs to (at most one) — assigned from ITEM_SETS below */
   set?: SetId;
+  /** night light source when placed — assigned from ITEM_LIGHTS below */
+  light?: { color: number; radius: number; flicker?: boolean };
   /** coin cost in the shop; 0 for starter items */
   price: number;
   unlockedByDefault: boolean;
@@ -743,6 +745,23 @@ for (const st of ITEM_SETS)
     const item = ITEM_CATALOG[id];
     if (item) item.set = st.id;
   }
+
+/** placed items that glow at night (TVs flicker) */
+export const ITEM_LIGHTS: Record<string, NonNullable<ItemDef["light"]>> = {
+  tv_basic: { color: 0x8fb8ff, radius: 50, flicker: true },
+  tv_crt: { color: 0x8fb8ff, radius: 50, flicker: true },
+  tv_mounted: { color: 0x8fb8ff, radius: 50, flicker: true },
+  tv_gaming: { color: 0x8fb8ff, radius: 50, flicker: true },
+  lava_lamp: { color: 0xff8a5c, radius: 60 },
+  neon_sign: { color: 0xff5fa8, radius: 60 },
+  arcade_cabinet: { color: 0x6fe0d0, radius: 40 },
+  disco_ball: { color: 0xdfe6ff, radius: 70 },
+  speaker_vintage: { color: 0xffc070, radius: 22 },
+};
+for (const [id, light] of Object.entries(ITEM_LIGHTS)) {
+  const item = ITEM_CATALOG[id];
+  if (item) item.light = light;
+}
 
 export const setProgress = (setId: SetId, ownedIds: Iterable<string>) => {
   const owned = new Set(ownedIds);

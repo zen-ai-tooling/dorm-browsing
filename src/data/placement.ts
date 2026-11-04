@@ -5,6 +5,10 @@ import { effectiveFootprint, isWallItem, ITEM_CATALOG, type Rotation } from "@/d
 export const ROOM_W = 12;
 export const ROOM_H = 9;
 
+/** back-wall face columns taken by the window — wall items can't hang there */
+export const WINDOW_COLS = [1, 2] as const;
+export const isWindowCol = (gx: number) => (WINDOW_COLS as readonly number[]).includes(gx);
+
 /** tiles just inside the door — kept clear so the room stays enterable */
 export const isDoorLane = (gx: number, gy: number) => gy === ROOM_H - 1 && (gx === 5 || gx === 6);
 
@@ -26,7 +30,9 @@ export function canPlaceIn(
   const { w, h } = effectiveFootprint(item, rotation);
   if (gx < 0 || gx + w > ROOM_W) return false;
   if (wall ? gy !== 0 : gy < 1 || gy + h > ROOM_H) return false;
-  if (!wall)
+  if (wall) {
+    for (let x = gx; x < gx + w; x++) if (isWindowCol(x)) return false;
+  } else
     for (let y = gy; y < gy + h; y++)
       for (let x = gx; x < gx + w; x++) if (isDoorLane(x, y)) return false;
   return !layout.some((p, i) => {
