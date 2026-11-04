@@ -66,7 +66,8 @@ export const coverPixels = (
           const r = 4 + (v % 2);
           const dx = x - 7.5;
           const dy = y - (horizon - 1);
-          if (y >= horizon) c = y % 2 === 0 ? 2 : 3 * ((x + y) % 4 === 0 ? 1 : 0) || 2;
+          // below the horizon: stepped reflection lines of the sun on the "water"
+          if (y >= horizon) c = (y - horizon) % 2 === 1 && Math.abs(dx) < r - (y - horizon) / 2 ? 1 : 2;
           else c = dx * dx + dy * dy <= r * r ? 1 : 0;
           break;
         }
