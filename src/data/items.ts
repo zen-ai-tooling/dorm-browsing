@@ -28,6 +28,10 @@ export interface ItemDef {
   /** coin cost in the shop; 0 for starter items */
   price: number;
   unlockedByDefault: boolean;
+  /** never sold in the shop — only found in the daily mail package */
+  exclusive?: "mail";
+  /** optional sprite scale in the room (e.g. the mini cactus) */
+  scale?: number;
 }
 
 export const ITEM_CATALOG: Record<string, ItemDef> = {
@@ -618,7 +622,101 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     price: 20,
     unlockedByDefault: false,
   },
+
+  // ---- mail exclusives: never sold, only found in the daily package ----
+  lava_lamp_gold: {
+    blurb: "Arrived by mail. Glows like a trophy.",
+    id: "lava_lamp_gold",
+    name: "Golden Lava Lamp",
+    category: "furniture",
+    textureKey: "lavalamp",
+    footprint: { w: 1, h: 1 },
+    solid: false,
+    tint: 0xf2cf5c,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
+  poster_postcards: {
+    blurb: "Every postcard the floor ever got.",
+    id: "poster_postcards",
+    name: "Postcard Collage",
+    category: "poster",
+    mount: "wall",
+    interactive: "art",
+    textureKey: "poster-travel",
+    footprint: { w: 3, h: 1 },
+    solid: false,
+    tint: 0xf0c7a8,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
+  plant_cactus: {
+    blurb: "Tiny, prickly, absolutely thriving.",
+    id: "plant_cactus",
+    name: "Mini Cactus",
+    category: "furniture",
+    textureKey: "plant",
+    footprint: { w: 1, h: 1 },
+    solid: false,
+    tint: 0x9fd38a,
+    scale: 0.55,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
+  rug_midnight: {
+    blurb: "Deep navy, soft as a 2am thought.",
+    id: "rug_midnight",
+    name: "Midnight Rug",
+    category: "furniture",
+    textureKey: "rug",
+    footprint: { w: 5, h: 3 },
+    solid: false,
+    tint: 0x5f6fa8,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
+  speaker_boombox_pink: {
+    blurb: "Came in a box marked FRAGILE (VIBES).",
+    id: "speaker_boombox_pink",
+    name: "Retro Boombox, Pink",
+    category: "furniture",
+    textureKey: "boombox",
+    footprint: { w: 2, h: 2 },
+    solid: false,
+    interactive: "songs",
+    tint: 0xf4a6c6,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
+  poster_pennant: {
+    blurb: "Floor 3 pride, officially delivered.",
+    id: "poster_pennant",
+    name: "Floor 3 Pennant Poster",
+    category: "poster",
+    mount: "wall",
+    interactive: "art",
+    textureKey: "poster",
+    footprint: { w: 3, h: 1 },
+    solid: false,
+    tint: 0x8fd1c4,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "mail",
+  },
 };
+
+/** the mail-exclusive collection, in catalog order */
+export const MAIL_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.exclusive === "mail")
+  .map((i) => i.id);
+
+/** everything the shop sells (mail exclusives never appear there) */
+export const isShopItem = (item: ItemDef) => !item.exclusive;
 
 /** items eligible for the daily rotating "featured" slot — the desirable ones */
 export const ROTATING_ITEM_IDS: string[] = [
@@ -643,7 +741,19 @@ export const rarityFor = (price: number): RarityTier =>
 
 export const FEATURED_COUNT = 3;
 
-/** deterministic day-of-year pick, mirroring promptForToday()'s math */
+/** price band for the daily affordable drop */
+export const AFFORDABLE_MIN = 20;
+export const AFFORDABLE_MAX = 45;
+
+/** every shop item priced inside the affordable band, in catalog order */
+export const AFFORDABLE_ITEM_IDS: string[] = Object.values(ITEM_CATALOG)
+  .filter((i) => isShopItem(i) && !i.unlockedByDefault && i.price >= AFFORDABLE_MIN && i.price <= AFFORDABLE_MAX)
+  .map((i) => i.id);
+
+/**
+ * Deterministic day-of-year pick: 2 from the rotating (desirable) pool + 1 from the
+ * affordable pool, so every day's drop has something a new player can buy.
+ */
 export const featuredForToday = (d = new Date()): string[] => {
   const start = Date.UTC(d.getFullYear(), 0, 0);
   const dayOfYear = Math.floor(
@@ -651,8 +761,16 @@ export const featuredForToday = (d = new Date()): string[] => {
   );
   const pool = ROTATING_ITEM_IDS;
   const out: string[] = [];
-  for (let i = 0; i < Math.min(FEATURED_COUNT, pool.length); i++)
-    out.push(pool[(dayOfYear * FEATURED_COUNT + i) % pool.length]!);
+  const rotating = Math.min(FEATURED_COUNT - 1, pool.length);
+  for (let i = 0; i < rotating; i++) out.push(pool[(dayOfYear * rotating + i) % pool.length]!);
+  const aff = AFFORDABLE_ITEM_IDS;
+  for (let k = 0; k < aff.length; k++) {
+    const id = aff[(dayOfYear + k) % aff.length]!;
+    if (!out.includes(id)) {
+      out.push(id);
+      break;
+    }
+  }
   return Array.from(new Set(out));
 };
 
@@ -703,7 +821,8 @@ const mixColor = (a: number, b: number, t: number) => {
  */
 export const displayTintFor = (item: ItemDef, moodKey: MoodKey): number | undefined => {
   const mood = MOODS[moodKey] ?? MOODS.chill_ambient;
-  if (item.category === "poster") return mixColor(mood.posterAccent, 0xffffff, 0.32);
+  // posters wear the room's accent unless the catalog gives them their own colour (mail finds)
+  if (item.category === "poster") return item.tint ?? mixColor(mood.posterAccent, 0xffffff, 0.32);
   if (item.textureKey === "tv") return mixColor(mood.glow, 0xffffff, 0.62);
   return item.tint;
 };
@@ -753,6 +872,7 @@ export const ITEM_LIGHTS: Record<string, NonNullable<ItemDef["light"]>> = {
   tv_mounted: { color: 0x8fb8ff, radius: 50, flicker: true },
   tv_gaming: { color: 0x8fb8ff, radius: 50, flicker: true },
   lava_lamp: { color: 0xff8a5c, radius: 60 },
+  lava_lamp_gold: { color: 0xffd36a, radius: 60 },
   neon_sign: { color: 0xff5fa8, radius: 60 },
   arcade_cabinet: { color: 0x6fe0d0, radius: 40 },
   disco_ball: { color: 0xdfe6ff, radius: 70 },
