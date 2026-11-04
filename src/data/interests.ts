@@ -14,34 +14,43 @@ import {
   type NowWatching,
   type Pin,
   type Song,
+  type WatchVibe,
 } from "./dorm";
 import { CUSTOM_STICKER_ID, STICKER_BY_ID } from "./stickers";
+
+type Raw = Partial<
+  Record<
+    | "kind" | "title" | "artist" | "note" | "status" | "progress" | "vibe" | "upNext"
+    | "stickerId" | "text" | "when" | "caption" | "motif" | "author" | "pins" | "interests" | "event",
+    unknown
+  >
+>;
 
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
 
 export const normalizeSongs = (raw: unknown, fallback: Song[]): Song[] => {
   if (!Array.isArray(raw) || raw.length === 0) return fallback;
   return raw.map((s) => {
-    const o = (s ?? {}) as Record<string, unknown>;
+    const o = (s ?? {}) as Raw;
     const note = str(o.note).slice(0, SONG_NOTE_MAX);
     return { title: str(o.title), artist: str(o.artist), ...(note ? { note } : {}) };
   });
 };
 
 export const normalizeWatching = (raw: unknown, fallback: NowWatching): NowWatching => {
-  const o = (raw ?? {}) as Record<string, unknown>;
+  const o = (raw ?? {}) as Raw;
   if (!o.title) return fallback;
   const w: NowWatching = { title: str(o.title), status: str(o.status) };
   if (typeof o.progress === "number" && Number.isFinite(o.progress))
     w.progress = Math.max(0, Math.min(1, o.progress));
-  if ((WATCH_VIBES as readonly string[]).includes(str(o.vibe))) w.vibe = o.vibe as NowWatching["vibe"];
+  if ((WATCH_VIBES as readonly string[]).includes(str(o.vibe))) w.vibe = o.vibe as WatchVibe;
   if (Array.isArray(o.upNext))
     w.upNext = o.upNext.map(str).filter((t) => t.trim()).slice(0, UP_NEXT_MAX);
   return w;
 };
 
 const normalizePin = (raw: unknown): Pin | null => {
-  const o = (raw ?? {}) as Record<string, unknown>;
+  const o = (raw ?? {}) as Raw;
   switch (o.kind) {
     case "interest": {
       const id = str(o.stickerId);
@@ -69,7 +78,7 @@ const normalizePin = (raw: unknown): Pin | null => {
 
 /** accepts the new `{ pins }` shape or the legacy `{ interests, event }` shape; never drops content */
 export const normalizeBulletin = (raw: unknown, fallback: Bulletin): Bulletin => {
-  const o = (raw ?? null) as Record<string, unknown> | null;
+  const o = (raw ?? null) as Raw | null;
   if (!o) return fallback;
   if (Array.isArray(o.pins)) {
     return { pins: o.pins.map(normalizePin).filter((p): p is Pin => !!p) };
