@@ -2174,7 +2174,24 @@ export class DormScene extends Phaser.Scene {
       key: "cubby",
       x: t(30),
       y: faceMid,
-      payload: { kind: "flavor", title: "Mail Cubbies", lines: ["Someone's Amazon package again", "One postcard from 2019"] },
+      still: true,
+      payload: { kind: "package" },
+    });
+    // today's package sits in the cubby's bottom-left slot until opened
+    this.mailPackage = this.add.image(t(30) - 20, faceMid + 12, "package").setDepth(faceMid + 2).setVisible(false);
+    this.mailSparkle = this.add
+      .image(t(30) - 8, faceMid + 2, "sparkle")
+      .setTint(0xffe3a6)
+      .setDepth(faceMid + 3)
+      .setVisible(false);
+    this.tweens.add({
+      targets: this.mailSparkle,
+      alpha: { from: 0.2, to: 1 },
+      duration: 1100,
+      yoyo: true,
+      repeat: -1,
+      ease: "Stepped",
+      easeParams: [3],
     });
 
     void zones;
