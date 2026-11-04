@@ -13,3 +13,4 @@
 - The hallway also has a 2-row back-wall face (rows 16–17, bedroom doorway columns open); face tiles are painted from DormScene.faceOwner, never zoneNear, because row 16 is shared with the bedrooms' bottom ring.
 - In-world text lives on wall-mounted signs (DormScene.wallSign), never floating on floors — the only exception is the common-room door labels in the hall.
 - Hallway decor never goes on row 22 (the hallway/common-room shared wall): its visible side is the common rooms' back-wall face.
+- Songs/watching/bulletin content shapes live in src/data/dorm.ts; save normalization, legacy-board migration and "in common" matching live in src/data/interests.ts (tested in interests.test.ts) so the store and popups share one rule. Song/polaroid covers come from the deterministic generator in src/lib/coverArt.ts; sticker icons are string-grid bitmaps in src/data/stickers.ts (never lucide) to keep the pixel look.

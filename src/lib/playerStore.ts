@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import { ROOMS, type PlacedItem, type Song } from "@/data/dorm";
+import { ROOMS, type Bulletin, type NowWatching, type PlacedItem, type Song } from "@/data/dorm";
+import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
 import { ITEM_CATALOG } from "@/data/items";
 import { migrateMountLayout } from "@/data/placement";
 import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
@@ -32,8 +33,8 @@ export interface PlayerState {
   muted: boolean;
   /** editable content for "Your Room" — seeded from ROOMS[0] */
   mySongs: Song[];
-  myBulletin: { interests: string[]; event: string };
-  myNowWatching: { title: string; status?: string };
+  myBulletin: Bulletin;
+  myNowWatching: NowWatching;
   /** equipped wallpaper catalog id; falsy / unknown ids fall back to the mood default */
   myWallpaperId: string;
   /** collapses the controls hint card for returning players */
@@ -54,11 +55,10 @@ const defaultState = (): PlayerState => ({
   lastShopSeenDate: null,
   muted: false,
   mySongs: seed.songs.map((s) => ({ ...s })),
-  myBulletin: {
-    interests: [...seed.bulletin.interests],
-    event: seed.bulletin.event,
-  },
-  myNowWatching: { ...(seed.nowWatching ?? { title: "Nothing yet", status: "" }) },
+  myBulletin: { pins: seed.bulletin.pins.map((p) => ({ ...p })) },
+  myNowWatching: seed.nowWatching
+    ? { ...seed.nowWatching, upNext: [...(seed.nowWatching.upNext ?? [])] }
+    : { title: "Nothing yet", status: "" },
   myWallpaperId: seed.wallpaperId,
   seenControls: false,
 });
@@ -108,20 +108,10 @@ const read = (): PlayerState => {
         typeof parsed.lastShopSeenDate === "string" ? parsed.lastShopSeenDate : null,
       seenControls: parsed.seenControls === true,
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
-      mySongs:
-        Array.isArray(parsed.mySongs) && parsed.mySongs.length > 0
-          ? parsed.mySongs.map((s) => ({ title: String(s?.title ?? ""), artist: String(s?.artist ?? "") }))
-          : base.mySongs,
-      myBulletin:
-        parsed.myBulletin && Array.isArray(parsed.myBulletin.interests)
-          ? {
-              interests: parsed.myBulletin.interests.map((i) => String(i)),
-              event: String(parsed.myBulletin.event ?? ""),
-            }
-          : base.myBulletin,
-      myNowWatching: parsed.myNowWatching?.title
-        ? { title: String(parsed.myNowWatching.title), status: String(parsed.myNowWatching.status ?? "") }
-        : base.myNowWatching,
+      mySongs: normalizeSongs(parsed.mySongs, base.mySongs),
+      // Iteration 21: legacy { interests, event } boards become pins — nothing is dropped
+      myBulletin: normalizeBulletin(parsed.myBulletin, base.myBulletin),
+      myNowWatching: normalizeWatching(parsed.myNowWatching, base.myNowWatching),
       myWallpaperId:
         typeof parsed.myWallpaperId === "string" ? parsed.myWallpaperId : base.myWallpaperId,
     };
@@ -315,11 +305,11 @@ export const playerActions = {
   setSongs(songs: Song[]) {
     set({ mySongs: songs.map((s) => ({ ...s })) });
   },
-  setBulletin(bulletin: { interests: string[]; event: string }) {
-    set({ myBulletin: { interests: [...bulletin.interests], event: bulletin.event } });
+  setBulletin(bulletin: Bulletin) {
+    set({ myBulletin: { pins: bulletin.pins.map((p) => ({ ...p })) } });
   },
-  setNowWatching(nowWatching: { title: string; status?: string }) {
-    set({ myNowWatching: { ...nowWatching } });
+  setNowWatching(nowWatching: NowWatching) {
+    set({ myNowWatching: { ...nowWatching, upNext: [...(nowWatching.upNext ?? [])] } });
   },
   setWallpaper(itemId: string) {
     if (state.myWallpaperId === itemId) return;

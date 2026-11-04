@@ -1,19 +1,55 @@
-import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, CalendarDays, Pencil, Plus, Tv, X } from "lucide-react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Pencil, Shuffle, X } from "lucide-react";
 import {
+  BULLETIN_MAX_PINS,
   COMMUNITY_CORKBOARD,
+  COVER_MOTIFS,
   MOODS,
+  SONG_NOTE_MAX,
+  UP_NEXT_MAX,
+  WATCH_VIBES,
+  type Bulletin,
+  type MoodKey,
+  type NowWatching,
   type PersonRoom,
+  type Pin,
+  type PinKind,
   type PopupPayload,
   type Song,
+  type WatchVibe,
 } from "@/data/dorm";
+import {
+  countSongCommon,
+  pinMatchKey,
+  pinMatches,
+  showMatches,
+  songMatches,
+} from "@/data/interests";
+import {
+  CUSTOM_STICKER_ID,
+  STICKER_GROUPS,
+  STICKERS,
+  stickerFor,
+  type StickerDef,
+  type StickerGroup,
+} from "@/data/stickers";
 import { DAILY_COIN_REWARD, promptForToday, todayKey } from "@/data/prompts";
+import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
 import { sfx } from "@/game/sounds";
 
 const MY_ROOM_ID = "room-1";
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
+const pixelated: CSSProperties = { imageRendering: "pixelated" };
+
+type Variant = "crate" | "crt" | "cork";
+
+const VARIANT_STRIP: Record<Variant, string> = {
+  crate: "crate-strip",
+  crt: "crt-bezel",
+  cork: "pixel-corkboard border-b-[3px] border-ink",
+};
 
 const Shell = ({
   accent,
@@ -22,6 +58,8 @@ const Shell = ({
   interactive,
   onEdit,
   editing,
+  variant,
+  badge,
   children,
 }: {
   accent: string;
@@ -30,7 +68,9 @@ const Shell = ({
   interactive?: boolean;
   onEdit?: () => void;
   editing?: boolean;
-  children: React.ReactNode;
+  variant?: Variant;
+  badge?: ReactNode;
+  children: ReactNode;
 }) => (
   <div
     className={`absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
@@ -40,6 +80,9 @@ const Shell = ({
     aria-live="polite"
   >
     <GamePanel accent={accent} className="p-4">
+      {variant ? (
+        <div aria-hidden className={`-ml-6 -mr-4 -mt-4 mb-3 h-4 ${VARIANT_STRIP[variant]}`} />
+      ) : null}
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-display text-base font-bold tracking-wide text-panel-foreground">
           {title}
@@ -73,7 +116,14 @@ const Shell = ({
           ) : null}
         </div>
       </div>
-      <div className="mt-2 font-body text-sm text-panel-muted">{children}</div>
+      {badge ? <div className="mt-1">{badge}</div> : null}
+      <div
+        className={`mt-2 font-body text-sm text-panel-muted ${
+          interactive ? "max-h-[min(62vh,480px)] overflow-y-auto pr-1" : ""
+        }`}
+      >
+        {children}
+      </div>
       <p className="mt-3 font-body text-xs italic text-panel-muted/80">
         {interactive ? "tap outside the panel or walk away to close" : "walk away to close"}
       </p>
@@ -97,72 +147,212 @@ const SaveBar = ({ onSave }: { onSave: () => void }) => (
   </button>
 );
 
-const MiniChip = ({ label, onClick }: { label: string; onClick: () => void }) => (
+const smallBtn =
+  "rounded-[3px] border-2 border-ink bg-panel px-2 py-1 font-display text-[11px] font-bold text-panel-foreground transition hover:bg-ink hover:text-panel disabled:opacity-40 disabled:hover:bg-panel disabled:hover:text-panel-foreground";
+
+const MiniChip = ({ label, onClick }: { label: "Move up" | "Move down"; onClick: () => void }) => (
   <button type="button" aria-label={label} onClick={onClick}>
     <IconChip className="size-6">
       {label === "Move up" ? (
         <ArrowUp className="size-3" aria-hidden />
-      ) : label === "Move down" ? (
-        <ArrowDown className="size-3" aria-hidden />
-      ) : label === "Add" ? (
-        <Plus className="size-3" aria-hidden />
       ) : (
-        <X className="size-3" aria-hidden />
+        <ArrowDown className="size-3" aria-hidden />
       )}
     </IconChip>
   </button>
 );
 
-/* ---------------- songs ---------------- */
+/* ---------------- shared bits ---------------- */
 
-const Equalizer = ({ color }: { color: string }) => (
-  <span className="flex h-5 w-5 items-end justify-center gap-[2px]" aria-hidden>
-    {[0, 1, 2].map((i) => (
-      <span
-        key={i}
-        className="w-[3px] animate-pulse"
-        style={{
-          backgroundColor: color,
-          height: `${[8, 14, 11][i]}px`,
-          animationDuration: `${[700, 1000, 850][i]}ms`,
-        }}
-      />
-    ))}
-  </span>
-);
-
-const SongsView = ({ room, songs }: { room: PersonRoom; songs: Song[] }) => {
-  const mood = MOODS[room.mood];
-  const swatches = [mood.posterAccent, mood.glow, mood.wall, mood.wallpaper, mood.posterAccent];
+/** 12×12 string-grid pixel icon rendered as SVG rects */
+export const PixelIcon = ({ def, size = 24 }: { def: StickerDef; size?: number }) => {
+  const fill: Record<string, string> = {
+    X: "var(--color-ink)",
+    o: def.color,
+    a: def.color2,
+    "+": "var(--polaroid)",
+  };
   return (
-    <ol className="space-y-1.5">
-      {songs.map((s, i) => (
-        <li key={`${s.title}-${i}`} className="flex items-center gap-2">
-          <span
-            className="flex size-8 shrink-0 items-center justify-center border-2 border-ink"
-            style={{ backgroundColor: hex(swatches[i % swatches.length]!) }}
-          >
-            {i === 0 && room.isActive ? (
-              <Equalizer color="#241c26" />
-            ) : (
-              <span className="font-body text-xs font-bold tabular-nums text-ink/70">{i + 1}</span>
-            )}
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate font-display text-sm font-bold text-panel-foreground">
-              {s.title || "—"}
-            </span>
-            <span className="block truncate font-body text-xs text-panel-muted">{s.artist}</span>
-          </span>
-        </li>
-      ))}
-    </ol>
+    <svg
+      viewBox="0 0 12 12"
+      width={size}
+      height={size}
+      shapeRendering="crispEdges"
+      aria-hidden
+      className="shrink-0"
+    >
+      {def.icon.flatMap((row, y) =>
+        Array.from(row).map((ch, x) =>
+          fill[ch] ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={fill[ch]} /> : null,
+        ),
+      )}
+    </svg>
   );
 };
 
-const SongsEdit = ({ songs, onSave }: { songs: Song[]; onSave: (s: Song[]) => void }) => {
+const YouToo = ({ accent }: { accent: string }) => (
+  <span
+    className="inline-block shrink-0 border-2 border-ink px-1 font-display text-[9px] font-bold uppercase leading-tight tracking-wider text-ink"
+    style={{ backgroundColor: accent }}
+  >
+    you too
+  </span>
+);
+
+const CommonChip = ({ count, accent }: { count: number; accent: string }) =>
+  count > 0 ? (
+    <span
+      className="inline-block border-2 border-ink px-1.5 py-px font-display text-[10px] font-bold uppercase tracking-wider text-ink"
+      style={{ backgroundColor: accent }}
+    >
+      {count} {count === 1 ? "thing" : "things"} in common
+    </span>
+  ) : null;
+
+const matchOutline = (on: boolean, accent: string): CSSProperties | undefined =>
+  on ? { outline: `1px solid ${accent}`, outlineOffset: 2 } : undefined;
+
+const Cover = ({
+  song,
+  mood,
+  scale,
+  className = "",
+}: {
+  song: Song;
+  mood: MoodKey;
+  scale: 2 | 3 | 6;
+  className?: string;
+}) => {
+  const px = 16 * scale;
+  const blank = !song.title.trim() && !song.artist.trim();
+  const src = blank ? "" : coverFor(song.title, song.artist, mood);
+  return src ? (
+    <img
+      src={src}
+      alt=""
+      width={px}
+      height={px}
+      className={`shrink-0 border-2 border-ink ${className}`}
+      style={{ ...pixelated, width: px, height: px }}
+    />
+  ) : (
+    <span
+      className={`shrink-0 border-2 border-dashed border-ink/40 ${className}`}
+      style={{ width: px, height: px }}
+    />
+  );
+};
+
+/* ---------------- songs → record sleeve ---------------- */
+
+const Marquee = ({ text }: { text: string }) => {
+  if (text.length <= 15)
+    return (
+      <span className="block truncate font-display text-lg font-bold leading-tight text-panel-foreground">
+        {text || "—"}
+      </span>
+    );
+  return (
+    <span className="block overflow-hidden font-display text-lg font-bold leading-tight text-panel-foreground">
+      <span
+        className="inline-flex whitespace-nowrap"
+        style={{ animation: `pixel-marquee ${Math.max(6, text.length * 0.45)}s steps(${text.length * 2}) infinite` }}
+      >
+        <span className="pr-8">{text}</span>
+        <span className="pr-8" aria-hidden>
+          {text}
+        </span>
+      </span>
+    </span>
+  );
+};
+
+const SongsView = ({
+  room,
+  songs,
+  matches,
+}: {
+  room: PersonRoom;
+  songs: Song[];
+  matches?: boolean[];
+}) => {
+  const [hero, ...rest] = songs;
+  const accent = room.accentColor;
+  if (!hero) return <p className="italic">no songs yet</p>;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3" style={matchOutline(!!matches?.[0], accent)}>
+        <div className="relative h-24 w-[152px] shrink-0">
+          <img
+            src={discFor(hex(MOODS[room.mood].glow))}
+            alt=""
+            width={88}
+            height={88}
+            className="absolute left-[60px] top-1 size-[88px]"
+            style={{
+              ...pixelated,
+              animation: room.isActive ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
+            }}
+          />
+          <Cover song={hero} mood={room.mood} scale={6} className="absolute left-0 top-0" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="font-display text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>
+            {room.isActive ? "now playing" : "on repeat"}
+          </span>
+          <Marquee text={hero.title} />
+          <span className="block truncate font-body text-xs text-panel-muted">{hero.artist}</span>
+          {hero.note ? (
+            <span className="block truncate font-body text-xs italic text-panel-foreground/80">
+              “{hero.note}”
+            </span>
+          ) : null}
+          {matches?.[0] ? (
+            <span className="mt-1 block">
+              <YouToo accent={accent} />
+            </span>
+          ) : null}
+        </div>
+      </div>
+      {rest.length ? (
+        <ol className="space-y-1.5 border-t-2 border-dashed border-ink/30 pt-2" start={2}>
+          {rest.map((s, i) => (
+            <li
+              key={`${s.title}-${i}`}
+              className="flex items-center gap-2"
+              style={matchOutline(!!matches?.[i + 1], accent)}
+            >
+              <span className="w-3 font-body text-xs font-bold tabular-nums text-panel-muted">{i + 2}</span>
+              <Cover song={s} mood={room.mood} scale={3} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-display text-sm font-bold text-panel-foreground">
+                  {s.title || "—"}
+                </span>
+                <span className="block truncate font-body text-xs text-panel-muted">
+                  {s.artist}
+                  {s.note ? <span className="italic"> · {s.note}</span> : null}
+                </span>
+              </span>
+              {matches?.[i + 1] ? <YouToo accent={accent} /> : null}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </div>
+  );
+};
+
+const SongsEdit = ({
+  songs,
+  mood,
+  onSave,
+}: {
+  songs: Song[];
+  mood: MoodKey;
+  onSave: (s: Song[]) => void;
+}) => {
   const [draft, setDraft] = useState<Song[]>(() =>
-    Array.from({ length: 5 }, (_, i) => songs[i] ?? { title: "", artist: "" }),
+    Array.from({ length: 5 }, (_, i) => ({ title: "", artist: "", note: "", ...songs[i] })),
   );
   const swap = (a: number, b: number) => {
     if (b < 0 || b >= draft.length) return;
@@ -170,170 +360,196 @@ const SongsEdit = ({ songs, onSave }: { songs: Song[]; onSave: (s: Song[]) => vo
     [next[a], next[b]] = [next[b]!, next[a]!];
     setDraft(next);
   };
+  const patch = (i: number, p: Partial<Song>) => setDraft(draft.map((d, j) => (j === i ? { ...d, ...p } : d)));
   return (
     <div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {draft.map((s, i) => (
           <div key={i} className="flex items-center gap-1.5">
-            <span className="font-body text-xs font-bold tabular-nums text-panel-muted">{i + 1}</span>
-            <input
-              className={inputClass}
-              value={s.title}
-              placeholder="Title"
-              onChange={(e) =>
-                setDraft(draft.map((d, j) => (j === i ? { ...d, title: e.target.value } : d)))
-              }
-            />
-            <input
-              className={inputClass}
-              value={s.artist}
-              placeholder="Artist"
-              onChange={(e) =>
-                setDraft(draft.map((d, j) => (j === i ? { ...d, artist: e.target.value } : d)))
-              }
-            />
-            <MiniChip label="Move up" onClick={() => swap(i, i - 1)} />
-            <MiniChip label="Move down" onClick={() => swap(i, i + 1)} />
+            <span className="w-3 font-body text-xs font-bold tabular-nums text-panel-muted">{i + 1}</span>
+            {/* live cover — re-rolls as you type */}
+            <Cover song={s} mood={mood} scale={3} />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex gap-1">
+                <input
+                  className={inputClass}
+                  value={s.title}
+                  placeholder="Title"
+                  onChange={(e) => patch(i, { title: e.target.value })}
+                />
+                <input
+                  className={inputClass}
+                  value={s.artist}
+                  placeholder="Artist"
+                  onChange={(e) => patch(i, { artist: e.target.value })}
+                />
+              </div>
+              <input
+                className={`${inputClass} w-full italic`}
+                value={s.note ?? ""}
+                maxLength={SONG_NOTE_MAX}
+                placeholder="a note — “2am drive song”"
+                onChange={(e) => patch(i, { note: e.target.value })}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <MiniChip label="Move up" onClick={() => swap(i, i - 1)} />
+              <MiniChip label="Move down" onClick={() => swap(i, i + 1)} />
+            </div>
           </div>
         ))}
       </div>
-      <SaveBar onSave={() => onSave(draft)} />
+      <SaveBar
+        onSave={() =>
+          onSave(
+            draft.map((d) => {
+              const note = (d.note ?? "").trim();
+              return { title: d.title, artist: d.artist, ...(note ? { note } : {}) };
+            }),
+          )
+        }
+      />
     </div>
   );
 };
 
-/* ---------------- bulletin ---------------- */
+/* ---------------- watching → CRT ---------------- */
 
-const BulletinView = ({
-  accent,
-  bulletin,
-}: {
-  accent: string;
-  bulletin: { interests: string[]; event: string };
-}) => (
-  <div className="space-y-3">
-    <div className="pixel-corkboard flex flex-wrap gap-2 border-2 border-ink p-2">
-      {bulletin.interests.length === 0 ? (
-        <span className="font-body text-xs italic text-panel-muted">nothing pinned yet</span>
-      ) : null}
-      {bulletin.interests.map((i, idx) => (
-        <span
-          key={`${i}-${idx}`}
-          className="relative border-2 border-ink bg-panel px-2 py-1 font-body text-xs text-panel-foreground shadow-[2px_2px_0_0_rgba(36,28,38,0.35)]"
-          style={{ transform: `rotate(${idx % 2 === 0 ? -1.5 : 1.5}deg)` }}
-        >
-          <span
-            aria-hidden
-            className="absolute -top-1 left-1/2 size-2 -translate-x-1/2 border-2 border-ink"
-            style={{ backgroundColor: accent }}
-          />
-          {i}
-        </span>
-      ))}
-    </div>
-    <div
-      className="flex items-center gap-2 border-2 border-ink px-2 py-1.5"
-      style={{ backgroundColor: accent }}
-    >
-      <CalendarDays className="size-4 shrink-0 text-ink" aria-hidden />
-      <span className="font-display text-sm font-bold text-ink">{bulletin.event}</span>
-    </div>
-  </div>
-);
+const VIBE_COLOR: Record<WatchVibe, string> = {
+  obsessed: "#e98d70",
+  "comfort rewatch": "#b98ee0",
+  "hate-watching": "#c4583f",
+  "background noise": "#8d8090",
+  "just started": "#63c9b6",
+};
 
-const BulletinEdit = ({
-  bulletin,
-  onSave,
+const Segments = ({
+  value,
+  onPick,
+  color,
 }: {
-  bulletin: { interests: string[]; event: string };
-  onSave: (b: { interests: string[]; event: string }) => void;
+  value: number;
+  onPick?: (n: number) => void;
+  color: string;
 }) => {
-  const [interests, setInterests] = useState<string[]>(() => [...bulletin.interests]);
-  const [event, setEvent] = useState(bulletin.event);
+  const filled = Math.round(Math.max(0, Math.min(1, value)) * 10);
   return (
-    <div>
-      <div className="space-y-1.5">
-        {interests.map((i, idx) => (
-          <div key={idx} className="flex items-center gap-1.5">
-            <input
-              className={inputClass}
-              value={i}
-              placeholder="An interest"
-              onChange={(e) => setInterests(interests.map((v, j) => (j === idx ? e.target.value : v)))}
-            />
-            <MiniChip
-              label="Remove"
-              onClick={() => setInterests(interests.filter((_, j) => j !== idx))}
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() => setInterests([...interests, ""])}
-          className="flex items-center gap-2 font-display text-xs font-bold text-panel-foreground"
-        >
-          <IconChip className="size-6">
-            <Plus className="size-3" aria-hidden />
-          </IconChip>
-          Add interest
-        </button>
-        <div className="pt-1">
-          <p className="mb-1 font-display text-xs font-bold uppercase tracking-wider text-panel-muted">
-            Event
-          </p>
-          <input
-            className={`${inputClass} w-full`}
-            value={event}
-            placeholder="Rooftop hang — Fri 8pm"
-            onChange={(e) => setEvent(e.target.value)}
+    <div className="flex gap-[3px]" role={onPick ? "group" : undefined} aria-label={`${filled * 10}% watched`}>
+      {Array.from({ length: 10 }, (_, i) => {
+        const on = i < filled;
+        const cls = `h-2.5 flex-1 border-2 border-ink`;
+        const style = { backgroundColor: on ? color : "transparent" };
+        return onPick ? (
+          <button
+            key={i}
+            type="button"
+            aria-label={`${(i + 1) * 10}%`}
+            className={`${cls} h-4`}
+            style={style}
+            // tapping the last filled block clears it
+            onClick={() => onPick(filled === i + 1 ? i / 10 : (i + 1) / 10)}
           />
-        </div>
-      </div>
-      <SaveBar onSave={() => onSave({ interests: interests.filter((i) => i.trim()), event })} />
+        ) : (
+          <span key={i} className={cls} style={style} />
+        );
+      })}
     </div>
   );
 };
-
-/* ---------------- watching ---------------- */
 
 const WatchingView = ({
   room,
   watching,
+  match,
 }: {
   room: PersonRoom;
-  watching: { title: string; status?: string };
-}) => (
-  <div className="relative border-2 border-ink bg-panel-foreground/5 p-3">
-    <span
-      aria-hidden
-      className="absolute left-3 top-3 h-6 w-2/3 opacity-40"
-      style={{ backgroundColor: hex(MOODS[room.mood].glow) }}
-    />
-    <div className="relative flex items-center gap-2">
-      <IconChip>
-        <Tv className="size-3.5" aria-hidden />
-      </IconChip>
-      <span className="font-display text-base font-bold text-panel-foreground">
-        {watching.title || "Nothing on"}
-      </span>
+  watching: NowWatching;
+  match?: { title: boolean; upNext: boolean[] };
+}) => {
+  const channel = (room.roomNumber ?? "03").slice(-2);
+  const accent = room.accentColor;
+  return (
+    <div className="space-y-2">
+      <div className="crt-bezel rounded-[6px] p-2.5">
+        <div
+          className="crt-screen relative min-h-[132px] overflow-hidden border-2 border-ink px-3 py-2 font-display"
+          style={matchOutline(!!match?.title, accent)}
+        >
+          <div className="flex items-start justify-between gap-2 text-[11px] font-bold tracking-wider">
+            <span>CH {channel}</span>
+            {watching.vibe ? (
+              <span
+                className="border-2 border-ink px-1 text-[9px] uppercase text-ink"
+                style={{ backgroundColor: VIBE_COLOR[watching.vibe] }}
+              >
+                {watching.vibe}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 text-center text-xl font-bold leading-tight">{watching.title || "Nothing on"}</p>
+          {match?.title ? (
+            <p className="mt-1 text-center">
+              <YouToo accent={accent} />
+            </p>
+          ) : null}
+          {typeof watching.progress === "number" ? (
+            <div className="mx-auto mt-2 w-4/5">
+              <Segments value={watching.progress} color="var(--crt-text)" />
+            </div>
+          ) : null}
+          {watching.status ? (
+            <p className="mt-2 truncate text-[11px] uppercase tracking-wider">▶ {watching.status}</p>
+          ) : null}
+          {/* 2-frame static on open */}
+          <span aria-hidden className="crt-static pointer-events-none absolute inset-0" />
+        </div>
+        <div aria-hidden className="mt-1.5 flex items-center justify-end gap-1.5">
+          <span className="size-2 border border-ink" style={{ backgroundColor: room.isActive ? "#7cc46a" : "#8d8090" }} />
+          <span className="size-2.5 border-2 border-ink bg-panel-muted" />
+          <span className="size-2.5 border-2 border-ink bg-panel-muted" />
+        </div>
+      </div>
+      {watching.upNext?.length ? (
+        <div>
+          <p className="font-display text-[10px] font-bold uppercase tracking-wider text-panel-muted">up next</p>
+          <ol className="mt-0.5 space-y-0.5">
+            {watching.upNext.map((t, i) => (
+              <li
+                key={`${t}-${i}`}
+                className="flex items-center gap-2 font-body text-xs text-panel-foreground"
+                style={matchOutline(!!match?.upNext[i], accent)}
+              >
+                <span className="font-display font-bold text-panel-muted">{i + 1}.</span>
+                <span className="min-w-0 flex-1 truncate">{t}</span>
+                {match?.upNext[i] ? <YouToo accent={accent} /> : null}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
     </div>
-    {watching.status ? (
-      <p className="mt-1.5 font-body text-xs text-panel-muted">{watching.status}</p>
-    ) : null}
-  </div>
-);
+  );
+};
 
 const WatchingEdit = ({
   watching,
+  accent,
   onSave,
 }: {
-  watching: { title: string; status?: string };
-  onSave: (w: { title: string; status?: string }) => void;
+  watching: NowWatching;
+  accent: string;
+  onSave: (w: NowWatching) => void;
 }) => {
   const [title, setTitle] = useState(watching.title);
   const [status, setStatus] = useState(watching.status ?? "");
+  const [progress, setProgress] = useState(watching.progress ?? 0);
+  const [vibe, setVibe] = useState<WatchVibe | undefined>(watching.vibe);
+  const [upNext, setUpNext] = useState<string[]>(() =>
+    Array.from({ length: UP_NEXT_MAX }, (_, i) => watching.upNext?.[i] ?? ""),
+  );
+  const label = "mb-1 font-display text-[10px] font-bold uppercase tracking-wider text-panel-muted";
   return (
-    <div>
+    <div className="space-y-2.5">
       <div className="space-y-1.5">
         <input
           className={`${inputClass} w-full`}
@@ -348,7 +564,445 @@ const WatchingEdit = ({
           onChange={(e) => setStatus(e.target.value)}
         />
       </div>
-      <SaveBar onSave={() => onSave({ title, status })} />
+      <div>
+        <p className={label}>how far in</p>
+        <Segments value={progress} onPick={setProgress} color={accent} />
+      </div>
+      <div>
+        <p className={label}>vibe</p>
+        <div className="flex flex-wrap gap-1.5">
+          {WATCH_VIBES.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={vibe === v}
+              onClick={() => setVibe(vibe === v ? undefined : v)}
+              className="border-2 border-ink px-1.5 py-0.5 font-display text-[10px] font-bold uppercase text-ink"
+              style={{ backgroundColor: vibe === v ? VIBE_COLOR[v] : "transparent" }}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className={label}>up next</p>
+        <div className="space-y-1">
+          {upNext.map((t, i) => (
+            <input
+              key={i}
+              className={`${inputClass} w-full`}
+              value={t}
+              placeholder={`${i + 1}.`}
+              onChange={(e) => setUpNext(upNext.map((u, j) => (j === i ? e.target.value : u)))}
+            />
+          ))}
+        </div>
+      </div>
+      <SaveBar
+        onSave={() =>
+          onSave({
+            title,
+            status,
+            progress,
+            ...(vibe ? { vibe } : {}),
+            upNext: upNext.map((u) => u.trim()).filter(Boolean),
+          })
+        }
+      />
+    </div>
+  );
+};
+
+/* ---------------- bulletin → corkboard ---------------- */
+
+const TICKET_CLIP =
+  "polygon(0 0,100% 0,100% 38%,calc(100% - 5px) 38%,calc(100% - 5px) 62%,100% 62%,100% 100%,0 100%,0 62%,5px 62%,5px 38%,0 38%)";
+
+const PinCard = ({ pin, room }: { pin: Pin; room: PersonRoom }) => {
+  const mood = MOODS[room.mood];
+  switch (pin.kind) {
+    case "interest": {
+      const def = stickerFor(pin.stickerId);
+      const label = pin.stickerId === CUSTOM_STICKER_ID ? pin.text || "custom" : pin.text || def.label;
+      return (
+        <div className="flex flex-col items-center gap-1 border-2 border-ink bg-panel px-1.5 py-1.5 shadow-[2px_2px_0_0_rgba(36,28,38,0.35)]">
+          <PixelIcon def={def} size={24} />
+          <span className="line-clamp-2 text-center font-body text-[11px] font-semibold leading-tight text-panel-foreground">
+            {label}
+          </span>
+        </div>
+      );
+    }
+    case "ticket":
+      return (
+        <div className="pixel-outline">
+          <div
+            className="relative px-3 py-1.5 text-ink"
+            style={{ clipPath: TICKET_CLIP, backgroundColor: hex(mood.glow) }}
+          >
+            <span aria-hidden className="absolute bottom-1 right-3 top-1 border-l-2 border-dotted border-ink/60" />
+            <span className="block pr-3 font-display text-[11px] font-bold leading-tight">{pin.text}</span>
+            {pin.when ? <span className="block font-body text-[11px] font-extrabold">{pin.when}</span> : null}
+          </div>
+        </div>
+      );
+    case "polaroid": {
+      const src = coverFor(pin.caption, "polaroid", room.mood, pin.motif);
+      return (
+        <div className="border-2 border-ink bg-[var(--polaroid)] p-1 shadow-[2px_2px_0_0_rgba(36,28,38,0.35)]">
+          {src ? (
+            <img src={src} alt="" className="mx-auto block size-16 border-2 border-ink" style={pixelated} />
+          ) : (
+            <span className="mx-auto block size-16 border-2 border-ink" />
+          )}
+          <span className="mt-0.5 line-clamp-2 block text-center font-body text-[10px] italic leading-tight text-ink">
+            {pin.caption}
+          </span>
+        </div>
+      );
+    }
+    case "pennant":
+      return (
+        <div className="pixel-outline">
+          <div
+            className="flex h-12 items-center pl-2 pr-8 text-ink"
+            style={{ clipPath: "polygon(0 0,100% 50%,0 100%)", backgroundColor: room.accentColor }}
+          >
+            <span className="line-clamp-2 font-display text-[10px] font-bold uppercase leading-tight">
+              {pin.text}
+            </span>
+          </div>
+        </div>
+      );
+    case "book":
+      return (
+        <div className="flex border-2 border-ink shadow-[2px_2px_0_0_rgba(36,28,38,0.35)]">
+          <span aria-hidden className="w-2 shrink-0 border-r-2 border-ink" style={{ backgroundColor: hex(mood.posterAccent) }} />
+          <div className="min-w-0 flex-1 px-1.5 py-1 text-ink" style={{ backgroundColor: hex(mood.wall) }}>
+            <span className="line-clamp-2 font-display text-[10px] font-bold leading-tight">{pin.title}</span>
+            {pin.author ? (
+              <span className="mt-0.5 block truncate font-body text-[9px] leading-tight">{pin.author}</span>
+            ) : null}
+          </div>
+        </div>
+      );
+  }
+};
+
+const pinSeed = (p: Pin, i: number) => hashString(`${i}:${JSON.stringify(p)}`);
+
+const Board = ({
+  room,
+  pins,
+  matches,
+  selected,
+  onSelect,
+  onRemove,
+}: {
+  room: PersonRoom;
+  pins: Pin[];
+  matches?: boolean[];
+  selected?: number | null;
+  onSelect?: (i: number | null) => void;
+  onRemove?: (i: number) => void;
+}) => (
+  <div className="pixel-corkboard border-2 border-ink p-3">
+    {pins.length === 0 ? (
+      <p className="py-4 text-center font-body text-xs italic text-ink">nothing pinned yet</p>
+    ) : null}
+    <div className="grid grid-cols-3 items-start gap-x-2.5 gap-y-4">
+      {pins.map((p, i) => {
+        const seed = pinSeed(p, i);
+        const rot = (i % 2 === 0 ? -1 : 1) * (1 + (seed % 3) * 0.75);
+        const dx = ((seed >> 3) % 5) - 2;
+        const dy = ((seed >> 6) % 5) - 2;
+        const matched = !!matches?.[i];
+        const isSel = selected === i;
+        const inner = (
+          <>
+            <span
+              aria-hidden
+              className="absolute -top-1.5 left-1/2 z-10 size-2.5 -translate-x-1/2 border-2 border-ink"
+              style={{ backgroundColor: room.accentColor }}
+            />
+            <PinCard pin={p} room={room} />
+            {matched ? (
+              <span className="absolute -bottom-2 left-1/2 z-10 -translate-x-1/2">
+                <YouToo accent={room.accentColor} />
+              </span>
+            ) : null}
+          </>
+        );
+        const style: CSSProperties = {
+          transform: `translate(${dx}px, ${dy}px) rotate(${rot}deg)`,
+          ...matchOutline(matched || isSel, matched ? room.accentColor : "var(--color-ink)"),
+        };
+        return onSelect ? (
+          <div key={`${i}-${seed}`} className="relative" style={style}>
+            <button
+              type="button"
+              className="relative block w-full text-left"
+              aria-label="Select pin"
+              onClick={() => onSelect(isSel ? null : i)}
+            >
+              {inner}
+            </button>
+            {isSel && onRemove ? (
+              <button
+                type="button"
+                aria-label="Remove pin"
+                onClick={() => onRemove(i)}
+                className="absolute -right-2 -top-2 z-20"
+              >
+                <IconChip className="size-6 bg-panel">
+                  <X className="size-3" aria-hidden />
+                </IconChip>
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <div key={`${i}-${seed}`} className="relative" style={style}>
+            {inner}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const PIN_KINDS: { kind: PinKind; label: string }[] = [
+  { kind: "interest", label: "Interest" },
+  { kind: "ticket", label: "Ticket" },
+  { kind: "polaroid", label: "Polaroid" },
+  { kind: "pennant", label: "Pennant" },
+  { kind: "book", label: "Book" },
+];
+
+const StickerSheet = ({ onPick }: { onPick: (pin: Pin) => void }) => {
+  const [group, setGroup] = useState<StickerGroup | "Custom">("Music");
+  const [custom, setCustom] = useState("");
+  const list = useMemo(() => STICKERS.filter((st) => st.group === group), [group]);
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {[...STICKER_GROUPS, "Custom" as const].map((g) => (
+          <button
+            key={g}
+            type="button"
+            aria-pressed={group === g}
+            onClick={() => setGroup(g)}
+            className={`border-2 border-ink px-1.5 py-0.5 font-display text-[10px] font-bold uppercase ${
+              group === g ? "bg-ink text-panel" : "bg-panel text-panel-foreground"
+            }`}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
+      {group === "Custom" ? (
+        <div className="flex gap-1.5">
+          <input
+            className={inputClass}
+            value={custom}
+            maxLength={32}
+            placeholder="learning to juggle"
+            onChange={(e) => setCustom(e.target.value)}
+          />
+          <button
+            type="button"
+            className={smallBtn}
+            disabled={!custom.trim()}
+            onClick={() => {
+              onPick({ kind: "interest", stickerId: CUSTOM_STICKER_ID, text: custom.trim() });
+              setCustom("");
+            }}
+          >
+            Pin it
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+          {list.map((st) => (
+            <button
+              key={st.id}
+              type="button"
+              onClick={() => onPick({ kind: "interest", stickerId: st.id })}
+              className="flex flex-col items-center gap-0.5 border-2 border-ink bg-panel p-1 transition hover:bg-panel-foreground/10"
+            >
+              <PixelIcon def={st} size={24} />
+              <span className="line-clamp-2 text-center font-body text-[10px] leading-tight text-panel-foreground">
+                {st.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const randomMotif = (not?: string) => {
+  const options = COVER_MOTIFS.filter((m) => m !== not);
+  return options[Math.floor(Math.random() * options.length)]!;
+};
+
+const PinForm = ({
+  kind,
+  mood,
+  onPick,
+}: {
+  kind: Exclude<PinKind, "interest">;
+  mood: MoodKey;
+  onPick: (pin: Pin) => void;
+}) => {
+  const [a, setA] = useState("");
+  const [b, setB] = useState("");
+  const [motif, setMotif] = useState(() => randomMotif());
+  const fields: Record<typeof kind, [string, string | null]> = {
+    ticket: ["Rooftop hang", "Fri 8pm"],
+    pennant: ["Floor 3", null],
+    book: ["Title", "Author"],
+    polaroid: ["caption", null],
+  };
+  const [pa, pb] = fields[kind];
+  const pin = (): Pin => {
+    const A = a.trim();
+    const B = b.trim();
+    if (kind === "ticket") return { kind, text: A, ...(B ? { when: B } : {}) };
+    if (kind === "pennant") return { kind, text: A };
+    if (kind === "book") return { kind, title: A, ...(B ? { author: B } : {}) };
+    return { kind: "polaroid", caption: A, motif };
+  };
+  const preview = kind === "polaroid" ? coverFor(a.trim(), "polaroid", mood, motif) : "";
+  return (
+    <div className="flex items-center gap-1.5">
+      {kind === "polaroid" ? (
+        <>
+          {preview ? (
+            <img src={preview} alt="" width={40} height={40} className="size-10 border-2 border-ink" style={pixelated} />
+          ) : null}
+          <button
+            type="button"
+            aria-label="Shuffle the photo"
+            onClick={() => {
+              sfx.uiClick();
+              setMotif(randomMotif(motif));
+            }}
+          >
+            <IconChip className="size-7">
+              <Shuffle className="size-3.5" aria-hidden />
+            </IconChip>
+          </button>
+        </>
+      ) : null}
+      <div className="flex min-w-0 flex-1 gap-1">
+        <input
+          className={inputClass}
+          value={a}
+          maxLength={40}
+          placeholder={pa}
+          onChange={(e) => setA(e.target.value)}
+        />
+        {pb ? (
+          <input
+            className={inputClass}
+            value={b}
+            maxLength={32}
+            placeholder={pb}
+            onChange={(e) => setB(e.target.value)}
+          />
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className={smallBtn}
+        disabled={!a.trim()}
+        onClick={() => {
+          onPick(pin());
+          setA("");
+          setB("");
+          setMotif(randomMotif(motif));
+        }}
+      >
+        Pin it
+      </button>
+    </div>
+  );
+};
+
+const BulletinEdit = ({
+  room,
+  bulletin,
+  onSave,
+}: {
+  room: PersonRoom;
+  bulletin: Bulletin;
+  onSave: (b: Bulletin) => void;
+}) => {
+  const [pins, setPins] = useState<Pin[]>(() => bulletin.pins.map((p) => ({ ...p })));
+  const [selected, setSelected] = useState<number | null>(null);
+  const [adding, setAdding] = useState<PinKind | null>(null);
+  const full = pins.length >= BULLETIN_MAX_PINS;
+  const add = (p: Pin) => {
+    if (full) return;
+    sfx.placeItem();
+    setPins([...pins, p]);
+    if (pins.length + 1 >= BULLETIN_MAX_PINS) setAdding(null);
+  };
+  return (
+    <div className="space-y-2.5">
+      <Board
+        room={room}
+        pins={pins}
+        selected={selected}
+        onSelect={setSelected}
+        onRemove={(i) => {
+          sfx.uiClick();
+          setPins(pins.filter((_, j) => j !== i));
+          setSelected(null);
+        }}
+      />
+      <div>
+        <div className="flex items-baseline justify-between">
+          <p className="font-display text-[10px] font-bold uppercase tracking-wider text-panel-muted">Add a pin</p>
+          <span className="font-body text-[10px] tabular-nums text-panel-muted">
+            {pins.length}/{BULLETIN_MAX_PINS}
+          </span>
+        </div>
+        {full ? (
+          <p className="mt-1 font-body text-xs italic text-panel-foreground">
+            Board's full — tap a pin to take one down.
+          </p>
+        ) : (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {PIN_KINDS.map(({ kind, label }) => (
+              <button
+                key={kind}
+                type="button"
+                aria-pressed={adding === kind}
+                onClick={() => {
+                  sfx.uiClick();
+                  setAdding(adding === kind ? null : kind);
+                }}
+                className={`${smallBtn} ${adding === kind ? "!bg-ink !text-panel" : ""}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {!full && adding ? (
+        <div className="border-2 border-dashed border-ink/40 p-2">
+          {adding === "interest" ? (
+            <StickerSheet onPick={add} />
+          ) : (
+            <PinForm key={adding} kind={adding} mood={room.mood} onPick={add} />
+          )}
+        </div>
+      ) : null}
+      <SaveBar onSave={() => onSave({ pins })} />
     </div>
   );
 };
@@ -429,24 +1083,29 @@ export const DormPopup = ({
     const room = payload.room;
     const mine = room.id === MY_ROOM_ID;
     const songs = mine ? mySongs : room.songs;
+    const matches = mine ? undefined : songMatches(songs, mySongs);
+    const common = mine ? 0 : countSongCommon(songs, mySongs);
     return (
       <Shell
         accent={room.accentColor}
         title={`${room.name} — Top 5`}
         subtitle={MOODS[room.mood].label}
         interactive={mine}
+        variant="crate"
+        badge={<CommonChip count={common} accent={room.accentColor} />}
         {...(mine ? { onEdit: () => setEditing((v) => !v), editing } : {})}
       >
         {mine && editing ? (
           <SongsEdit
             songs={songs}
+            mood={room.mood}
             onSave={(s) => {
               playerActions.setSongs(s);
               setEditing(false);
             }}
           />
         ) : (
-          <SongsView room={room} songs={songs} />
+          <SongsView room={room} songs={songs} {...(matches ? { matches } : {})} />
         )}
       </Shell>
     );
@@ -456,15 +1115,22 @@ export const DormPopup = ({
     const room = payload.room;
     const mine = room.id === MY_ROOM_ID;
     const bulletin = mine ? myBulletin : room.bulletin;
+    const matches = mine ? undefined : pinMatches(bulletin, myBulletin);
+    const common = matches
+      ? new Set(bulletin.pins.filter((_, i) => matches[i]).map((p) => pinMatchKey(p))).size
+      : 0;
     return (
       <Shell
         accent={room.accentColor}
         title={`${room.name} — Bulletin board`}
         interactive={mine}
+        variant="cork"
+        badge={<CommonChip count={common} accent={room.accentColor} />}
         {...(mine ? { onEdit: () => setEditing((v) => !v), editing } : {})}
       >
         {mine && editing ? (
           <BulletinEdit
+            room={room}
             bulletin={bulletin}
             onSave={(b) => {
               playerActions.setBulletin(b);
@@ -472,7 +1138,7 @@ export const DormPopup = ({
             }}
           />
         ) : (
-          <BulletinView accent={room.accentColor} bulletin={bulletin} />
+          <Board room={room} pins={bulletin.pins} {...(matches ? { matches } : {})} />
         )}
       </Shell>
     );
@@ -482,23 +1148,28 @@ export const DormPopup = ({
     const room = payload.room;
     const mine = room.id === MY_ROOM_ID;
     const watching = mine ? myNowWatching : (room.nowWatching ?? { title: "Nothing on" });
+    const match = mine ? undefined : showMatches(watching, myNowWatching);
+    const common = match ? (match.title ? 1 : 0) + match.upNext.filter(Boolean).length : 0;
     return (
       <Shell
         accent={room.accentColor}
         title={`${room.name} — Now watching`}
         interactive={mine}
+        variant="crt"
+        badge={<CommonChip count={common} accent={room.accentColor} />}
         {...(mine ? { onEdit: () => setEditing((v) => !v), editing } : {})}
       >
         {mine && editing ? (
           <WatchingEdit
             watching={watching}
+            accent={room.accentColor}
             onSave={(w) => {
               playerActions.setNowWatching(w);
               setEditing(false);
             }}
           />
         ) : (
-          <WatchingView room={room} watching={watching} />
+          <WatchingView room={room} watching={watching} {...(match ? { match } : {})} />
         )}
       </Shell>
     );
@@ -509,9 +1180,9 @@ export const DormPopup = ({
     const c = room.companion;
     return (
       <Shell accent={room.accentColor} title={c.name} subtitle={c.breed}>
-        <div className="flex items-center gap-3 border-2 border-ink bg-panel-foreground/5 p-3">
+        <div className="flex items-center gap-3 border-[3px] border-ink bg-panel-foreground/5 p-3">
           <span
-            className="flex size-10 shrink-0 items-center justify-center border-2 border-ink font-display text-lg font-bold text-ink"
+            className="flex size-10 shrink-0 items-center justify-center border-[3px] border-ink font-display text-lg font-bold text-ink"
             style={{ backgroundColor: hex(MOODS[room.mood].posterAccent) }}
           >
             {c.type === "pet" ? "🐾" : "🌱"}

@@ -220,3 +220,68 @@
   40% { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
+
+/* ---------- Iteration 21: object-shaped popups ---------- */
+:root {
+  --crt-screen: oklch(0.22 0.03 175);
+  --crt-text: oklch(0.9 0.13 160);
+  --crt-bezel: oklch(0.3 0.015 330);
+  --crate-wood: oklch(0.42 0.06 55);
+  --crate-wood-dark: oklch(0.33 0.05 50);
+  --polaroid: oklch(0.98 0.008 90);
+}
+
+/* record-crate header: dark wood planks with hard plank seams */
+@utility crate-strip {
+  background-color: var(--crate-wood);
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0 22px,
+    var(--crate-wood-dark) 22px 24px
+  );
+  border-bottom: 3px solid var(--color-ink);
+}
+
+/* CRT screen with hard-stop 1px scanlines (no soft gradients) */
+@utility crt-screen {
+  background-color: var(--crt-screen);
+  color: var(--crt-text);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0 2px,
+    color-mix(in oklab, var(--color-ink) 55%, transparent) 2px 3px
+  );
+}
+
+@utility crt-bezel {
+  background-color: var(--crt-bezel);
+  border: 3px solid var(--color-ink);
+  box-shadow: inset 0 0 0 3px color-mix(in oklab, var(--crt-bezel) 70%, white 12%);
+}
+
+/* hard-edged static noise for the 2-frame open flicker */
+@utility crt-static {
+  background-image:
+    repeating-linear-gradient(90deg, var(--crt-text) 0 1px, transparent 1px 3px, var(--color-ink) 3px 4px, transparent 4px 7px),
+    repeating-linear-gradient(0deg, var(--color-ink) 0 1px, transparent 1px 2px, var(--crt-text) 2px 3px, transparent 3px 5px);
+  animation: crt-flicker 200ms steps(2, end) forwards;
+}
+
+/* ink outline that follows clip-path notches (tickets, pennants) */
+@utility pixel-outline {
+  filter: drop-shadow(2px 0 0 var(--color-ink)) drop-shadow(-2px 0 0 var(--color-ink))
+    drop-shadow(0 2px 0 var(--color-ink)) drop-shadow(0 -2px 0 var(--color-ink));
+}
+
+@keyframes vinyl-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pixel-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes crt-flicker {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 0; visibility: hidden; }
+}
