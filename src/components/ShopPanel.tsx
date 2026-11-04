@@ -682,8 +682,8 @@ export const ShopPanel = ({
                       onClick={() => select(spot)}
                       className="col-span-2 flex flex-col items-center border-[3px] border-ink bg-[var(--shop-floor)] p-2"
                     >
-                      <span className="flex h-[112px] items-end">
-                        <Sprite thumb={thumbnails[spot.id]} item={spot} max={{ w: 200, h: 108 }} hop={hopId === spot.id} />
+                      <span className="flex h-[136px] items-end">
+                        <Sprite thumb={thumbnails[spot.id]} item={spot} max={{ w: 260, h: 132 }} big hop={hopId === spot.id} />
                       </span>
                       {/* pixel pedestal */}
                       <span aria-hidden className="h-2 w-3/5 border-2 border-ink bg-[var(--tag-premium)]" />
