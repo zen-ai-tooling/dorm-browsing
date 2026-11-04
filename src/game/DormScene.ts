@@ -11,6 +11,7 @@ import {
 } from "@/data/dorm";
 import {
   ITEM_CATALOG,
+  displayTintFor,
   effectiveFootprint,
   isWallItem,
   zoomTextureKey,
