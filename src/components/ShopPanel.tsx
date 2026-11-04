@@ -62,7 +62,7 @@ const TAB_ICON: Record<ItemDef["category"], PixelGlyph> = {
       "............",
     ],
   },
-  companion: STICKER_BY_ID.plant_care!,
+  companion: STICKER_BY_ID["plant_care"]!,
   wallpaper: {
     color: "#e98d70",
     color2: "#f0c75e",
