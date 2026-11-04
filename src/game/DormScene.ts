@@ -1440,6 +1440,13 @@ export class DormScene extends Phaser.Scene {
   }
 
 
+  /** raw source canvas of a generated texture — the shop tints these into per-item thumbnails */
+  getTextureSource(key: string): HTMLCanvasElement | HTMLImageElement | null {
+    if (!this.textures.exists(key)) return null;
+    const src = this.textures.get(key).getSourceImage(0);
+    return src instanceof HTMLCanvasElement || src instanceof HTMLImageElement ? src : null;
+  }
+
   /** data-url thumbnail for a generated texture — used by the shop/tray UI */
   getTextureDataUrl(key: string): string | null {
     if (!this.textures.exists(key)) return null;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, Flame, Pencil, Store, Volume2, VolumeX } from "lucide-react";
-import type { PopupPayload } from "@/data/dorm";
+import { ROOMS, type PopupPayload } from "@/data/dorm";
+import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
@@ -23,38 +24,6 @@ import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
-
-export interface ItemThumb {
-  src: string;
-  w: number;
-  h: number;
-}
-
-/** draws each item's texture with its display tint multiplied in, alpha restored via destination-in */
-const buildItemThumbs = (scene: DormScene, mood: MoodKey): Record<string, ItemThumb> => {
-  const out: Record<string, ItemThumb> = {};
-  for (const item of Object.values(ITEM_CATALOG)) {
-    const src = scene.getTextureSource(item.textureKey);
-    if (!src) continue;
-    const canvas = document.createElement("canvas");
-    canvas.width = src.width;
-    canvas.height = src.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(src, 0, 0);
-    const tint = displayTintFor(item, mood);
-    if (tint !== undefined) {
-      ctx.globalCompositeOperation = "multiply";
-      ctx.fillStyle = `#${tint.toString(16).padStart(6, "0")}`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.drawImage(src, 0, 0);
-    }
-    out[item.id] = { src: canvas.toDataURL(), w: src.width, h: src.height };
-  }
-  return out;
-};
 
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
