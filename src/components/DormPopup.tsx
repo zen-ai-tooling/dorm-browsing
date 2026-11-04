@@ -1105,6 +1105,201 @@ const CorkboardPopup = () => {
   );
 };
 
+/* ---------------- daily mail package ---------------- */
+
+const BOX_BODY = [
+  ".Xoooooo++ooooX.",
+  ".Xoooooo++o++oX.",
+  ".Xoooooo++ooooX.",
+  ".Xaaaaaa++aaaaX.",
+  ".Xaaaaaa++aaaaX.",
+  ".XXXXXXXXXXXXXX.",
+  "................",
+];
+/** 3 stepped frames: closed → lid lifting → open with rays */
+const BOX_FRAMES: string[][] = [
+  ["................", "................", "................", "XXXXXXXXXXXXXXXX", "Xooooooo++oooooX", "XXXXXXXXXXXXXXXX", ".Xoooooo++ooooX.", ...BOX_BODY],
+  ["................", "XXXXXXXXXXXXXXXX", "Xooooooo++oooooX", "XXXXXXXXXXXXXXXX", "..y....y....y...", ".XXXXXXXXXXXXXX.", ".Xoooooo++ooooX.", ...BOX_BODY],
+  ["y......y......y.", "..y....y....y...", "....y..y..y.....", "................", "................", ".XXXXXXXXXXXXXX.", ".XaaaaaaaaaaaaX.", ...BOX_BODY],
+];
+
+const PackageBox = ({ frame, size = 72 }: { frame: number; size?: number }) => (
+  <PixelIcon
+    size={size}
+    def={{
+      icon: BOX_FRAMES[Math.min(frame, 2)]!,
+      color: "#c99a5b",
+      color2: "#a97a43",
+      palette: { y: "#f2cf5c" },
+    }}
+  />
+);
+
+const CoinBurst = ({ count }: { count: number }) => (
+  <span aria-hidden className="pointer-events-none absolute left-1/2 top-1/2">
+    {Array.from({ length: count }, (_, i) => {
+      const a = (i / count) * Math.PI * 2;
+      const r = count > 8 ? 70 : 44;
+      return (
+        <span
+          key={i}
+          className="absolute size-2.5 border-2 border-ink bg-[var(--tag-premium)]"
+          style={{
+            animation: `coin-fly 900ms steps(6) ${i * 25}ms forwards`,
+            ["--dx" as string]: `${Math.round(Math.cos(a) * r)}px`,
+            ["--dy" as string]: `${Math.round(Math.sin(a) * r * 0.7 - 10)}px`,
+          }}
+        />
+      );
+    })}
+  </span>
+);
+
+const RewardView = ({
+  reward,
+  itemThumbnails,
+}: {
+  reward: PackageReward;
+  itemThumbnails: Record<string, { src: string }>;
+}) => {
+  if (reward.kind === "postcard")
+    return (
+      <div className="border-2 border-ink bg-[var(--polaroid)] p-2 [transform:rotate(-1deg)]">
+        <p className="font-body text-xs italic text-ink">“{reward.line}”</p>
+        <p className="mt-1 flex items-center justify-between font-display text-[11px] font-bold text-ink">
+          <span>— {reward.from}</span>
+          <span>+{reward.coins} coins</span>
+        </p>
+      </div>
+    );
+  if (reward.kind === "item") {
+    const item = ITEM_CATALOG[reward.itemId];
+    const src = itemThumbnails[reward.itemId]?.src;
+    return (
+      <div className="flex items-center gap-3">
+        {src ? <img src={src} alt={item?.name ?? ""} className="max-h-12 w-auto [image-rendering:pixelated]" /> : null}
+        <div>
+          <span className="inline-block border-2 border-ink bg-[var(--tag-premium)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+            Mail find
+          </span>
+          <p className="font-display text-sm font-bold text-panel-foreground">{item?.name}</p>
+          <p className="font-body text-[11px] text-panel-muted">Never sold in the shop — it's in your editor tray.</p>
+        </div>
+      </div>
+    );
+  }
+  const text =
+    reward.kind === "jackpot"
+      ? "JACKPOT! Someone mailed you their whole coin jar."
+      : reward.kind === "allFound"
+        ? "You've found every mail exclusive — here's a bonus instead."
+        : "A little envelope of spare change.";
+  return (
+    <p className={`font-display font-bold text-panel-foreground ${reward.kind === "jackpot" ? "text-base" : "text-sm"}`}>
+      +{reward.coins} coins · <span className="font-body text-xs font-semibold">{text}</span>
+    </p>
+  );
+};
+
+const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src: string }> }) => {
+  const { lastPackageDate, lastPackage } = usePlayerState();
+  const today = todayKey();
+  const openedToday = lastPackageDate === today && lastPackage?.date === today;
+  const [frame, setFrame] = useState<number | null>(null);
+  const [burst, setBurst] = useState(false);
+
+  useEffect(() => {
+    if (frame === null || frame >= 2) return;
+    const t = window.setTimeout(() => setFrame(frame + 1), 170);
+    return () => window.clearTimeout(t);
+  }, [frame]);
+
+  useEffect(() => {
+    if (frame !== 2 || openedToday) return;
+    const t = window.setTimeout(() => {
+      playerActions.openPackage();
+      setBurst(true);
+    }, 170);
+    return () => window.clearTimeout(t);
+  }, [frame, openedToday]);
+
+  const reward = openedToday ? lastPackage!.reward : null;
+
+  return (
+    <Shell accent="#c99a5b" title="Mail cubby" subtitle={reward ? "opened today" : "a package for you"} interactive>
+      <div className="relative flex flex-col items-center gap-2">
+        {reward ? (
+          <>
+            {burst ? <CoinBurst count={reward.kind === "jackpot" ? 14 : reward.coins > 0 ? 6 : 0} /> : null}
+            <RewardView reward={reward} itemThumbnails={itemThumbnails} />
+            <p className="font-body text-[11px] text-panel-muted">Next delivery tomorrow.</p>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              aria-label="Open the package"
+              disabled={frame !== null}
+              onClick={() => {
+                sfx.uiClick();
+                setFrame(0);
+              }}
+              className="rounded-[3px] p-1 transition-transform hover:-translate-y-0.5"
+            >
+              <PackageBox frame={frame ?? 0} />
+            </button>
+            <p className="font-body text-xs text-panel-foreground">Tap the box to open it.</p>
+          </>
+        )}
+      </div>
+    </Shell>
+  );
+};
+
+/* ---------------- door whiteboard ---------------- */
+
+const WhiteboardPopup = ({ payload }: { payload: Extract<PopupPayload, { kind: "whiteboard" }> }) => {
+  const { dailyAnswers } = usePlayerState();
+  const prompt = promptForToday();
+  const entry = dailyAnswers[todayKey()];
+  const mine = entry?.promptId === prompt.id ? entry.answer : null;
+  const isMine = payload.residentId === MY_ROOM_ID;
+  const answer = isMine ? mine : residentPick(payload.residentId, prompt);
+  return (
+    <Shell accent={payload.accent} title={isMine ? "Your door board" : `${payload.name}'s door board`} subtitle="today's question">
+      <p className="font-body text-xs text-panel-muted">{prompt.question}</p>
+      <div className="mt-1 flex items-center gap-2 border-2 border-ink bg-[var(--polaroid)] px-2 py-1.5">
+        {!isMine ? <Head accent={payload.accent} /> : null}
+        <span className="font-display text-sm font-bold text-ink">
+          {answer ?? "? — answer at the hallway corkboard"}
+        </span>
+        {!isMine && mine && mine === answer ? <YouToo accent={payload.accent} /> : null}
+      </div>
+    </Shell>
+  );
+};
+
+/** how many things Sam's current popup shows in common with you (null when it isn't Sam's) */
+const SAM_ID = "room-2";
+const samCommonFor = (
+  payload: PopupPayload,
+  mine: { songs: Song[]; bulletin: Bulletin; watching: NowWatching; daily: string | null },
+): number | null => {
+  const sam = ROOMS.find((r) => r.id === SAM_ID)!;
+  if (payload.kind === "whiteboard")
+    return payload.residentId === SAM_ID
+      ? Number(!!mine.daily && mine.daily === residentPick(SAM_ID, promptForToday()))
+      : null;
+  if (!("room" in payload) || payload.room.id !== SAM_ID) return null;
+  if (payload.kind === "songs") return countSongCommon(sam.songs, mine.songs);
+  if (payload.kind === "bulletin") return pinMatches(sam.bulletin, mine.bulletin).filter(Boolean).length;
+  if (payload.kind === "watching") {
+    const m = showMatches(sam.nowWatching ?? { title: "" }, mine.watching);
+    return (m.title ? 1 : 0) + m.upNext.filter(Boolean).length;
+  }
+  return 0;
+};
+
 /* ---------------- root ---------------- */
 
 export const DormPopup = ({
