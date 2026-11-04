@@ -413,15 +413,21 @@ export class DormScene extends Phaser.Scene {
             px(ox + sx, oy + sy, 1, 2, i % 3 === 0 ? light : dark);
           }
         } else if (z.kind === "hall") {
-          // commercial fleck carpet: mottled tufts, no plank grain
+          // light speckled linoleum: sparse 1px flecks, faint seams every 2 tiles
           const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
-          const tones = [dark, darker, light, mix(z.floor, 0x6b5748, 0.16)];
-          for (let i = 0; i < 26; i++) {
+          const tones = [
+            mix(z.floor, 0x3d3128, 0.14),
+            mix(z.floor, 0xffffff, 0.45),
+            mix(z.floor, HALL_STRIPE, 0.45),
+          ];
+          for (let i = 0; i < 9; i++) {
             const sx = Math.abs((seed >> (i % 11)) * (i + 3)) % U;
             const sy = Math.abs((seed >> ((i % 7) + 2)) * (i + 5)) % U;
-            const tone = tones[(seed + i) % tones.length]!;
-            px(ox + sx, oy + sy, 1 + ((seed + i) % 2), 1, tone);
+            px(ox + sx, oy + sy, 1, 1, tones[(seed + i) % tones.length]!);
           }
+          const seam = mix(z.floor, 0x3d3128, 0.08);
+          if (tx % 2 === 0) px(ox, oy, 1, U, seam);
+          if (ty % 2 === 0) px(ox, oy, U, 1, seam);
         } else if (z.floorStyle === "linoleum") {
           // two-tone 16px checker (8 art px) with 1px grout
           const half = U / 2;
