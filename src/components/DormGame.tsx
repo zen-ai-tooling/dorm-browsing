@@ -24,6 +24,38 @@ import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 
+export interface ItemThumb {
+  src: string;
+  w: number;
+  h: number;
+}
+
+/** draws each item's texture with its display tint multiplied in, alpha restored via destination-in */
+const buildItemThumbs = (scene: DormScene, mood: MoodKey): Record<string, ItemThumb> => {
+  const out: Record<string, ItemThumb> = {};
+  for (const item of Object.values(ITEM_CATALOG)) {
+    const src = scene.getTextureSource(item.textureKey);
+    if (!src) continue;
+    const canvas = document.createElement("canvas");
+    canvas.width = src.width;
+    canvas.height = src.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(src, 0, 0);
+    const tint = displayTintFor(item, mood);
+    if (tint !== undefined) {
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = `#${tint.toString(16).padStart(6, "0")}`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(src, 0, 0);
+    }
+    out[item.id] = { src: canvas.toDataURL(), w: src.width, h: src.height };
+  }
+  return out;
+};
+
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DormScene | null>(null);
@@ -33,6 +65,8 @@ const DormGame = () => {
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  /** per item id, tinted exactly like the room renders it (see displayTintFor) */
+  const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
   const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId, seenControls } =
     usePlayerState();
@@ -103,6 +137,7 @@ const DormGame = () => {
             }
           }
           setThumbs(map);
+          setItemThumbs(buildItemThumbs(scene, ROOMS[0]!.mood));
         },
       });
     })();
@@ -344,6 +379,7 @@ const DormGame = () => {
           onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
           placingItemId={placingItemId}
           thumbnails={thumbs}
+          itemThumbnails={itemThumbs}
         />
         </div>
       ) : (
@@ -354,7 +390,20 @@ const DormGame = () => {
         <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
       ) : null}
 
-      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
+      <ShopPanel
+        open={shopOpen}
+        onOpenChange={setShopOpen}
+        thumbnails={itemThumbs}
+        onPlaceNow={(itemId) => {
+          // close the shop, enter edit mode, and go straight into tap-to-place
+          setShopOpen(false);
+          if (!editing) toggleEdit(true);
+          setWallpaperOpen(false);
+          requestAnimationFrame(() => {
+            if (placingItemId !== itemId) sceneRef.current?.togglePlacing(itemId);
+          });
+        }}
+      />
     </div>
   );
 };
