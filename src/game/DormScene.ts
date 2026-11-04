@@ -997,6 +997,11 @@ export class DormScene extends Phaser.Scene {
     if (this.editMode) this.enableDragging();
   }
 
+  /** re-read my layout from the store (dev tools can remove placed items) */
+  reloadMyLayout() {
+    this.rebuildMyRoom();
+  }
+
   /** full teardown/rebuild — only used when leaving edit mode */
   private rebuildMyRoom() {
     this.clearSelection();

@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { featuredForToday, ITEM_CATALOG, rarityFor, type ItemDef } from "@/data/items";
-import { playerActions, usePlayerState } from "@/lib/playerStore";
+import { canAfford, playerActions, useDevMode, usePlayerState } from "@/lib/playerStore";
+import { CoinAmount } from "./CoinAmount";
 import { IconChip } from "./GamePanel";
 import { sfx } from "@/game/sounds";
 
@@ -165,6 +166,8 @@ export const ShopPanel = ({
   thumbnails?: Record<string, string>;
 }) => {
   const { coins, ownedItemIds } = usePlayerState();
+  const devMode = useDevMode(); // re-render when unlimited flips
+  const unlimited = devMode.enabled && devMode.unlimited;
   const shownCoins = useTickingNumber(coins);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("featured");
@@ -199,7 +202,7 @@ export const ShopPanel = ({
               <IconChip>
                 <Coins className="size-4" aria-hidden />
               </IconChip>
-              <span className="font-body tabular-nums">{shownCoins}</span>
+              <CoinAmount value={unlimited ? coins : shownCoins} unlimited={unlimited} />
             </span>
           </DialogTitle>
           <DialogDescription className="flex items-center justify-between gap-2 font-body text-panel-muted">
@@ -257,7 +260,7 @@ export const ShopPanel = ({
                         key={item.id}
                         item={item}
                         owned={ownedItemIds.includes(item.id)}
-                        affordable={coins >= item.price}
+                        affordable={canAfford(item.price)}
                         thumb={thumbnails[item.textureKey]}
                         featured={featured.has(item.id)}
                       />
