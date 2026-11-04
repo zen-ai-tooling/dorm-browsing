@@ -1481,7 +1481,8 @@ export class DormScene extends Phaser.Scene {
       const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
       this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
     }
-    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#6b5c50", 14);
+    // wayfinding: a dark painted plaque on the hall's back-wall face
+    this.wallSign(t(4), t(17), ["FLOOR 3"], "dark", "center");
 
     // ---- Common Lounge ----
     // Composition rules for every shared room: wall decor on the face (row 0),
@@ -1523,7 +1524,8 @@ export class DormScene extends Phaser.Scene {
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
-    this.prop({ key: "console", x: lx(5.2), y: ly(1.9), solid: true });
+    // console on the floor in front of the TV's right side — clear of the TV and the door plant
+    this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
     this.prop({
       key: "table",
@@ -1542,12 +1544,12 @@ export class DormScene extends Phaser.Scene {
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
       const f = this.add
-        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 4, 4, fleckColors[i % 4]!, 0)
+        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 6, 6, fleckColors[i % 4]!, 0)
         .setDepth(1.5);
       const drift = () => {
         const ox = lx(1.4 + Math.random() * 3.8);
         const oy = ly(4.6 + Math.random() * 1.6);
-        f.setPosition(ox, oy).setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 0.75);
+        f.setPosition(ox, oy).setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 1);
         f.setAlpha(0);
         this.tweens.add({
           targets: f,
@@ -1559,7 +1561,7 @@ export class DormScene extends Phaser.Scene {
         });
         this.tweens.add({
           targets: f,
-          alpha: { from: 0, to: 1 },
+          alpha: { from: 0, to: 0.85 },
           duration: 1400,
           yoyo: true,
           hold: 500,
