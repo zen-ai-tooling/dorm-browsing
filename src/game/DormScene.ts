@@ -817,13 +817,7 @@ export class DormScene extends Phaser.Scene {
     const woodSh = 0x9c7a52;
     const woodHi = 0xe6c99a;
     const f = this.add.graphics().setDepth(4.02);
-    // frame ring around the 44x36 glass
-    f.fillStyle(ink, 1).fillRect(fx, fy, fw, fh);
-    f.fillStyle(wood, 1).fillRect(fx + 2, fy + 2, fw - 4, fh - 4);
-    f.fillStyle(woodHi, 1).fillRect(fx + 2, fy + 2, fw - 4, 2);
-    f.fillStyle(woodSh, 1).fillRect(fx + 2, fy + fh - 4, fw - 4, 2);
-    // punch the glass open: frame is drawn as four bars so the sky shows through
-    f.clear();
+    // frame drawn as four bars so the sky shows through the 44x36 glass
     const bar = (x: number, y: number, w: number, h: number) => {
       f.fillStyle(ink, 1).fillRect(x, y, w, h);
       f.fillStyle(wood, 1).fillRect(x + 2, y + 2, Math.max(0, w - 4), Math.max(0, h - 4));
