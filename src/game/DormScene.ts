@@ -1146,6 +1146,7 @@ export class DormScene extends Phaser.Scene {
     const away = !room.isActive ? room.awayNote : undefined;
     const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
     if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
+    this.buildDoorBoard(room, (away ? plate.right + 4 + 44 : plate.right) + 8);
 
     if (room.isActive) {
       this.tweens.add({
@@ -1160,6 +1161,67 @@ export class DormScene extends Phaser.Scene {
       this.spawnSoundCue(dx, dy - 10, mood.glow);
       this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
     }
+  }
+
+  /** door whiteboard on the hall face: today's answer in marker; "?" + sparkle until you answer */
+  private buildDoorBoard(room: PersonRoom, left: number) {
+    const cx = Math.round(left + 32);
+    const cy = t(17);
+    this.prop({
+      key: "whiteboard",
+      x: cx,
+      y: cy,
+      still: true,
+      depthBias: -cy + 4.5,
+      payload: {
+        kind: "whiteboard",
+        residentId: room.id,
+        name: room.id === ROOMS[0]!.id ? "You" : room.name.replace(/'s Room$/, ""),
+        accent: room.accentColor,
+      },
+    });
+    const text = this.add
+      .text(cx, cy - 5, "", {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "9px",
+        color: room.id === ROOMS[0]!.id ? "#2f5fb8" : room.id === "room-2" ? "#c2452f" : "#6b3fa0",
+        fontStyle: "600",
+        align: "center",
+        wordWrap: { width: 54 },
+        lineSpacing: -2,
+      })
+      .setOrigin(0.5)
+      .setDepth(4.7);
+    let sparkle: Phaser.GameObjects.Image | null = null;
+    if (room.id === ROOMS[0]!.id) {
+      sparkle = this.add.image(cx + 26, cy - 14, "sparkle").setTint(0xffe3a6).setDepth(4.8).setAlpha(0);
+      this.tweens.add({
+        targets: sparkle,
+        alpha: { from: 0.15, to: 0.9 },
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: "Stepped",
+        easeParams: [3],
+      });
+    }
+    this.boards.push({ residentId: room.id, text, sparkle });
+  }
+
+  /** re-reads today's answers + package state (after answering, opening, or at a new day) */
+  refreshDaily() {
+    const prompt = promptForToday();
+    const mine = this.getMyDailyAnswer();
+    for (const b of this.boards) {
+      const isMine = b.residentId === ROOMS[0]!.id;
+      const answer = isMine ? mine : residentPick(b.residentId, prompt);
+      b.text.setText(answer ? boardText(answer) : "?");
+      b.text.setFontSize(answer ? 9 : 14);
+      b.sparkle?.setVisible(isMine && !answer);
+    }
+    const ready = this.isPackageReady();
+    this.mailPackage?.setVisible(ready);
+    this.mailSparkle?.setVisible(ready);
   }
 
   /**
