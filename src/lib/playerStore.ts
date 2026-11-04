@@ -122,6 +122,16 @@ export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
   return migrateMountLayout(next);
 };
 
+/** quests an older save already satisfies — ticked without paying their rewards */
+export const migrateQuests = (s: PlayerState): string[] =>
+  autoCompleteQuests(s.questsDone, {
+    lastDailyAnswerDate: s.lastDailyAnswerDate,
+    lastPackageDate: s.lastPackageDate,
+    ownedItemIds: s.ownedItemIds,
+    roomLayout: s.roomLayout,
+    defaultLayout: DEFAULT_MY_ROOM_LAYOUT,
+  });
+
 let state: PlayerState = defaultState();
 
 let hydrated = false;
@@ -210,6 +220,15 @@ const subscribe = (l: () => void) => {
 };
 
 export const getPlayerState = () => state;
+
+/** tests only: forget hydration so each test file starts from its own stubbed storage */
+export const __resetStoreForTests = () => {
+  hydrated = false;
+  devHydrated = false;
+  state = defaultState();
+  dev = DEV_OFF;
+  lastCompletedSets = [];
+};
 
 // ---------- dev mode ----------
 // Lives under its own key (not PlayerState) so wiping the save never flips it.
@@ -312,7 +331,31 @@ export const devActions = {
   },
   allowDailyAgain() {
     if (!dev.enabled) return;
-    set({ lastDailyAnswerDate: todayKey(new Date(Date.now() - 86_400_000)) });
+    const dailyAnswers = { ...state.dailyAnswers };
+    delete dailyAnswers[todayKey()];
+    set({ lastDailyAnswerDate: todayKey(new Date(Date.now() - 86_400_000)), dailyAnswers });
+  },
+  /** undoes today's package (reward, pity counter) so it can be opened again — same roll */
+  resetPackage() {
+    if (!dev.enabled) return;
+    const last = state.lastPackage;
+    if (!last || last.date !== todayKey()) {
+      set({ lastPackageDate: null });
+      return;
+    }
+    const itemId = last.reward.kind === "item" ? last.reward.itemId : null;
+    set({
+      coins: Math.max(0, state.coins - last.reward.coins),
+      ownedItemIds: itemId ? state.ownedItemIds.filter((id) => id !== itemId) : state.ownedItemIds,
+      roomLayout: itemId ? state.roomLayout.filter((p) => p.itemId !== itemId) : state.roomLayout,
+      packagesSinceExclusive: last.prevSince,
+      lastPackageDate: null,
+      lastPackage: null,
+    });
+  },
+  resetQuests() {
+    if (!dev.enabled) return;
+    set({ questsDone: [], questsCelebrated: false });
   },
   resetStreak() {
     if (!dev.enabled) return;
@@ -330,6 +373,22 @@ export const devActions = {
 };
 
 let lastCompletedSets: string[] = [];
+
+/** finishes a welcome quest once: pays its coins (or item) and plays the coin sound */
+const completeQuest = (id: QuestId) => {
+  if (state.questsDone.includes(id)) return false;
+  const q = QUEST_BY_ID[id];
+  let coins = state.coins + q.coins;
+  let ownedItemIds = state.ownedItemIds;
+  if (q.itemId) {
+    // already bought the gift? pay its shop price instead so the reward is never empty
+    if (ownedItemIds.includes(q.itemId)) coins += ITEM_CATALOG[q.itemId]?.price ?? 0;
+    else ownedItemIds = [...ownedItemIds, q.itemId];
+  }
+  set({ questsDone: [...state.questsDone, id], coins, ownedItemIds });
+  sfx.coin();
+  return true;
+};
 /** sets the most recent successful buy() completed (and paid out), for the shop's celebration */
 export const takeCompletedSets = () => {
   const out = lastCompletedSets;
