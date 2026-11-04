@@ -223,8 +223,9 @@ const Cover = ({
   scale: 2 | 3 | 6;
   className?: string;
 }) => {
-  const src = coverFor(song.title, song.artist, mood);
   const px = 16 * scale;
+  const blank = !song.title.trim() && !song.artist.trim();
+  const src = blank ? "" : coverFor(song.title, song.artist, mood);
   return src ? (
     <img
       src={src}
@@ -235,7 +236,10 @@ const Cover = ({
       style={{ ...pixelated, width: px, height: px }}
     />
   ) : (
-    <span className={`shrink-0 border-2 border-ink ${className}`} style={{ width: px, height: px }} />
+    <span
+      className={`shrink-0 border-2 border-dashed border-ink/40 ${className}`}
+      style={{ width: px, height: px }}
+    />
   );
 };
 
@@ -278,13 +282,13 @@ const SongsView = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3" style={matchOutline(!!matches?.[0], accent)}>
-        <div className="relative h-24 w-[136px] shrink-0">
+        <div className="relative h-24 w-[152px] shrink-0">
           <img
             src={discFor(hex(MOODS[room.mood].glow))}
             alt=""
             width={88}
             height={88}
-            className="absolute left-11 top-1 size-[88px]"
+            className="absolute left-[60px] top-1 size-[88px]"
             style={{
               ...pixelated,
               animation: room.isActive ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
@@ -648,9 +652,9 @@ const PinCard = ({ pin, room }: { pin: Pin; room: PersonRoom }) => {
       return (
         <div className="border-2 border-ink bg-[var(--polaroid)] p-1 shadow-[2px_2px_0_0_rgba(36,28,38,0.35)]">
           {src ? (
-            <img src={src} alt="" className="aspect-square w-full border-2 border-ink" style={pixelated} />
+            <img src={src} alt="" className="mx-auto block size-16 border-2 border-ink" style={pixelated} />
           ) : (
-            <span className="block aspect-square w-full border-2 border-ink" />
+            <span className="mx-auto block size-16 border-2 border-ink" />
           )}
           <span className="mt-0.5 line-clamp-2 block text-center font-body text-[10px] italic leading-tight text-ink">
             {pin.caption}
