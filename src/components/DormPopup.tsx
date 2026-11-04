@@ -5,6 +5,7 @@ import {
   COMMUNITY_CORKBOARD,
   COVER_MOTIFS,
   MOODS,
+  ROOMS,
   SONG_NOTE_MAX,
   UP_NEXT_MAX,
   WATCH_VIBES,
@@ -33,7 +34,16 @@ import {
   type StickerDef,
   type StickerGroup,
 } from "@/data/stickers";
-import { DAILY_COIN_REWARD, promptForToday, todayKey } from "@/data/prompts";
+import {
+  DAILY_COIN_REWARD,
+  DAILY_RESIDENTS,
+  floorSplit,
+  promptForToday,
+  residentPick,
+  todayKey,
+} from "@/data/prompts";
+import { ITEM_CATALOG } from "@/data/items";
+import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
@@ -1305,11 +1315,14 @@ const samCommonFor = (
 export const DormPopup = ({
   payload,
   thumbnails = {},
+  itemThumbnails = {},
 }: {
   payload: PopupPayload | null;
   thumbnails?: Record<string, string>;
+  /** tinted per-item thumbnails keyed by item id (mail finds) */
+  itemThumbnails?: Record<string, { src: string }>;
 }) => {
-  const { mySongs, myBulletin, myNowWatching } = usePlayerState();
+  const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone } = usePlayerState();
   const [editing, setEditing] = useState(false);
   const kind = payload?.kind ?? null;
 
@@ -1318,7 +1331,27 @@ export const DormPopup = ({
     setEditing(false);
   }, [kind]);
 
+  // welcome quest: a "you too" with Sam — or, if you share nothing at all, just visiting Sam
+  const todayEntry = dailyAnswers[todayKey()];
+  const myDaily = todayEntry?.promptId === promptForToday().id ? todayEntry.answer : null;
+  const samDone = questsDone.includes("sam");
+  useEffect(() => {
+    if (!payload || samDone) return;
+    const mine = { songs: mySongs, bulletin: myBulletin, watching: myNowWatching, daily: myDaily };
+    const here = samCommonFor(payload, mine);
+    if (here === null) return;
+    const sam = ROOMS.find((r) => r.id === SAM_ID)!;
+    const total = (["songs", "bulletin", "watching"] as const).reduce(
+      (a, k) => a + (samCommonFor({ kind: k, room: sam }, mine) ?? 0),
+      0,
+    );
+    if (here > 0 || total === 0) playerActions.completeQuest("sam");
+  }, [payload, samDone, mySongs, myBulletin, myNowWatching, myDaily]);
+
   if (!payload) return null;
+
+  if (payload.kind === "package") return <PackagePopup itemThumbnails={itemThumbnails} />;
+  if (payload.kind === "whiteboard") return <WhiteboardPopup payload={payload} />;
 
   if (payload.kind === "songs") {
     const room = payload.room;
