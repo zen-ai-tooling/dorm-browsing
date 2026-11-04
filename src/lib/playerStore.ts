@@ -399,7 +399,8 @@ export const takeCompletedSets = () => {
 export const playerActions = {
   buy(itemId: string) {
     const item = ITEM_CATALOG[itemId];
-    if (!item || state.ownedItemIds.includes(itemId) || !canAfford(item.price)) return false;
+    if (!item || item.exclusive || state.ownedItemIds.includes(itemId) || !canAfford(item.price))
+      return false;
     // dev "unlimited" runs the full purchase flow but never touches the real balance
     const coins = isUnlimited() ? state.coins : state.coins - item.price;
     const ownedItemIds = [...state.ownedItemIds, itemId];
@@ -413,14 +414,21 @@ export const playerActions = {
     lastCompletedSets = finished;
     sfx.purchase();
     sfx.coin();
+    completeQuest("buy");
     return true;
   },
+  /** the editor's commit path: every move, rotate, place or remove in Your Room */
   setRoomLayout(layout: PlacedItem[]) {
     set({ roomLayout: layout.map((p) => ({ ...p })) });
+    completeQuest("room");
   },
-  answerDaily() {
+  answerDaily(answer: string) {
     const today = todayKey();
     if (state.lastDailyAnswerDate === today) return false;
+    const dailyAnswers = trimDailyAnswers({
+      ...state.dailyAnswers,
+      [today]: { promptId: promptForToday().id, answer },
+    });
     // gentle streak: yesterday continues it, a gap just starts over — nothing is lost
     const yesterday = todayKey(new Date(Date.now() - 86_400_000));
     const currentStreak = state.lastDailyAnswerDate === yesterday ? state.currentStreak + 1 : 1;
@@ -428,11 +436,41 @@ export const playerActions = {
     set({
       coins: state.coins + DAILY_COIN_REWARD + bonus,
       lastDailyAnswerDate: today,
+      dailyAnswers,
       currentStreak,
       longestStreak: Math.max(state.longestStreak, currentStreak),
     });
     sfx.coin();
+    completeQuest("daily");
     return true;
+  },
+  /** opens today's package once; the roll is seeded by date so a refresh can't change it */
+  openPackage(): PackageReward {
+    const today = todayKey();
+    if (state.lastPackageDate === today && state.lastPackage?.date === today) return state.lastPackage.reward;
+    const prevSince = state.packagesSinceExclusive;
+    const reward = rollPackage(today, prevSince, state.ownedItemIds);
+    set({
+      coins: state.coins + reward.coins,
+      ownedItemIds:
+        reward.kind === "item" && !state.ownedItemIds.includes(reward.itemId)
+          ? [...state.ownedItemIds, reward.itemId]
+          : state.ownedItemIds,
+      packagesSinceExclusive: nextSinceExclusive(prevSince, reward),
+      lastPackageDate: today,
+      lastPackage: { date: today, reward, prevSince },
+    });
+    sfx.coin();
+    completeQuest("mail");
+    return reward;
+  },
+  /** quests completed from the UI (e.g. spotting something in common with Sam) */
+  completeQuest(id: QuestId) {
+    return completeQuest(id);
+  },
+  markQuestsCelebrated() {
+    if (state.questsCelebrated) return;
+    set({ questsCelebrated: true });
   },
   markShopSeen() {
     if (state.lastShopSeenDate === todayKey()) return;
