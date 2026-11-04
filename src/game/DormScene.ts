@@ -19,7 +19,17 @@ import {
   type Rotation,
 } from "@/data/items";
 import { buildTextures } from "./textures";
-import { canPlaceIn } from "@/data/placement";
+import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
+import { Lighting, type Light, type LightSpec } from "./lighting";
+import {
+  DARKNESS_ALPHA,
+  DARKNESS_COLOR,
+  PHASE_FADE_MS,
+  PHASE_LOOK,
+  PHASES,
+  phaseFor,
+  type Phase,
+} from "./timeOfDay";
 
 export const TILE = 32;
 const GRID_W = 88;
@@ -57,6 +67,40 @@ const mix = (a: number, b: number, t: number) =>
 
 const NEUTRAL_WALL = 0x8b7461; // muted warm-neutral trim for hallway + common rooms
 
+/** campus ground outside the building (darker than the courtyard lawn) */
+const EXT_GROUND = 0x5b7848;
+const BRICK = 0x7a4334;
+const BRICK_MORTAR = 0x4f2b25;
+const BRICK_HI = 0x985a45;
+/** stone path rows below the building + the spur up to the courtyard */
+const PATH_ROWS = [35, 36];
+const PATH_X: [number, number] = [3, 78];
+const SPUR_COLS = [76, 77];
+const SPUR_ROWS: [number, number] = [29, 34];
+const HALL_STRIPE = 0x93a8a2;
+
+interface Look {
+  tint: number;
+  tintAlpha: number;
+  night: number;
+  /** per-phase weights (window skies + sunbeams) */
+  w: Record<Phase, number>;
+}
+
+const lookFor = (p: Phase): Look => ({
+  ...PHASE_LOOK[p],
+  w: { morning: 0, day: 0, golden: 0, night: 0, [p]: 1 },
+});
+
+const lerpColor = (a: number, b: number, k: number) => {
+  const ch = (s: number) => {
+    const x = (a >> s) & 255;
+    const y = (b >> s) & 255;
+    return Math.round(x + (y - x) * k) << s;
+  };
+  return ch(16) | ch(8) | ch(0);
+};
+
 const HALL: Zone = {
   id: "hall",
   label: "Hallway",
@@ -64,7 +108,7 @@ const HALL: Zone = {
   y: 17,
   w: 66,
   h: 5,
-  floor: 0xc9b59b,
+  floor: 0xdcd3c3,
   wall: NEUTRAL_WALL,
   kind: "hall",
 };
@@ -211,6 +255,17 @@ export class DormScene extends Phaser.Scene {
   private faceOwner = new Map<string, Zone>();
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
+  private lighting!: Lighting;
+  private getPhase: () => Phase = () => phaseFor(new Date());
+  private phase: Phase | null = null;
+  private nextPhaseCheck = 0;
+  private look: Look = lookFor("day");
+  private phaseTween: Phaser.Tweens.Tween | null = null;
+  /** per window: one sky image per phase, crossfaded by look.w */
+  private skies: Array<Record<Phase, Phaser.GameObjects.Image>> = [];
+  private beams: Array<{ g: Phaser.GameObjects.Graphics; phase: Phase }> = [];
+  /** placed-item lights, keyed by sprite */
+  private placedLights = new Map<Phaser.GameObjects.Sprite, Light>();
 
 
   constructor() {
@@ -226,7 +281,9 @@ export class DormScene extends Phaser.Scene {
     onReady?: (scene: DormScene) => void;
     getWallpaperId?: () => string;
     onWallTap?: () => void;
+    getPhase?: () => Phase;
   }) {
+    if (data?.getPhase) this.getPhase = data.getPhase;
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
@@ -247,9 +304,14 @@ export class DormScene extends Phaser.Scene {
     this.buildGrid(zones);
     this.paintFloor(zones);
     this.buildColliders();
+    // lighting exists before decor so every prop can register its light where it's created
+    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE);
     this.decorate(zones);
+    this.decorateExterior();
     this.spawnPlayer();
+    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -14, color: 0xffd9a0, radius: 28, cut: false, strength: 0.22 });
     this.setupCamera();
+    this.refreshPhase(true);
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
@@ -351,15 +413,21 @@ export class DormScene extends Phaser.Scene {
             px(ox + sx, oy + sy, 1, 2, i % 3 === 0 ? light : dark);
           }
         } else if (z.kind === "hall") {
-          // commercial fleck carpet: mottled tufts, no plank grain
+          // light speckled linoleum: sparse 1px flecks, faint seams every 2 tiles
           const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
-          const tones = [dark, darker, light, mix(z.floor, 0x6b5748, 0.16)];
-          for (let i = 0; i < 26; i++) {
+          const tones = [
+            mix(z.floor, 0x3d3128, 0.14),
+            mix(z.floor, 0xffffff, 0.45),
+            mix(z.floor, HALL_STRIPE, 0.45),
+          ];
+          for (let i = 0; i < 9; i++) {
             const sx = Math.abs((seed >> (i % 11)) * (i + 3)) % U;
             const sy = Math.abs((seed >> ((i % 7) + 2)) * (i + 5)) % U;
-            const tone = tones[(seed + i) % tones.length]!;
-            px(ox + sx, oy + sy, 1 + ((seed + i) % 2), 1, tone);
+            px(ox + sx, oy + sy, 1, 1, tones[(seed + i) % tones.length]!);
           }
+          const seam = mix(z.floor, 0x3d3128, 0.08);
+          if (tx % 2 === 0) px(ox, oy, 1, U, seam);
+          if (ty % 2 === 0) px(ox, oy, U, 1, seam);
         } else if (z.floorStyle === "linoleum") {
           // two-tone 16px checker (8 art px) with 1px grout
           const half = U / 2;
@@ -574,7 +642,9 @@ export class DormScene extends Phaser.Scene {
 
   private paintFloor(zones: Zone[]) {
     const g = this.make.graphics({ x: 0, y: 0 }, false);
+    this.paintExterior(g);
     for (const z of zones) this.paintZoneFloor(g, z);
+    this.paintHallStripes(g);
 
     // ---- walls: flat 3-tone pixel bands, hard edges ----
     for (let y = 0; y < GRID_H; y++) {
@@ -582,15 +652,22 @@ export class DormScene extends Phaser.Scene {
         if (this.grid[y]![x] !== WALL) continue;
         const owner = this.faceOwner.get(`${x},${y}`);
         if (owner) {
+          const top = y === owner.y - 1;
           this.drawFaceTile(
             g,
             x,
             y,
             mix(owner.wall, 0xf3e6d0, 0.38),
             owner.wall,
-            y === owner.y - 1,
+            top,
             owner.kind === "hall" ? "wainscot" : "flat",
           );
+          // the face's top edge is the building's outer wall when open ground is behind it
+          if (top && this.isVoid(x, y - 1)) this.drawBrickParapet(g, x, y);
+          continue;
+        }
+        if (this.touchesVoid(x, y)) {
+          this.drawBrickTile(g, x, y);
           continue;
         }
         const zone = this.zoneNear(x, y, zones);
@@ -619,29 +696,268 @@ export class DormScene extends Phaser.Scene {
     g.generateTexture("floormap", GRID_W * TILE, GRID_H * TILE);
     g.destroy();
     this.add.image(0, 0, "floormap").setOrigin(0, 0).setDepth(0);
-    this.layHallwayRunner();
     this.layDoormats();
   }
 
-  /** communal hallway runner rug down the corridor spine, centred on the walkable rows (below the face) */
-  private layHallwayRunner() {
-    const floorTop = HALL.y + 1; // row HALL.y is the back-wall face
-    const cy = t(floorTop + (HALL.h - 1) / 2);
-    const x0 = HALL.x + 1;
-    const x1 = HALL.x + HALL.w - 1;
-    for (let tx = x0; tx < x1; tx++)
-      this.add
-        .image(t(tx), cy, "runner")
-        .setOrigin(0, 0.5)
-        .setTint(0x9a6a55)
-        .setDepth(1);
-    this.add.image(t(x0), cy, "runner-cap").setOrigin(1, 0.5).setTint(0x9a6a55).setDepth(1);
-    this.add
-      .image(t(x1), cy, "runner-cap")
-      .setOrigin(1, 0.5)
-      .setFlipX(true)
-      .setTint(0x9a6a55)
-      .setDepth(1);
+  private isVoid(x: number, y: number) {
+    return x >= 0 && y >= 0 && x < GRID_W && y < GRID_H && this.grid[y]![x] === VOID;
+  }
+
+  /** outer building walls: any wall tile with open ground next to it (8-neighbour) */
+  private touchesVoid(x: number, y: number) {
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && this.isVoid(x + dx, y + dy)) return true;
+    return false;
+  }
+
+  /** campus ground on every VOID tile: dark grass, sparse tufts, stone path, wall shadows */
+  private paintExterior(g: Phaser.GameObjects.Graphics) {
+    const PX = 2;
+    const U = TILE / PX;
+    const px = (x: number, y: number, w: number, h: number, c: number) => {
+      g.fillStyle(c, 1);
+      g.fillRect(x * PX, y * PX, w * PX, h * PX);
+    };
+    const tuftLight = mix(EXT_GROUND, 0xd8e6b0, 0.28);
+    const tuftDark = mix(EXT_GROUND, 0x1e2a18, 0.3);
+    const shadow = mix(EXT_GROUND, 0x1e2a18, 0.38);
+    const stone = 0xa59d8c;
+    const stoneSh = 0x7d7668;
+    const stoneHi = 0xc2bbab;
+    const isPath = (x: number, y: number) =>
+      (PATH_ROWS.includes(y) && x >= PATH_X[0] && x <= PATH_X[1]) ||
+      (SPUR_COLS.includes(x) && y >= SPUR_ROWS[0] && y <= SPUR_ROWS[1]);
+    for (let ty = 0; ty < GRID_H; ty++)
+      for (let tx = 0; tx < GRID_W; tx++) {
+        if (this.grid[ty]![tx] !== VOID) continue;
+        const ox = tx * U;
+        const oy = ty * U;
+        const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
+        px(ox, oy, U, U, EXT_GROUND);
+        if (isPath(tx, ty)) {
+          // two staggered flagstones per tile, 1px seams, hard highlights
+          px(ox, oy, U, U, stone);
+          const off = ty % 2 === 0 ? 0 : U / 2;
+          px(ox, oy, U, 1, stoneSh);
+          px(ox + ((off + 7) % U), oy, 1, U, stoneSh);
+          px(ox, oy + 1, U, 1, stoneHi);
+          if (seed % 3 === 0) px(ox + 3 + (seed % 5), oy + 6 + (seed % 4), 2, 1, stoneSh);
+          // grass creeping into the path edges
+          if (!isPath(tx, ty - 1)) px(ox, oy, U, 1, tuftDark);
+          if (!isPath(tx, ty + 1)) px(ox, oy + U - 1, U, 1, tuftDark);
+        } else if (seed % 3 !== 0) {
+          for (let i = 0; i < 3; i++) {
+            const sx = Math.abs((seed >> (i * 3)) % (U - 1));
+            const sy = Math.abs((seed >> (i * 2 + 5)) % (U - 2));
+            px(ox + sx, oy + sy, 1, 2, i === 0 ? tuftLight : tuftDark);
+          }
+        }
+        // hard 3px contact shadow below the building
+        if (ty > 0 && this.grid[ty - 1]![tx] !== VOID) px(ox, oy, U, 3, shadow);
+      }
+  }
+
+  /** thick brick cap for the building's outer walls, seen from above */
+  private drawBrickTile(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    const bx = t(x);
+    const by = t(y);
+    g.fillStyle(BRICK, 1).fillRect(bx, by, TILE, TILE);
+    for (let row = 0; row < 4; row++) {
+      const yy = by + row * 8;
+      g.fillStyle(BRICK_MORTAR, 1).fillRect(bx, yy + 6, TILE, 2);
+      g.fillStyle(BRICK_HI, 1).fillRect(bx, yy, TILE, 2);
+      const off = row % 2 === 0 ? 0 : 8;
+      for (let c = off; c < TILE; c += 16) g.fillStyle(BRICK_MORTAR, 1).fillRect(bx + c, yy, 2, 6);
+    }
+  }
+
+  /** brick parapet replacing a face tile's crown where the face meets the outside */
+  private drawBrickParapet(g: Phaser.GameObjects.Graphics, x: number, y: number) {
+    const bx = t(x);
+    const by = t(y);
+    g.fillStyle(BRICK, 1).fillRect(bx, by, TILE, 8);
+    g.fillStyle(BRICK_HI, 1).fillRect(bx, by, TILE, 2);
+    g.fillStyle(BRICK_MORTAR, 1).fillRect(bx, by + 6, TILE, 2);
+    for (let c = x % 2 === 0 ? 0 : 8; c < TILE; c += 16) g.fillStyle(BRICK_MORTAR, 1).fillRect(bx + c, by + 2, 2, 4);
+  }
+
+  /** two thin painted guide stripes down the corridor, one tile in from each floor edge */
+  private paintHallStripes(g: Phaser.GameObjects.Graphics) {
+    const x0 = t(HALL.x) + 8;
+    const x1 = t(HALL.x + HALL.w) - 8;
+    for (const row of [HALL.y + 2, HALL.y + HALL.h - 1]) {
+      const y = t(row) - 2;
+      g.fillStyle(HALL_STRIPE, 1).fillRect(x0, y, x1 - x0, 4);
+      // worn chips every few tiles so it reads as paint, not a UI line
+      g.fillStyle(mix(HALL_STRIPE, HALL.floor, 0.6), 1);
+      for (let x = x0 + 22; x < x1; x += 150) g.fillRect(x, y + (x % 4 === 0 ? 0 : 2), 4, 2);
+    }
+  }
+
+  /**
+   * A 2-tile window on a personal room's back wall (face columns WINDOW_COLS), with
+   * one sky image per phase stacked in the glass, wood frame + sill, accent curtains,
+   * and morning/golden sunbeams on the floor below.
+   */
+  private buildWindow(rect: Rect, accent: number) {
+    const col = rect.x + WINDOW_COLS[0];
+    const fx = t(col) + 4; // frame outer
+    const fy = t(rect.y - 1) + 10;
+    const fw = TILE * WINDOW_COLS.length - 8;
+    const fh = 46;
+    const gx = fx + 6;
+    const gy = fy + 5;
+    const skies = {} as Record<Phase, Phaser.GameObjects.Image>;
+    for (const p of PHASES)
+      skies[p] = this.add.image(gx, gy, `sky-${p}`).setOrigin(0, 0).setDepth(3.9).setAlpha(0);
+    this.skies.push(skies);
+
+    const ink = 0x241c26;
+    const wood = 0xc9a477;
+    const woodSh = 0x9c7a52;
+    const woodHi = 0xe6c99a;
+    const f = this.add.graphics().setDepth(4.02);
+    // frame drawn as four bars so the sky shows through the 44x36 glass
+    const bar = (x: number, y: number, w: number, h: number) => {
+      f.fillStyle(ink, 1).fillRect(x, y, w, h);
+      f.fillStyle(wood, 1).fillRect(x + 2, y + 2, Math.max(0, w - 4), Math.max(0, h - 4));
+      if (w > h) f.fillStyle(woodHi, 1).fillRect(x + 2, y + 2, w - 4, 2);
+      else f.fillStyle(woodHi, 1).fillRect(x + 2, y + 2, 2, h - 4);
+    };
+    bar(fx, fy, fw, 7); // head
+    bar(fx, fy + fh - 7, fw, 7); // bottom rail
+    bar(fx, fy, 8, fh); // left stile
+    bar(fx + fw - 8, fy, 8, fh); // right stile
+    // mullions: one cross
+    f.fillStyle(wood, 1).fillRect(gx + 21, gy, 2, 36);
+    f.fillStyle(wood, 1).fillRect(gx, gy + 17, 44, 2);
+    f.fillStyle(woodSh, 1).fillRect(gx + 23, gy, 1, 36);
+    // sill
+    f.fillStyle(ink, 1).fillRect(fx - 4, fy + fh - 4, fw + 8, 8);
+    f.fillStyle(woodHi, 1).fillRect(fx - 2, fy + fh - 2, fw + 4, 2);
+    f.fillStyle(wood, 1).fillRect(fx - 2, fy + fh, fw + 4, 2);
+
+    // curtains pulled to the sides, accent 3-tone with fold lines and a tie-back
+    const cur = this.add.graphics().setDepth(4.04);
+    const cHi = mix(accent, 0xfaf0e0, 0.35);
+    const cSh = mix(accent, 0x2b2027, 0.3);
+    cur.fillStyle(ink, 1).fillRect(fx - 6, fy - 4, fw + 12, 3); // rod
+    const curtain = (x: number, flip: boolean) => {
+      const h = fh - 6;
+      cur.fillStyle(ink, 1).fillRect(x - 1, fy - 1, 12, h + 2);
+      cur.fillStyle(accent, 1).fillRect(x, fy, 10, h);
+      cur.fillStyle(cHi, 1).fillRect(flip ? x + 6 : x + 2, fy, 2, h);
+      cur.fillStyle(cSh, 1).fillRect(flip ? x + 2 : x + 6, fy, 2, h);
+      cur.fillStyle(ink, 1).fillRect(x, fy + 26, 10, 2); // tie-back
+    };
+    curtain(fx - 4, false);
+    curtain(fx + fw - 6, true);
+
+    // sunbeams: stair-stepped parallelograms, additive, hard edges
+    for (const [phase, dir, color] of [
+      ["morning", -1, 0xffe6b8],
+      ["golden", 1, 0xffb070],
+    ] as const) {
+      const b = this.add.graphics().setDepth(1.4).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      const y0 = t(rect.y + 1);
+      // clipped to the room's floor so a beam never spills onto the side walls
+      const minX = t(rect.x);
+      const maxX = t(rect.x + rect.w);
+      const band = (x: number, y: number, w: number, a: number) => {
+        const l = Math.max(minX, x);
+        const r = Math.min(maxX, x + w);
+        if (r > l) b.fillStyle(color, a).fillRect(l, y, r - l, 4);
+      };
+      for (let i = 0; i < 28; i++) {
+        const sx = gx + dir * Math.floor(i / 2) * 4;
+        band(sx, y0 + i * 4, 44, 0.6);
+        band(sx + 10, y0 + i * 4, 24, 1);
+      }
+      this.beams.push({ g: b, phase });
+    }
+  }
+
+  // ---------- time of day ----------
+
+  /** re-reads the phase; crossfades over PHASE_FADE_MS unless instant */
+  refreshPhase(instant = false) {
+    const next = this.getPhase();
+    if (next === this.phase) return;
+    this.phase = next;
+    const from: Look = { ...this.look, w: { ...this.look.w } };
+    const to = lookFor(next);
+    this.phaseTween?.stop();
+    this.phaseTween = null;
+    if (instant) {
+      this.applyLook(to);
+      return;
+    }
+    this.phaseTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: PHASE_FADE_MS,
+      ease: "Sine.easeInOut",
+      onUpdate: (tw) => {
+        const k = tw.getValue() ?? 0;
+        const w = {} as Record<Phase, number>;
+        for (const p of PHASES) w[p] = from.w[p] + (to.w[p] - from.w[p]) * k;
+        this.applyLook({
+          tint: lerpColor(from.tint, to.tint, k),
+          tintAlpha: from.tintAlpha + (to.tintAlpha - from.tintAlpha) * k,
+          night: from.night + (to.night - from.night) * k,
+          w,
+        });
+      },
+    });
+  }
+
+  private applyLook(look: Look) {
+    this.look = look;
+    this.lighting.setLook(look.tint, look.tintAlpha, look.night);
+    // stacked crossfade: each layer's alpha = its weight over the weight beneath it
+    for (const sky of this.skies) {
+      let acc = 0;
+      for (const p of PHASES) {
+        acc += look.w[p];
+        sky[p].setAlpha(acc > 0 ? look.w[p] / acc : 0);
+      }
+    }
+    for (const b of this.beams) b.g.setAlpha(0.2 * look.w[b.phase]);
+    // backdrop beyond the map edge: ground colour under the same tint + darkness
+    const mulCh = (s: number) => {
+      const c = (EXT_GROUND >> s) & 255;
+      const tc = (look.tint >> s) & 255;
+      return Math.round(c * (1 - look.tintAlpha + (look.tintAlpha * tc) / 255));
+    };
+    const tinted = (mulCh(16) << 16) | (mulCh(8) << 8) | mulCh(0);
+    const bg = lerpColor(tinted, DARKNESS_COLOR, DARKNESS_ALPHA * look.night);
+    this.cameras.main.setBackgroundColor(bg);
+  }
+
+  /** register a night light; follow keeps it on a moving sprite */
+  private light(spec: LightSpec) {
+    return this.lighting.add(spec);
+  }
+
+  /** exterior scenery: a few trees + shrubs, lamp posts along the path */
+  private decorateExterior() {
+    const trees: Array<[number, number, number]> = [
+      [22.5, 3.3, 0.8],
+      [43.5, 3.1, 0.75],
+      [24.5, 28.4, 0.68],
+    ];
+    for (const [x, y, s] of trees) this.add.sprite(t(x), t(y), "tree").setScale(s).setDepth(t(y));
+    for (const [x, y] of [
+      [64, 4.6],
+      [82, 31.2],
+    ] as const)
+      this.add.sprite(t(x), t(y), "bush").setDepth(t(y));
+    for (const x of [15, 40, 66]) {
+      // stand on the grass just south of the path, clear of the building wall
+      const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
+      this.add.sprite(t(x), y, "lamppost").setDepth(y);
+      this.light({ x: t(x), y: y - 36, color: 0xffd9a0, radius: 80 });
+    }
   }
 
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
@@ -755,6 +1071,9 @@ export class DormScene extends Phaser.Scene {
     // the poster is a real catalog item now (see ITEM_CATALOG.poster_default) and
     // is drawn through room.layout like every other prop — no hardcoded rectangles.
 
+    // the back wall faces outside: a window in the reserved face columns
+    this.buildWindow(rect, accent);
+
     if (editable) this.renderMyLayout(room, rect);
     else this.renderLayout(room, rect, room.layout);
 
@@ -807,6 +1126,7 @@ export class DormScene extends Phaser.Scene {
     this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
+    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
 
     // nameplate mounted on the face; an away note becomes its second line
     const away = !room.isActive ? room.awayNote : undefined;
@@ -920,7 +1240,30 @@ export class DormScene extends Phaser.Scene {
 
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
+      this.itemLight(placed.itemId, sprite);
     }
+  }
+
+  /** placed items with ItemDef.light glow at night and follow their sprite (drag, move) */
+  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite) {
+    const l = ITEM_CATALOG[itemId]?.light;
+    if (!l) return null;
+    const light = this.light({
+      x: sprite.x,
+      y: sprite.y,
+      follow: sprite,
+      color: l.color,
+      radius: l.radius,
+      flicker: l.flicker === true,
+      disco: itemId === "disco_ball",
+    });
+    this.placedLights.set(sprite, light);
+    return light;
+  }
+
+  private dropItemLight(sprite: Phaser.GameObjects.Sprite) {
+    this.lighting.remove(this.placedLights.get(sprite));
+    this.placedLights.delete(sprite);
   }
 
   private centerOf(gx: number, gy: number, w: number, h: number) {
@@ -949,6 +1292,7 @@ export class DormScene extends Phaser.Scene {
     if (tint) sprite.setTint(tint);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
+    this.itemLight(itemId, sprite);
 
     let zone: Phaser.GameObjects.Zone | null = null;
     if (item.solid) {
@@ -1003,6 +1347,7 @@ export class DormScene extends Phaser.Scene {
   /** full teardown/rebuild — only used when leaving edit mode */
   private rebuildMyRoom() {
     this.clearSelection();
+    for (const p of this.placed) this.dropItemLight(p.sprite);
     for (const o of this.myObjs) {
       if (o instanceof Phaser.GameObjects.Zone) this.walls.remove(o, true, true);
       else o.destroy();
@@ -1088,6 +1433,7 @@ export class DormScene extends Phaser.Scene {
     this.myObjs = this.myObjs.filter((o) => !dead.includes(o));
     if (entry.zone) this.walls.remove(entry.zone, true, true);
     entry.ring?.destroy();
+    this.dropItemLight(entry.sprite);
     entry.sprite.destroy();
     this.placed.splice(idx, 1);
     sfx.removeItem();
@@ -1511,6 +1857,7 @@ export class DormScene extends Phaser.Scene {
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
     this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
     this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
+    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60 });
     // string lights along the top face row, skipping the doorway span — small bulbs on a sagging wire
     {
       const wire = this.add.graphics().setDepth(4);
@@ -1532,12 +1879,14 @@ export class DormScene extends Phaser.Scene {
         }
         prev = { x: sx, y: by };
         this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
+        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.22 });
       }
     }
 
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
+    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true });
     // console on the floor in front of the TV's right side — clear of the TV and the door plant
     this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
@@ -1554,6 +1903,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
     this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
     this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
+    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60 });
     // party-light flecks: slow drifting, fading spots of colored light across the rug
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
@@ -1592,6 +1942,8 @@ export class DormScene extends Phaser.Scene {
     // right: the games corner
     this.prop({ key: "arcade", x: lx(11.22), y: ly(1.7), solid: true });
     this.prop({ key: "arcade", x: lx(12.85), y: ly(1.7), tint: 0xd7b8e8, solid: true });
+    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40 });
+    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40 });
     this.prop({ key: "foosball", x: lx(12.6), y: ly(4.8), solid: true });
     this.prop({ key: "papasan", x: lx(11.2), y: ly(7.9), solid: true });
     this.prop({ key: "beanbag", x: lx(13.6), y: ly(8.1), tint: 0x74a8ab });
@@ -1603,6 +1955,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "desk", x: t(S.x + 1.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "desk", x: t(S.x + 4.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "lamp", x: t(S.x + 13.3), y: t(S.y + 1.5) });
+    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60 });
     this.prop({
       key: "shelf",
       x: t(S.x + 9.4),
@@ -1627,6 +1980,8 @@ export class DormScene extends Phaser.Scene {
       solid: true,
     });
     this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
+    // under-cabinet strip so the kitchenette isn't a black box at night
+    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44 });
     this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
     // eating nook, centered in the open floor (door lane cols 5–6 stays clear)
@@ -1659,6 +2014,7 @@ export class DormScene extends Phaser.Scene {
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
+      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.26 });
     }
 
 
@@ -1684,6 +2040,7 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
+    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50 });
     this.prop({
       key: "crate",
       x: t(8),
@@ -1727,6 +2084,7 @@ export class DormScene extends Phaser.Scene {
       .setAlpha(0.3)
       .setScale(1.8)
       .setDepth(1);
+    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70 });
 
     // recycling + trash pair
     this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
@@ -1762,7 +2120,7 @@ export class DormScene extends Phaser.Scene {
   private setupCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
-    cam.setBackgroundColor("#2b2431");
+    cam.setBackgroundColor(EXT_GROUND);
     cam.startFollow(this.player, true, 0.16, 0.16);
     cam.setZoom(1.6);
   }
@@ -1942,6 +2300,12 @@ export class DormScene extends Phaser.Scene {
 
     if (!this.editMode) this.checkProximity();
     if (this.editMode && this.selectedIdx >= 0) this.positionSelectionUi();
+
+    if (_time >= this.nextPhaseCheck) {
+      this.nextPhaseCheck = _time + 60_000;
+      this.refreshPhase();
+    }
+    this.lighting.update(_time);
 
     this.trackMyRoom();
   }

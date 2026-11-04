@@ -3,8 +3,8 @@ import { canPlaceIn, migrateMountLayout } from "./placement";
 
 describe("wall vs floor placement", () => {
   test("wall items only go on row 0", () => {
-    expect(canPlaceIn([], "poster_default", 2, 0)).toBe(true);
-    expect(canPlaceIn([], "poster_default", 2, 1)).toBe(false);
+    expect(canPlaceIn([], "poster_default", 4, 0)).toBe(true);
+    expect(canPlaceIn([], "poster_default", 4, 1)).toBe(false);
   });
 
   test("floor items can't go on row 0", () => {
@@ -13,8 +13,24 @@ describe("wall vs floor placement", () => {
   });
 
   test("wall items don't collide with floor items below them", () => {
-    const layout = [{ itemId: "plant_basic", gx: 2, gy: 1 }];
-    expect(canPlaceIn(layout, "poster_default", 2, 0)).toBe(true);
+    const layout = [{ itemId: "plant_basic", gx: 4, gy: 1 }];
+    expect(canPlaceIn(layout, "poster_default", 4, 0)).toBe(true);
+  });
+});
+
+describe("window slot", () => {
+  test("no wall item can overlap face columns 1–2", () => {
+    expect(canPlaceIn([], "poster_default", 0, 0)).toBe(false); // 3 wide: covers 1–2
+    expect(canPlaceIn([], "board_basic", 2, 0)).toBe(false);
+    expect(canPlaceIn([], "board_basic", 3, 0)).toBe(true);
+  });
+  test("floor items below the window are unaffected", () => {
+    expect(canPlaceIn([], "plant_basic", 1, 1)).toBe(true);
+  });
+  test("a saved poster over the window shifts to the nearest free slot", () => {
+    const out = migrateMountLayout([{ itemId: "poster_default", gx: 1, gy: 0 }]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.gx).toBe(3);
   });
 });
 

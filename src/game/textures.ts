@@ -167,6 +167,77 @@ export const buildTextures = (scene: Phaser.Scene) => {
     dither(g, 0, 0, 32, 32, 0xffffff, 1);
   });
 
+  /* ---- night light cut-out: stepped rings + dithered rim, erased from the darkness ---- */
+  make(scene, "lightmask", 32, 32, (g) => {
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++) {
+        const d = Math.hypot(x - 15.5, y - 15.5);
+        if (d < 6) r(g, x, y, 1, 1, 0xffffff, 1);
+        else if (d < 10) r(g, x, y, 1, 1, 0xffffff, 0.78);
+        else if (d < 13) r(g, x, y, 1, 1, 0xffffff, 0.5);
+        else if (d < 15.5 && (x + y) % 2 === 0) r(g, x, y, 1, 1, 0xffffff, 0.5);
+      }
+  });
+
+  /* ---- window skies, one per phase (22x18 glass) ---- */
+  const sky = (key: string, top: number, bottom: number, extra: (g: G) => void) =>
+    make(scene, key, 22, 18, (g) => {
+      r(g, 0, 0, 22, 18, top);
+      r(g, 0, 11, 22, 7, bottom);
+      dither(g, 0, 9, 22, 2, bottom);
+      extra(g);
+    });
+  sky("sky-morning", 0xf6d9c4, 0xfbe9d2, (g) => {
+    r(g, 15, 12, 4, 2, 0xfff3d8); // low sun
+  });
+  sky("sky-day", 0x8fc4e8, 0xb6dcf2, (g) => {
+    r(g, 4, 4, 8, 2, 0xffffff); // one cloud
+    r(g, 6, 3, 4, 1, 0xffffff);
+    r(g, 4, 6, 8, 1, 0xd9ecf7);
+  });
+  sky("sky-golden", 0xe98a6a, 0xf6b27c, (g) => {
+    r(g, 3, 12, 5, 2, 0xffd99a); // setting sun
+    r(g, 12, 5, 7, 1, 0xf3a690);
+  });
+  sky("sky-night", 0x1f2650, 0x2b3466, (g) => {
+    for (const [sx, sy] of [
+      [3, 3],
+      [10, 6],
+      [6, 11],
+      [19, 9],
+    ] as const)
+      r(g, sx, sy, 1, 1, 0xfdf6d8);
+    r(g, 15, 2, 4, 4, 0xf3ecd0); // moon
+    r(g, 17, 2, 2, 2, 0x1f2650);
+  });
+
+  // exterior lamp post 10x46 — iron pole, warm lantern head
+  make(scene, "lamppost", 10, 46, (g) => {
+    foot(g, 5, 44, 8);
+    r(g, 2, 0, 6, 2, 0x2f2b3a);
+    r(g, 2, 2, 6, 6, 0xf6dfa0);
+    r(g, 3, 3, 2, 2, 0xfff3c8);
+    line(g, 2, 2, 6, 6);
+    r(g, 1, 8, 8, 2, 0x2f2b3a);
+    r(g, 4, 10, 2, 30, 0x3f3a4a);
+    r(g, 4, 10, 1, 30, 0x5a5468);
+    r(g, 2, 40, 6, 3, 0x2f2b3a);
+    line(g, 2, 40, 6, 3);
+  });
+
+  // shrub 22x14 — blocky leaf clusters
+  make(scene, "bush", 22, 14, (g) => {
+    foot(g, 11, 12, 18);
+    const blob = (x: number, y: number, w: number, h: number) => {
+      r(g, x, y, w, h, 0x5e8a4a);
+      r(g, x + 1, y + 1, w - 2, 1, 0x7fa862);
+      r(g, x, y + h - 2, w, 2, 0x43663a);
+      line(g, x, y, w, h);
+    };
+    blob(1, 4, 10, 8);
+    blob(10, 2, 11, 10);
+  });
+
   // pixel music note
   make(scene, "note", 11, 13, (g) => {
     r(g, 1, 8, 5, 4, INK);

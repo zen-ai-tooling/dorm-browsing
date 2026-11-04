@@ -5,6 +5,16 @@ import { Switch } from "@/components/ui/switch";
 import { devActions, useDevMode, usePlayerState } from "@/lib/playerStore";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
+import { setTimeOverride, useTimeOverride } from "@/lib/timeStore";
+import type { Phase } from "@/game/timeOfDay";
+
+const TIME_OPTIONS: Array<[Phase | null, string]> = [
+  [null, "Auto"],
+  ["morning", "Morning"],
+  ["day", "Day"],
+  ["golden", "Golden"],
+  ["night", "Night"],
+];
 
 const DevButton = ({
   onClick,
@@ -30,6 +40,7 @@ const DevButton = ({
 export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
+  const timeOverride = useTimeOverride();
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const timer = useRef<number | undefined>(undefined);
@@ -105,6 +116,27 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
           }
         />
       </label>
+      <div className="mb-2">
+        <span className="mb-1 block font-body text-xs font-bold text-panel-foreground">Time of day</span>
+        <div className="flex flex-wrap gap-1">
+          {TIME_OPTIONS.map(([value, label]) => {
+            const on = timeOverride === value;
+            return (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={on}
+                onClick={() => run(() => setTimeOverride(value), `Time: ${label}`)}
+                className={`rounded-[3px] border-2 border-ink px-1.5 py-0.5 font-body text-[11px] font-bold ${
+                  on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="space-y-1.5">
         <DevButton onClick={() => run(() => devActions.addCoins(500), "+500 coins")}>+500 coins</DevButton>
         <DevButton onClick={() => run(devActions.zeroCoins, "Coins set to 0 · unlimited off")}>
