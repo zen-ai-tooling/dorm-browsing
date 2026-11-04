@@ -24,6 +24,8 @@ import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
+import { currentPhase, hydrateTimeOverride, useTimeOverride } from "@/lib/timeStore";
+import { PhaseChip } from "./PhaseChip";
 
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,7 +52,14 @@ const DormGame = () => {
   useEffect(() => {
     hydratePlayerState();
     hydrateDevMode();
+    hydrateTimeOverride();
   }, []);
+
+  // dev time override (panel or ?time=) applies right away, with the usual crossfade
+  const timeOverride = useTimeOverride();
+  useEffect(() => {
+    sceneRef.current?.refreshPhase();
+  }, [timeOverride]);
 
   useEffect(() => {
     let destroyed = false;
@@ -93,6 +102,7 @@ const DormGame = () => {
         onPlacingChange: setPlacingItemId,
         getWallpaperId: () => getPlayerState().myWallpaperId,
         onWallTap: () => setWallpaperOpen(true),
+        getPhase: () => currentPhase(),
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
 
@@ -255,6 +265,7 @@ const DormGame = () => {
               <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
             </span>
           </GamePanel>
+          <PhaseChip />
           {currentStreak > 0 ? (
             <GamePanel
               className="flex items-center gap-2 px-2.5 py-1.5"
