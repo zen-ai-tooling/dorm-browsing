@@ -160,11 +160,126 @@ const subscribe = (l: () => void) => {
 
 export const getPlayerState = () => state;
 
+// ---------- dev mode ----------
+// Lives under its own key (not PlayerState) so wiping the save never flips it.
+// It only ever bypasses rules (coins, ownership, the daily lock) — it never changes them.
+
+const DEV_KEY = "dorm-vibes-dev";
+export interface DevState {
+  enabled: boolean;
+  unlimited: boolean;
+}
+const DEV_OFF: DevState = { enabled: false, unlimited: false };
+let dev: DevState = DEV_OFF;
+let devHydrated = false;
+const devListeners = new Set<() => void>();
+
+const writeDev = (next: DevState) => {
+  dev = next;
+  try {
+    if (next.enabled) window.localStorage.setItem(DEV_KEY, JSON.stringify({ unlimited: next.unlimited }));
+    else window.localStorage.removeItem(DEV_KEY);
+  } catch {
+    /* storage blocked — dev mode still works this session */
+  }
+  devListeners.forEach((l) => l());
+};
+
+/** reads `?dev=1` / `?dev=0`, strips it from the URL, then loads the stored dev flag */
+export const hydrateDevMode = () => {
+  if (devHydrated || typeof window === "undefined") return;
+  devHydrated = true;
+  let next: DevState = DEV_OFF;
+  try {
+    const raw = window.localStorage.getItem(DEV_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { unlimited?: unknown };
+      next = { enabled: true, unlimited: parsed?.unlimited !== false };
+    }
+  } catch {
+    next = { enabled: true, unlimited: true };
+  }
+  const url = new URL(window.location.href);
+  const param = url.searchParams.get("dev");
+  if (param === "1") next = { enabled: true, unlimited: true };
+  else if (param === "0") next = DEV_OFF;
+  if (param !== null) {
+    url.searchParams.delete("dev");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  }
+  writeDev(next);
+};
+
+const subscribeDev = (l: () => void) => {
+  devListeners.add(l);
+  return () => devListeners.delete(l);
+};
+const getDev = () => dev;
+const getDevServer = () => DEV_OFF;
+export const useDevMode = () => useSyncExternalStore(subscribeDev, getDev, getDevServer);
+
+/** dev mode with unlimited coins on */
+export const isUnlimited = () => dev.enabled && dev.unlimited;
+
+/** the single affordability rule used by every buy button and price check */
+export const canAfford = (price: number) => isUnlimited() || state.coins >= price;
+
+const defaultOwned = () => defaultState().ownedItemIds;
+
+export const devActions = {
+  setUnlimited(on: boolean) {
+    if (!dev.enabled) return;
+    writeDev({ ...dev, unlimited: on });
+  },
+  addCoins(n: number) {
+    if (!dev.enabled) return;
+    set({ coins: state.coins + n });
+  },
+  zeroCoins() {
+    if (!dev.enabled) return;
+    set({ coins: 0 });
+    writeDev({ ...dev, unlimited: false });
+  },
+  unlockAll() {
+    if (!dev.enabled) return;
+    set({ ownedItemIds: Array.from(new Set([...state.ownedItemIds, ...Object.keys(ITEM_CATALOG)])) });
+  },
+  resetPurchases() {
+    if (!dev.enabled) return;
+    const owned = defaultOwned();
+    const keep = new Set(owned);
+    set({
+      ownedItemIds: owned,
+      roomLayout: state.roomLayout.filter((p) => keep.has(p.itemId)),
+      myWallpaperId: keep.has(state.myWallpaperId) ? state.myWallpaperId : seed.wallpaperId,
+    });
+  },
+  allowDailyAgain() {
+    if (!dev.enabled) return;
+    set({ lastDailyAnswerDate: todayKey(new Date(Date.now() - 86_400_000)) });
+  },
+  resetStreak() {
+    if (!dev.enabled) return;
+    set({ currentStreak: 0 });
+  },
+  resetEverything() {
+    if (!dev.enabled) return;
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  },
+};
+
 export const playerActions = {
   buy(itemId: string) {
     const item = ITEM_CATALOG[itemId];
-    if (!item || state.ownedItemIds.includes(itemId) || state.coins < item.price) return false;
-    set({ coins: state.coins - item.price, ownedItemIds: [...state.ownedItemIds, itemId] });
+    if (!item || state.ownedItemIds.includes(itemId) || !canAfford(item.price)) return false;
+    // dev "unlimited" runs the full purchase flow but never touches the real balance
+    const coins = isUnlimited() ? state.coins : state.coins - item.price;
+    set({ coins, ownedItemIds: [...state.ownedItemIds, itemId] });
     sfx.purchase();
     sfx.coin();
     return true;

@@ -9,7 +9,16 @@ import { RoomEditorTray } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { ShopPanel } from "./ShopPanel";
 import { todayKey } from "@/data/prompts";
-import { getPlayerState, hydratePlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
+import {
+  getPlayerState,
+  hydrateDevMode,
+  hydratePlayerState,
+  playerActions,
+  useDevMode,
+  usePlayerState,
+} from "@/lib/playerStore";
+import { CoinAmount } from "./CoinAmount";
+import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 
@@ -31,8 +40,11 @@ const DormGame = () => {
   const hasNewFeatured = featuredForToday().length > 0 && lastShopSeenDate !== todayKey();
 
 
+  const devMode = useDevMode();
+
   useEffect(() => {
     hydratePlayerState();
+    hydrateDevMode();
   }, []);
 
   useEffect(() => {
@@ -212,8 +224,8 @@ const DormGame = () => {
             <IconChip>
               <Coins className="size-3.5" aria-hidden />
             </IconChip>
-            <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">
-              {coins}
+            <span className="font-body text-sm font-bold text-panel-foreground">
+              <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
             </span>
           </GamePanel>
           {currentStreak > 0 ? (
@@ -314,6 +326,10 @@ const DormGame = () => {
       ) : (
         <DormPopup payload={popup} thumbnails={thumbs} />
       )}
+
+      {devMode.enabled ? (
+        <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
+      ) : null}
 
       <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
     </div>
