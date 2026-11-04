@@ -204,8 +204,10 @@ export class DormScene extends Phaser.Scene {
   private getWallpaperId: () => string = () => ROOMS[0]!.wallpaperId;
   private onWallTap: () => void = () => {};
   private wallGfx: Phaser.GameObjects.Graphics | null = null;
-  /** "x,y" keys of back-wall face tiles (2 rows tall) in personal + common rooms */
+  /** "x,y" keys of back-wall face tiles (2 rows tall) in personal + common rooms + hallway */
   private faceTiles = new Set<string>();
+  /** which zone's face each face tile belongs to (painting must not guess via zoneNear) */
+  private faceOwner = new Map<string, Zone>();
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
 
@@ -291,16 +293,21 @@ export class DormScene extends Phaser.Scene {
         }
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
 
-    // back-wall face: the top ring row + the first interior row read as one tall wall
+    // back-wall face: the top ring row + the first interior row read as one tall wall.
+    // Indoor rooms and the hallway get one; the courtyard (outdoor) does not.
     this.faceTiles.clear();
+    this.faceOwner.clear();
     for (const z of zones) {
-      if (z.kind !== "personal" && z.kind !== "common") continue;
+      if (z.kind !== "personal" && z.kind !== "common" && z.kind !== "hall") continue;
       const topDoor = new Set(DOORWAYS.filter(([, dy]) => dy === z.y - 1).map(([dx]) => dx));
       for (let x = z.x; x < z.x + z.w; x++) {
         if (topDoor.has(x)) continue;
         this.grid[z.y]![x] = WALL;
-        this.faceTiles.add(`${x},${z.y - 1}`);
-        this.faceTiles.add(`${x},${z.y}`);
+        for (const y of [z.y - 1, z.y]) {
+          this.faceTiles.add(`${x},${y}`);
+          // explicit owner: the hall face shares row 16 with the bedrooms' bottom ring
+          this.faceOwner.set(`${x},${y}`, z);
+        }
       }
     }
   }
@@ -461,7 +468,7 @@ export class DormScene extends Phaser.Scene {
     paper: number,
     trim: number,
     isTopRow: boolean,
-    pattern: NonNullable<ItemDef["wallPattern"]> = "flat",
+    pattern: NonNullable<ItemDef["wallPattern"]> | "wainscot" = "flat",
   ) {
     const bx = t(x);
     const by = t(y);
@@ -506,11 +513,19 @@ export class DormScene extends Phaser.Scene {
     } else if (pattern === "sunset") {
       if (isTopRow) fill(light, 0, 8, TILE, TILE - 8);
       else fill(accent, 0, 0, TILE, TILE);
+    } else if (pattern === "wainscot" && !isTopRow) {
+      // institutional corridor: darker vertical-board paneling below a chair rail;
+      // the top row stays plain painted wall
+      const board = mix(paper, 0x2b2027, 0.25);
+      fill(board, 0, 0, TILE, TILE);
+      for (let i = 0; i < TILE; i += 8) fill(mix(board, 0x2b2027, 0.28), i, 6, 2, TILE - 6);
+      fill(mix(board, 0xfaf0e0, 0.18), 2, 6, 2, TILE - 13); // board edge catch-light
     }
     if (isTopRow) {
       fill(deep, 0, 0, TILE, 6); // crown
       fill(hi, 0, 6, TILE, 2);
     } else {
+      if (pattern === "wainscot") fill(mix(trim, 0xfaf0e0, 0.55), 0, 0, TILE, 2); // rail cap highlight
       fill(shade, 0, 4, TILE, 2); // chair rail
       fill(hi, 0, 6, TILE, 1);
       fill(shade, 0, TILE - 9, TILE, 2);
@@ -564,11 +579,22 @@ export class DormScene extends Phaser.Scene {
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
+        const owner = this.faceOwner.get(`${x},${y}`);
+        if (owner) {
+          this.drawFaceTile(
+            g,
+            x,
+            y,
+            mix(owner.wall, 0xf3e6d0, 0.38),
+            owner.wall,
+            y === owner.y - 1,
+            owner.kind === "hall" ? "wainscot" : "flat",
+          );
+          continue;
+        }
         const zone = this.zoneNear(x, y, zones);
         const base = zone?.wall ?? NEUTRAL_WALL;
-        if (this.faceTiles.has(`${x},${y}`) && zone)
-          this.drawFaceTile(g, x, y, mix(base, 0xf3e6d0, 0.38), base, y === zone.y - 1);
-        else if (zone && (zone.kind === "personal" || zone.kind === "common"))
+        if (zone && (zone.kind === "personal" || zone.kind === "common"))
           this.drawCapTile(g, x, y, base);
         else this.drawWallTile(g, x, y, base);
       }
@@ -596,9 +622,10 @@ export class DormScene extends Phaser.Scene {
     this.layDoormats();
   }
 
-  /** communal hallway runner rug down the corridor spine, inset a tile from each wall */
+  /** communal hallway runner rug down the corridor spine, centred on the walkable rows (below the face) */
   private layHallwayRunner() {
-    const cy = t(HALL.y + HALL.h / 2);
+    const floorTop = HALL.y + 1; // row HALL.y is the back-wall face
+    const cy = t(floorTop + (HALL.h - 1) / 2);
     const x0 = HALL.x + 1;
     const x1 = HALL.x + HALL.w - 1;
     for (let tx = x0; tx < x1; tx++)
@@ -616,17 +643,18 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
   }
 
-  /** thin woven mat layered on top of every doorway sill */
+  /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
   private layDoormats() {
     DOORWAYS.forEach(([x, y], i) => {
       const personal = i < 6 ? ROOMS[Math.floor(i / 2)] : undefined;
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
         : 0xc3b39a;
+      const my = personal ? HALL.y + 1 : y;
       this.add
-        .image(t(x) + TILE / 2, t(y) + TILE / 2, "doormat")
+        .image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat")
         .setTint(tint)
-        .setDepth(1);
+        .setDepth(1.2);
     });
   }
 
@@ -732,36 +760,57 @@ export class DormScene extends Phaser.Scene {
 
 
 
-    // ---- door: nameplate, stickers, presence glow, sound cue ----
+    // ---- doorway in the hall's back wall: frame, stickers, sconce, placard, glow, sound cue ----
     const dx = t(doorX) + TILE;
     const dy = t(16) + TILE / 2;
-    this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
-    this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
-    // hallway-side name sign, matching the common-room labels
-    this.label(dx, dy + (room.awayNote && !room.isActive ? 50 : 30), room.name, "#3a2f34", 12).setDepth(5);
+    const faceTop = t(16);
+    const faceH = TILE * 2;
+    const openL = t(doorX);
+    const openR = t(doorX + 2);
+    {
+      const fr = this.add.graphics().setDepth(4);
+      const jamb = (x: number) => {
+        fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
+        fr.fillStyle(accent, 1).fillRect(x, faceTop, 4, faceH);
+        fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(x, faceTop, 2, faceH);
+      };
+      jamb(openL - 4); // left jamb: inner edge of the face tile left of the door
+      jamb(openR); // right jamb
+      // header across the top of row 16
+      fr.fillStyle(0x241c26, 1).fillRect(openL - 6, faceTop, openR - openL + 12, 8);
+      fr.fillStyle(accent, 1).fillRect(openL - 4, faceTop, openR - openL + 8, 6);
+      fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(openL - 4, faceTop, openR - openL + 8, 2);
+    }
 
+    // door stickers on the face left of the frame, staggered
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
       if (!this.textures.exists(key)) return;
       this.add
-        .image(dx - 18 + i * 18, dy + 2, key)
+        .image(t(doorX - 1) + (i % 2 === 0 ? 12 : 18), faceTop + 16 + i * 16, key)
         .setDepth(6)
-        .setScale(0.8)
+        .setScale(0.7)
         .setTint(0xfffdf5);
     });
 
-    // presence: hard-edged dithered pixel halo over the doorway lamp
+    // presence: hard-edged dithered pixel halo in the doorway
     const glow = this.add
       .image(dx, dy - 2, "glow")
       .setTint(mood.glow)
       .setDepth(3)
       .setScale(0.9)
       .setAlpha(room.isActive ? 0.4 : 0.1);
-    // pixel lamp above the door
-    this.add.rectangle(dx, dy - 34, 8, 6, 0x241c26, 1).setDepth(5);
+    // pixel wall sconce on the face right of the frame
+    const sconceX = openR + 12;
+    this.add.rectangle(sconceX, faceTop + 18, 8, 6, 0x241c26, 1).setDepth(5);
     this.add
-      .rectangle(dx, dy - 33, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
+      .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
+
+    // nameplate mounted on the face; an away note becomes its second line
+    const away = !room.isActive ? room.awayNote : undefined;
+    const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
+    if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
 
     if (room.isActive) {
       this.tweens.add({
@@ -775,11 +824,50 @@ export class DormScene extends Phaser.Scene {
       });
       this.spawnSoundCue(dx, dy - 10, mood.glow);
       this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
-    } else if (room.awayNote) {
-      // "someone's out" note taped to the door, rather than a blank dim door
-      this.add.image(dx, dy + 2, "awaynote").setDepth(7);
-      this.label(dx, dy + 30, room.awayNote, "#4a3d43", 11).setDepth(7);
     }
+  }
+
+  /**
+   * Wall-mounted sign: text in the world lives on signs on walls, never floating on floors.
+   * `left` is the sign's left edge; `cy` its vertical centre. Returns its bounds.
+   */
+  private wallSign(
+    left: number,
+    cy: number,
+    lines: string[],
+    style: "cream" | "dark",
+    anchor: "left" | "center" = "left",
+  ) {
+    const ink = 0x241c26;
+    const bg = style === "cream" ? 0xf3ead2 : 0x33292f;
+    const fg = style === "cream" ? "#2b2027" : "#f3ead2";
+    const texts = lines.map((s, i) =>
+      this.add
+        .text(0, 0, s, {
+          fontFamily: '"Pixelify Sans", sans-serif',
+          fontSize: i === 0 ? "11px" : "9px",
+          color: i === 0 ? fg : style === "cream" ? "#6b5c50" : "#cdbfa8",
+          fontStyle: i === 0 ? "700" : "500",
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(4.6),
+    );
+    const lineH = [12, 10];
+    const w = Math.ceil(Math.max(...texts.map((tx) => tx.width)) / 2) * 2 + 12;
+    const h = lines.reduce((a, _, i) => a + (lineH[i] ?? 10), 0) + 6;
+    const x0 = Math.round(anchor === "left" ? left : left - w / 2);
+    const y0 = Math.round(cy - h / 2);
+    const g = this.add.graphics().setDepth(4.5);
+    g.fillStyle(ink, 1).fillRect(x0, y0, w, h);
+    g.fillStyle(bg, 1).fillRect(x0 + 2, y0 + 2, w - 4, h - 4);
+    g.fillStyle(ink, 0.25).fillRect(x0 + 2, y0 + h - 4, w - 4, 2); // bottom lip shade
+    let yy = y0 + 3;
+    texts.forEach((tx, i) => {
+      const lh = lineH[i] ?? 10;
+      tx.setPosition(x0 + w / 2, yy + lh / 2);
+      yy += lh;
+    });
+    return { left: x0, right: x0 + w, top: y0, bottom: y0 + h };
   }
 
   // ---------- layout rendering + room editor ----------
@@ -1393,7 +1481,8 @@ export class DormScene extends Phaser.Scene {
       const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
       this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
     }
-    this.label(t(HALL.x + 1.6), t(HALL.y) + 14, "Floor 3", "#6b5c50", 14);
+    // wayfinding: a dark painted plaque on the hall's back-wall face
+    this.wallSign(t(4), t(17), ["FLOOR 3"], "dark", "center");
 
     // ---- Common Lounge ----
     // Composition rules for every shared room: wall decor on the face (row 0),
@@ -1435,7 +1524,8 @@ export class DormScene extends Phaser.Scene {
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
-    this.prop({ key: "console", x: lx(5.2), y: ly(1.9), solid: true });
+    // console on the floor in front of the TV's right side — clear of the TV and the door plant
+    this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
     this.prop({
       key: "table",
@@ -1454,12 +1544,12 @@ export class DormScene extends Phaser.Scene {
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
       const f = this.add
-        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 4, 4, fleckColors[i % 4]!, 0)
+        .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 6, 6, fleckColors[i % 4]!, 0)
         .setDepth(1.5);
       const drift = () => {
         const ox = lx(1.4 + Math.random() * 3.8);
         const oy = ly(4.6 + Math.random() * 1.6);
-        f.setPosition(ox, oy).setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 0.75);
+        f.setPosition(ox, oy).setFillStyle(fleckColors[Math.floor(Math.random() * 4)]!, 1);
         f.setAlpha(0);
         this.tweens.add({
           targets: f,
@@ -1471,7 +1561,7 @@ export class DormScene extends Phaser.Scene {
         });
         this.tweens.add({
           targets: f,
-          alpha: { from: 0, to: 1 },
+          alpha: { from: 0, to: 0.85 },
           duration: 1400,
           yoyo: true,
           hold: 500,
@@ -1559,76 +1649,82 @@ export class DormScene extends Phaser.Scene {
 
 
     // ---- hallway shared props ----
+    // Rows 16–17 are the hall's back-wall face (face centre = t(17)); walkable floor is rows 18–21.
+    // Wall decor hangs on the face; floor pieces stand on row 18+ with their tops overlapping it.
+    const faceMid = t(HALL.y);
+    const standOn = (h: number, foot = 22) => t(HALL.y + 1) + foot - h / 2; // bottom lands on row 18
+
     this.prop({
       key: "board",
       x: t(24),
-      y: t(HALL.y) + 22,
+      y: faceMid,
       scale: 1.15,
       payload: { kind: "corkboard" },
       label: COMMUNITY_CORKBOARD.title,
     });
-    this.label(t(24), t(HALL.y) - 4, "Community corkboard", "#4a3d43", 12);
 
     this.prop({
       key: "vending",
       x: t(46),
-      y: t(HALL.y) + 32,
+      y: standOn(98, 20),
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
     this.prop({
       key: "crate",
       x: t(8),
-      y: t(HALL.y) + 34,
+      y: standOn(52),
       payload: { kind: "flavor", ...FLAVOR_PROPS.lostFound },
     });
-    this.label(t(8), t(HALL.y) + 62, "Lost & found", "#4a3d43", 12);
+    // a crate alone is ambiguous, so this one keeps a sign — on the wall above it
+    this.wallSign(t(8), t(16) + 20, ["LOST & FOUND"], "cream", "center");
 
-    // locked "more rooms coming" door on the hallway's south wall
+    // locked "more rooms coming" door set into the corridor's back wall, sill on the baseboard
     this.prop({
       key: "lockdoor",
-      x: t(65.5),
-      y: t(22) + 6,
+      x: t(64.5),
+      y: t(HALL.y + 1) - 32,
+      scale: 0.68,
       payload: { kind: "flavor", ...FLAVOR_PROPS.locked },
     }).setAlpha(0.75);
 
-    // club flyers / lost-pet posters taped along the hallway walls
+    // club flyers / lost-pet posters taped mid-face, slightly staggered
     const flyers: Array<[number, number, string, number]> = [
       // hallway decor never goes on row 22 — that wall's visible side belongs to the rooms below
-      [20, 16.55, "flyer-a", 0xfffdf5],
-      [27.5, 16.45, "flyer-b", 0xf0ecdc],
-      [43.5, 16.6, "flyer-c", 0xfdf3ea],
-      [61, 16.5, "flyer-d", 0xf6f0dd],
-      [23.5, 16.5, "flyer-b", 0xfaf4e4],
-      [45.5, 16.45, "flyer-a", 0xf3ecd8],
+      [20, 16.85, "flyer-a", 0xfffdf5],
+      [21.5, 17.15, "flyer-b", 0xfaf4e4],
+      [27.5, 16.9, "flyer-b", 0xf0ecdc],
+      [41.5, 16.85, "flyer-a", 0xf3ecd8],
+      [43.5, 17.1, "flyer-c", 0xfdf3ea],
+      [61, 17.0, "flyer-d", 0xf6f0dd],
     ];
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
 
-    // a bike leaning against the corridor wall
-    this.prop({ key: "bike", x: t(57), y: t(HALL.y) + 26 });
+    // a bike standing on row 18, leaning against the corridor wall (clear of Jordan's nameplate)
+    this.prop({ key: "bike", x: t(49.5), y: standOn(60) });
 
-    // warm floor lamp lighting an otherwise empty stretch of corridor
-    this.prop({ key: "lamp", x: t(35.4), y: t(HALL.y) + 36 });
+    // warm floor lamp lighting an otherwise empty stretch of corridor (clear of Sam's nameplate)
+    const lampX = t(37.9);
+    this.prop({ key: "lamp", x: lampX, y: standOn(88, 24) });
     this.add
-      .image(t(35.4), t(HALL.y) + 44, "glow")
+      .image(lampX, t(HALL.y + 1) + 20, "glow")
       .setTint(0xffdca0)
       .setAlpha(0.3)
       .setScale(1.8)
       .setDepth(1);
 
     // recycling + trash pair
-    this.prop({ key: "bin", x: t(40), y: t(HALL.y) + 40, tint: 0x7f9ec4 });
-    this.prop({ key: "bin", x: t(40.9), y: t(HALL.y) + 42 });
+    this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
+    this.prop({ key: "bin", x: t(40.9), y: standOn(38, 24) });
 
     // mail cubbies on the hallway wall
     this.prop({
       key: "cubby",
       x: t(30),
-      y: t(HALL.y) + 16,
+      y: faceMid,
       payload: { kind: "flavor", title: "Mail Cubbies", lines: ["Someone's Amazon package again", "One postcard from 2019"] },
     });
-    this.label(t(30), t(HALL.y) - 6, "Mail cubbies", "#4a3d43", 12);
 
     void zones;
   }
