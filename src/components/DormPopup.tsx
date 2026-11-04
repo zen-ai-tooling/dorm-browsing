@@ -982,30 +982,101 @@ const BulletinEdit = ({
   );
 };
 
-/* ---------------- corkboard (unchanged behaviour) ---------------- */
+/* ---------------- corkboard: question of the day + results ---------------- */
+
+const RESIDENT_ACCENT: Record<string, string> = Object.fromEntries(ROOMS.map((r) => [r.id, r.accentColor]));
+
+/** tiny pixel head in the resident's accent (hair) */
+const Head = ({ accent, size = 18 }: { accent: string; size?: number }) => (
+  <PixelIcon
+    size={size}
+    def={{
+      icon: ["..XXXX..", ".XaaaaX.", "XaaaaaaX", "XooooooX", "XoXooXoX", "XooooooX", ".XooooX.", "..XXXX.."],
+      color: "#f1c9a5",
+      color2: accent,
+    }}
+  />
+);
+
+const AgreeChip = ({ name, accent }: { name: string; accent: string }) => (
+  <span
+    className="inline-block border-2 border-ink px-1 font-display text-[9px] font-bold uppercase leading-tight tracking-wider text-ink"
+    style={{ backgroundColor: accent }}
+  >
+    You and {name} agree
+  </span>
+);
+
+const DailyResults = ({ justAnswered }: { justAnswered: boolean }) => {
+  const { dailyAnswers } = usePlayerState();
+  const prompt = promptForToday();
+  const entry = dailyAnswers[todayKey()];
+  const mine = entry?.promptId === prompt.id ? entry.answer : null;
+  const split = floorSplit(prompt);
+  const picks = DAILY_RESIDENTS.map((r) => ({ ...r, pick: residentPick(r.id, prompt), accent: RESIDENT_ACCENT[r.id] ?? "#8d8090" }));
+  return (
+    <Shell accent="#c9a227" title="Question of the day" subtitle={justAnswered ? `+${DAILY_COIN_REWARD} coins` : "answered ✓"}>
+      <p className="font-body font-semibold text-panel-foreground">{prompt.question}</p>
+      <p className="mt-2 font-display text-[10px] font-bold uppercase tracking-wider text-panel-muted">Floor 3 residents</p>
+      <ul className="mt-1 space-y-1">
+        {prompt.options.map((opt, i) => {
+          const isMine = opt === mine;
+          const who = picks.filter((p) => p.pick === opt);
+          return (
+            <li
+              key={opt}
+              className={`border-2 px-1.5 py-1 ${isMine ? "border-ink bg-primary/25" : "border-transparent"}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="min-w-0 flex-1 truncate font-body text-xs font-bold text-panel-foreground">
+                  {opt}
+                  {isMine ? <span className="ml-1 font-display text-[9px] uppercase text-panel-muted">you</span> : null}
+                </span>
+                {who.map((p) => (
+                  <span key={p.id} title={`${p.name} picked this`}>
+                    <Head accent={p.accent} size={15} />
+                  </span>
+                ))}
+                <span className="w-8 shrink-0 text-right font-display text-[11px] font-bold tabular-nums text-panel-foreground">
+                  {split[i]}%
+                </span>
+              </div>
+              <div className="mt-0.5 h-2 border-2 border-ink bg-panel">
+                <div className="h-full bg-ink/70" style={{ width: `${split[i]}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+        {picks.map((p) => (
+          <span key={p.id} className="flex items-center gap-1 font-body text-[11px] text-panel-foreground">
+            <Head accent={p.accent} size={15} />
+            <span className="font-bold">{p.name}:</span> {p.pick}
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="font-display text-xs font-bold text-panel-foreground">
+          {mine ? "Pinned to your door ✓" : "You answered today ✓"}
+        </span>
+        {picks
+          .filter((p) => mine && p.pick === mine)
+          .map((p) => (
+            <AgreeChip key={p.id} name={p.name} accent={p.accent} />
+          ))}
+      </div>
+    </Shell>
+  );
+};
 
 const CorkboardPopup = () => {
   const { lastDailyAnswerDate } = usePlayerState();
-  const [justAnswered, setJustAnswered] = useState<string | null>(null);
+  const [justAnswered, setJustAnswered] = useState(false);
   const answeredToday = lastDailyAnswerDate === todayKey();
   const prompt = promptForToday();
 
-  if (answeredToday) {
-    return (
-      <Shell accent="#8d8090" title={COMMUNITY_CORKBOARD.title} subtitle="floor-wide">
-        {justAnswered ? (
-          <p className="font-display font-bold text-panel-foreground">
-            “{justAnswered}” pinned · +{DAILY_COIN_REWARD} coins
-          </p>
-        ) : null}
-        <ul className="mt-1 space-y-1">
-          {COMMUNITY_CORKBOARD.items.map((i) => (
-            <li key={i}>· {i}</li>
-          ))}
-        </ul>
-      </Shell>
-    );
-  }
+  if (answeredToday) return <DailyResults justAnswered={justAnswered} />;
 
   return (
     <Shell
@@ -1021,8 +1092,8 @@ const CorkboardPopup = () => {
             key={opt}
             type="button"
             onClick={() => {
-              setJustAnswered(opt);
-              playerActions.answerDaily();
+              setJustAnswered(true);
+              playerActions.answerDaily(opt);
             }}
             className="rounded-[3px] border-2 border-ink bg-panel px-3 py-1.5 font-display text-xs font-bold text-panel-foreground transition hover:bg-ink hover:text-panel"
           >
