@@ -13,7 +13,7 @@ export interface ItemThumb {
 }
 
 /** draws each item's texture with its display tint multiplied in, alpha restored via destination-in */
-const buildItemThumbs = (scene: TextureSourceProvider, mood: MoodKey): Record<string, ItemThumb> => {
+export const buildItemThumbs = (scene: TextureSourceProvider, mood: MoodKey): Record<string, ItemThumb> => {
   const out: Record<string, ItemThumb> = {};
   for (const item of Object.values(ITEM_CATALOG)) {
     const src = scene.getTextureSource(item.textureKey);
