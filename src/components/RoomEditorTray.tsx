@@ -111,12 +111,17 @@ export const RoomEditorTray = ({
                             disabled={!placeable}
                             onDragStart={(e) => e.dataTransfer.setData("text/plain", item.id)}
                             onClick={() => onTrayClick(item.id)}
-                            className={`flex w-20 flex-col items-center gap-1 rounded-[3px] border-2 px-1.5 py-1.5 transition ${
+                            className={`relative flex w-20 flex-col items-center gap-1 rounded-[3px] border-2 px-1.5 py-1.5 transition ${
                               active
                                 ? "border-ink bg-primary/30"
                                 : "border-ink bg-panel hover:bg-panel-foreground/10"
                             } ${placeable ? "" : "cursor-default opacity-60"}`}
                           >
+                            {item.exclusive === "mail" ? (
+                              <span className="absolute -right-1 -top-1 border-2 border-ink bg-[var(--tag-premium)] px-0.5 font-display text-[8px] font-bold leading-none text-ink">
+                                MAIL
+                              </span>
+                            ) : null}
                             <span className="flex h-10 w-full items-center justify-center">
                               {thumb ? (
                                 <img

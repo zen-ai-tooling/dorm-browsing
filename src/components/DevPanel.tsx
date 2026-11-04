@@ -159,6 +159,10 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
           Allow today's daily again
         </DevButton>
         <DevButton onClick={() => run(devActions.resetStreak, "Streak reset")}>Reset streak</DevButton>
+        <DevButton onClick={() => run(devActions.resetPackage, "Today's package is back in the cubby")}>
+          Reset today's package
+        </DevButton>
+        <DevButton onClick={() => run(devActions.resetQuests, "Welcome quests reset")}>Reset quests</DevButton>
         <DevButton danger onClick={resetEverything}>
           {confirmReset ? "Tap again to confirm" : "Reset everything"}
         </DevButton>

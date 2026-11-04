@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Coins, Flame, Pencil, Store, Volume2, VolumeX } from "lucide-react";
+import { Coins, Flame, Mail, Pencil, Store, Volume2, VolumeX } from "lucide-react";
+import { WelcomeQuests } from "./WelcomeQuests";
 import { ROOMS, type PopupPayload } from "@/data/dorm";
 import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
@@ -9,7 +10,7 @@ import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { ShopPanel } from "./ShopPanel";
-import { todayKey } from "@/data/prompts";
+import { promptForToday, todayKey } from "@/data/prompts";
 import { toast } from "sonner";
 import {
   devActions,
@@ -39,8 +40,17 @@ const DormGame = () => {
   /** per item id, tinted exactly like the room renders it (see displayTintFor) */
   const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
-  const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId, seenControls } =
-    usePlayerState();
+  const {
+    coins,
+    muted,
+    currentStreak,
+    lastShopSeenDate,
+    myWallpaperId,
+    seenControls,
+    dailyAnswers,
+    lastPackageDate,
+  } = usePlayerState();
+  const packageReady = lastPackageDate !== todayKey();
   const [hintOpen, setHintOpen] = useState<boolean | null>(null);
   const showHint = hintOpen ?? !seenControls;
   const trayWrapRef = useRef<HTMLDivElement>(null);
@@ -103,6 +113,11 @@ const DormGame = () => {
         getWallpaperId: () => getPlayerState().myWallpaperId,
         onWallTap: () => setWallpaperOpen(true),
         getPhase: () => currentPhase(),
+        getMyDailyAnswer: () => {
+          const e = getPlayerState().dailyAnswers[todayKey()];
+          return e && e.promptId === promptForToday().id ? e.answer : null;
+        },
+        isPackageReady: () => getPlayerState().lastPackageDate !== todayKey(),
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
 
@@ -175,6 +190,11 @@ const DormGame = () => {
   useEffect(() => {
     sceneRef.current?.applyWallpaper();
   }, [myWallpaperId]);
+
+  // door whiteboards + the cubby package follow today's answer and package state
+  useEffect(() => {
+    sceneRef.current?.refreshDaily();
+  }, [dailyAnswers, lastPackageDate]);
 
   // Escape backs out of placing mode / selection even when the canvas isn't focused
   useEffect(() => {
@@ -266,6 +286,22 @@ const DormGame = () => {
             </span>
           </GamePanel>
           <PhaseChip />
+          {packageReady ? (
+            <GamePanel
+              className="relative flex items-center gap-1.5 px-2 py-1.5"
+              accent="#c99a5b"
+              title="A package is waiting in the mail cubby"
+            >
+              <IconChip>
+                <Mail className="size-3.5" aria-hidden />
+              </IconChip>
+              <span className="font-body text-xs font-bold text-panel-foreground">Mail</span>
+              <span
+                aria-label="Unopened package"
+                className="absolute right-1 top-1 size-2.5 rounded-full border-2 border-ink bg-primary"
+              />
+            </GamePanel>
+          ) : null}
           {currentStreak > 0 ? (
             <GamePanel
               className="flex items-center gap-2 px-2.5 py-1.5"
@@ -363,8 +399,10 @@ const DormGame = () => {
         />
         </div>
       ) : (
-        <DormPopup payload={popup} thumbnails={thumbs} />
+        <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
       )}
+
+      <WelcomeQuests hidden={editing} />
 
       {devMode.enabled ? (
         <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
