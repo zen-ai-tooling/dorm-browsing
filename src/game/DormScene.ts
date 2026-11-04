@@ -19,6 +19,7 @@ import {
   type Rotation,
 } from "@/data/items";
 import { buildTextures } from "./textures";
+import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type Light, type LightSpec } from "./lighting";
 import {
@@ -199,6 +200,8 @@ interface PropDef {
   payload?: PopupPayload;
   label?: string;
   solid?: boolean;
+  /** interactive but fixed to the wall: no idle bob */
+  still?: boolean;
 }
 
 const t = (n: number) => n * TILE;
@@ -266,6 +269,12 @@ export class DormScene extends Phaser.Scene {
   private beams: Array<{ g: Phaser.GameObjects.Graphics; phase: Phase }> = [];
   /** placed-item lights, keyed by sprite */
   private placedLights = new Map<Phaser.GameObjects.Sprite, Light>();
+  /** daily check-in: player's answer today (null = not yet) and whether the package is waiting */
+  private getMyDailyAnswer: () => string | null = () => null;
+  private isPackageReady: () => boolean = () => false;
+  private boards: Array<{ residentId: string; text: Phaser.GameObjects.Text; sparkle: Phaser.GameObjects.Image | null }> = [];
+  private mailPackage: Phaser.GameObjects.Image | null = null;
+  private mailSparkle: Phaser.GameObjects.Image | null = null;
 
 
   constructor() {
@@ -282,8 +291,12 @@ export class DormScene extends Phaser.Scene {
     getWallpaperId?: () => string;
     onWallTap?: () => void;
     getPhase?: () => Phase;
+    getMyDailyAnswer?: () => string | null;
+    isPackageReady?: () => boolean;
   }) {
     if (data?.getPhase) this.getPhase = data.getPhase;
+    if (data?.getMyDailyAnswer) this.getMyDailyAnswer = data.getMyDailyAnswer;
+    if (data?.isPackageReady) this.isPackageReady = data.isPackageReady;
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
@@ -315,6 +328,7 @@ export class DormScene extends Phaser.Scene {
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
+    this.refreshDaily();
     this.onReady(this);
   }
 
@@ -1035,7 +1049,7 @@ export class DormScene extends Phaser.Scene {
       this.interactives.push({ sprite: s, ring, payload: def.payload });
       // 2px stepped bob — reads as sprite animation, not a smooth CSS float.
       // Never attach while editing: it would fight the drag handler's setPosition.
-      if (!this.editMode) {
+      if (!this.editMode && !def.still) {
         this.tweens.add({
           targets: s,
           y: def.y - 2,
