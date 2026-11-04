@@ -760,36 +760,57 @@ export class DormScene extends Phaser.Scene {
 
 
 
-    // ---- door: nameplate, stickers, presence glow, sound cue ----
+    // ---- doorway in the hall's back wall: frame, stickers, sconce, placard, glow, sound cue ----
     const dx = t(doorX) + TILE;
     const dy = t(16) + TILE / 2;
-    this.add.rectangle(dx, dy, TILE * 2 - 4, TILE - 6, 0x241c26, 1).setDepth(4);
-    this.add.rectangle(dx, dy, TILE * 2 - 8, TILE - 10, accent, 1).setDepth(4);
-    // hallway-side name sign, matching the common-room labels
-    this.label(dx, dy + (room.awayNote && !room.isActive ? 50 : 30), room.name, "#3a2f34", 12).setDepth(5);
+    const faceTop = t(16);
+    const faceH = TILE * 2;
+    const openL = t(doorX);
+    const openR = t(doorX + 2);
+    {
+      const fr = this.add.graphics().setDepth(4);
+      const jamb = (x: number) => {
+        fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
+        fr.fillStyle(accent, 1).fillRect(x, faceTop, 4, faceH);
+        fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(x, faceTop, 2, faceH);
+      };
+      jamb(openL - 4); // left jamb: inner edge of the face tile left of the door
+      jamb(openR); // right jamb
+      // header across the top of row 16
+      fr.fillStyle(0x241c26, 1).fillRect(openL - 6, faceTop, openR - openL + 12, 8);
+      fr.fillStyle(accent, 1).fillRect(openL - 4, faceTop, openR - openL + 8, 6);
+      fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(openL - 4, faceTop, openR - openL + 8, 2);
+    }
 
+    // door stickers on the face left of the frame, staggered
     room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
       if (!this.textures.exists(key)) return;
       this.add
-        .image(dx - 18 + i * 18, dy + 2, key)
+        .image(t(doorX - 1) + (i % 2 === 0 ? 12 : 18), faceTop + 16 + i * 16, key)
         .setDepth(6)
-        .setScale(0.8)
+        .setScale(0.7)
         .setTint(0xfffdf5);
     });
 
-    // presence: hard-edged dithered pixel halo over the doorway lamp
+    // presence: hard-edged dithered pixel halo in the doorway
     const glow = this.add
       .image(dx, dy - 2, "glow")
       .setTint(mood.glow)
       .setDepth(3)
       .setScale(0.9)
       .setAlpha(room.isActive ? 0.4 : 0.1);
-    // pixel lamp above the door
-    this.add.rectangle(dx, dy - 34, 8, 6, 0x241c26, 1).setDepth(5);
+    // pixel wall sconce on the face right of the frame
+    const sconceX = openR + 12;
+    this.add.rectangle(sconceX, faceTop + 18, 8, 6, 0x241c26, 1).setDepth(5);
     this.add
-      .rectangle(dx, dy - 33, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
+      .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
+
+    // nameplate mounted on the face; an away note becomes its second line
+    const away = !room.isActive ? room.awayNote : undefined;
+    const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
+    if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
 
     if (room.isActive) {
       this.tweens.add({
