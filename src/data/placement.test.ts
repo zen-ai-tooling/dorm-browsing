@@ -3,8 +3,8 @@ import { canPlaceIn, migrateMountLayout } from "./placement";
 
 describe("wall vs floor placement", () => {
   test("wall items only go on row 0", () => {
-    expect(canPlaceIn([], "poster_default", 2, 0)).toBe(true);
-    expect(canPlaceIn([], "poster_default", 2, 1)).toBe(false);
+    expect(canPlaceIn([], "poster_default", 4, 0)).toBe(true);
+    expect(canPlaceIn([], "poster_default", 4, 1)).toBe(false);
   });
 
   test("floor items can't go on row 0", () => {
@@ -13,8 +13,8 @@ describe("wall vs floor placement", () => {
   });
 
   test("wall items don't collide with floor items below them", () => {
-    const layout = [{ itemId: "plant_basic", gx: 2, gy: 1 }];
-    expect(canPlaceIn(layout, "poster_default", 2, 0)).toBe(true);
+    const layout = [{ itemId: "plant_basic", gx: 4, gy: 1 }];
+    expect(canPlaceIn(layout, "poster_default", 4, 0)).toBe(true);
   });
 });
 
