@@ -285,3 +285,41 @@
   50% { opacity: 0.6; }
   100% { opacity: 0; visibility: hidden; }
 }
+
+/* ---------- Iteration 22: storefront ---------- */
+:root {
+  --tag-standard: oklch(0.98 0.008 90);
+  --tag-nice: oklch(0.83 0.08 235);
+  --tag-premium: oklch(0.86 0.14 88);
+  --tag-short: oklch(0.52 0.17 27);
+  --awning: oklch(0.63 0.15 32);
+  --shop-floor: oklch(0.9 0.02 80);
+}
+
+/* hard-edged striped awning */
+@utility shop-awning {
+  background-color: var(--color-panel);
+  background-image: repeating-linear-gradient(90deg, var(--awning) 0 24px, var(--color-panel) 24px 48px);
+}
+
+/* wood shelf plank the items stand on */
+@utility shelf-plank {
+  background-color: var(--crate-wood);
+  border-top: 3px solid var(--color-ink);
+  border-bottom: 3px solid var(--color-ink);
+  box-shadow: inset 0 3px 0 0 color-mix(in oklab, var(--crate-wood) 70%, white 30%);
+}
+
+@keyframes shop-hop {
+  from { transform: translateY(0); }
+  to { transform: translateY(-18px); }
+}
+@keyframes coin-fly {
+  from { transform: translate(0, 0); opacity: 1; }
+  90% { opacity: 1; }
+  to { transform: translate(var(--dx), var(--dy)); opacity: 0; }
+}
+@keyframes mo-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-4px); }
+}

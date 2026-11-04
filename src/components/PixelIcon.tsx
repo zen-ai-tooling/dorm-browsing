@@ -3,6 +3,8 @@ export interface PixelGlyph {
   icon: string[];
   color: string;
   color2: string;
+  /** extra single-character colors beyond X / o / a / + */
+  palette?: Record<string, string>;
 }
 
 /** 12×12 string-grid pixel icon rendered as SVG rects */
@@ -12,6 +14,7 @@ export const PixelIcon = ({ def, size = 24 }: { def: PixelGlyph; size?: number }
     o: def.color,
     a: def.color2,
     "+": "var(--polaroid)",
+    ...def.palette,
   };
   return (
     <svg
