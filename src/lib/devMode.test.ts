@@ -16,6 +16,7 @@ let replacedUrl = "";
 let m: typeof import("./playerStore");
 beforeAll(async () => {
   m = await import("./playerStore");
+  m.__resetStoreForTests();
   m.hydratePlayerState();
   m.hydrateDevMode();
 });
@@ -53,7 +54,7 @@ describe("dev mode", () => {
 
   test("Reset streak keeps the longest streak", () => {
     m.devActions.allowDailyAgain();
-    m.playerActions.answerDaily();
+    m.playerActions.answerDaily("Cozy");
     const longest = m.getPlayerState().longestStreak;
     m.devActions.resetStreak();
     expect(m.getPlayerState().currentStreak).toBe(0);

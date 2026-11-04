@@ -3,7 +3,16 @@ import { ROOMS, type Bulletin, type NowWatching, type PlacedItem, type Song } fr
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
 import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
 import { migrateMountLayout } from "@/data/placement";
-import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
+import {
+  DAILY_COIN_REWARD,
+  normalizeDailyAnswers,
+  promptForToday,
+  todayKey,
+  trimDailyAnswers,
+  type DailyAnswer,
+} from "@/data/prompts";
+import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
+import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
 
 const STORAGE_KEY = "dorm-vibes-player-state";
@@ -41,6 +50,25 @@ export interface PlayerState {
   seenControls: boolean;
   /** collection sets already rewarded — each grants its bonus exactly once, ever */
   completedSets: string[];
+  /** daily question answers by date key, last 30 days */
+  dailyAnswers: Record<string, DailyAnswer>;
+  /** date the daily mail package was last opened */
+  lastPackageDate: string | null;
+  /** the last opened package, so its reward shows the same all day (and dev reset can undo it) */
+  lastPackage: LastPackage | null;
+  /** pity counter: packages opened in a row without a mail exclusive */
+  packagesSinceExclusive: number;
+  /** welcome quests finished (rewarded, or auto-ticked for older saves) */
+  questsDone: string[];
+  /** the one-time "Welcome to Floor 3" celebration has been shown */
+  questsCelebrated: boolean;
+}
+
+export interface LastPackage {
+  date: string;
+  reward: PackageReward;
+  /** pity counter before this package — restored by the dev reset */
+  prevSince: number;
 }
 
 const seed = ROOMS[0]!;
@@ -64,7 +92,21 @@ const defaultState = (): PlayerState => ({
   myWallpaperId: seed.wallpaperId,
   seenControls: false,
   completedSets: [],
+  dailyAnswers: {},
+  lastPackageDate: null,
+  lastPackage: null,
+  packagesSinceExclusive: 0,
+  questsDone: [],
+  questsCelebrated: false,
 });
+
+const normalizeLastPackage = (raw: unknown): LastPackage | null => {
+  const p = raw as Partial<LastPackage> | null;
+  if (!p || typeof p.date !== "string" || !p.reward || typeof p.reward !== "object") return null;
+  const kind = (p.reward as { kind?: unknown }).kind;
+  if (!["coins", "postcard", "item", "allFound", "jackpot"].includes(kind as string)) return null;
+  return { date: p.date, reward: p.reward as PackageReward, prevSince: typeof p.prevSince === "number" ? p.prevSince : 0 };
+};
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
 export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
@@ -80,6 +122,16 @@ export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
   return migrateMountLayout(next);
 };
 
+/** quests an older save already satisfies — ticked without paying their rewards */
+export const migrateQuests = (s: PlayerState): string[] =>
+  autoCompleteQuests(s.questsDone, {
+    lastDailyAnswerDate: s.lastDailyAnswerDate,
+    lastPackageDate: s.lastPackageDate,
+    ownedItemIds: s.ownedItemIds,
+    roomLayout: s.roomLayout,
+    defaultLayout: DEFAULT_MY_ROOM_LAYOUT,
+  });
+
 let state: PlayerState = defaultState();
 
 let hydrated = false;
@@ -92,7 +144,7 @@ const read = (): PlayerState => {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw) as Partial<PlayerState>;
     const base = defaultState();
-    return {
+    const next: PlayerState = {
       coins: typeof parsed.coins === "number" ? parsed.coins : base.coins,
       ownedItemIds: Array.isArray(parsed.ownedItemIds)
         ? Array.from(new Set([...base.ownedItemIds, ...parsed.ownedItemIds])).filter(
@@ -120,7 +172,20 @@ const read = (): PlayerState => {
       myNowWatching: normalizeWatching(parsed.myNowWatching, base.myNowWatching),
       myWallpaperId:
         typeof parsed.myWallpaperId === "string" ? parsed.myWallpaperId : base.myWallpaperId,
+      // Iteration 24: daily answers, mail package and welcome quests
+      dailyAnswers: normalizeDailyAnswers(parsed.dailyAnswers),
+      lastPackageDate: typeof parsed.lastPackageDate === "string" ? parsed.lastPackageDate : null,
+      lastPackage: normalizeLastPackage(parsed.lastPackage),
+      packagesSinceExclusive:
+        typeof parsed.packagesSinceExclusive === "number" ? parsed.packagesSinceExclusive : 0,
+      questsDone: Array.isArray(parsed.questsDone)
+        ? parsed.questsDone.filter((x): x is string => typeof x === "string")
+        : [],
+      questsCelebrated: parsed.questsCelebrated === true,
     };
+    // saves from before quests existed: tick what they've already done, with no rewards
+    if (!Array.isArray(parsed.questsDone)) next.questsDone = migrateQuests(next);
+    return next;
   } catch {
     return defaultState();
   }
@@ -155,6 +220,15 @@ const subscribe = (l: () => void) => {
 };
 
 export const getPlayerState = () => state;
+
+/** tests only: forget hydration so each test file starts from its own stubbed storage */
+export const __resetStoreForTests = () => {
+  hydrated = false;
+  devHydrated = false;
+  state = defaultState();
+  dev = DEV_OFF;
+  lastCompletedSets = [];
+};
 
 // ---------- dev mode ----------
 // Lives under its own key (not PlayerState) so wiping the save never flips it.
@@ -257,7 +331,31 @@ export const devActions = {
   },
   allowDailyAgain() {
     if (!dev.enabled) return;
-    set({ lastDailyAnswerDate: todayKey(new Date(Date.now() - 86_400_000)) });
+    const dailyAnswers = { ...state.dailyAnswers };
+    delete dailyAnswers[todayKey()];
+    set({ lastDailyAnswerDate: todayKey(new Date(Date.now() - 86_400_000)), dailyAnswers });
+  },
+  /** undoes today's package (reward, pity counter) so it can be opened again — same roll */
+  resetPackage() {
+    if (!dev.enabled) return;
+    const last = state.lastPackage;
+    if (!last || last.date !== todayKey()) {
+      set({ lastPackageDate: null });
+      return;
+    }
+    const itemId = last.reward.kind === "item" ? last.reward.itemId : null;
+    set({
+      coins: Math.max(0, state.coins - last.reward.coins),
+      ownedItemIds: itemId ? state.ownedItemIds.filter((id) => id !== itemId) : state.ownedItemIds,
+      roomLayout: itemId ? state.roomLayout.filter((p) => p.itemId !== itemId) : state.roomLayout,
+      packagesSinceExclusive: last.prevSince,
+      lastPackageDate: null,
+      lastPackage: null,
+    });
+  },
+  resetQuests() {
+    if (!dev.enabled) return;
+    set({ questsDone: [], questsCelebrated: false });
   },
   resetStreak() {
     if (!dev.enabled) return;
@@ -275,6 +373,22 @@ export const devActions = {
 };
 
 let lastCompletedSets: string[] = [];
+
+/** finishes a welcome quest once: pays its coins (or item) and plays the coin sound */
+const completeQuest = (id: QuestId) => {
+  if (state.questsDone.includes(id)) return false;
+  const q = QUEST_BY_ID[id];
+  let coins = state.coins + q.coins;
+  let ownedItemIds = state.ownedItemIds;
+  if (q.itemId) {
+    // already bought the gift? pay its shop price instead so the reward is never empty
+    if (ownedItemIds.includes(q.itemId)) coins += ITEM_CATALOG[q.itemId]?.price ?? 0;
+    else ownedItemIds = [...ownedItemIds, q.itemId];
+  }
+  set({ questsDone: [...state.questsDone, id], coins, ownedItemIds });
+  sfx.coin();
+  return true;
+};
 /** sets the most recent successful buy() completed (and paid out), for the shop's celebration */
 export const takeCompletedSets = () => {
   const out = lastCompletedSets;
@@ -285,7 +399,8 @@ export const takeCompletedSets = () => {
 export const playerActions = {
   buy(itemId: string) {
     const item = ITEM_CATALOG[itemId];
-    if (!item || state.ownedItemIds.includes(itemId) || !canAfford(item.price)) return false;
+    if (!item || item.exclusive || state.ownedItemIds.includes(itemId) || !canAfford(item.price))
+      return false;
     // dev "unlimited" runs the full purchase flow but never touches the real balance
     const coins = isUnlimited() ? state.coins : state.coins - item.price;
     const ownedItemIds = [...state.ownedItemIds, itemId];
@@ -299,14 +414,21 @@ export const playerActions = {
     lastCompletedSets = finished;
     sfx.purchase();
     sfx.coin();
+    completeQuest("buy");
     return true;
   },
+  /** the editor's commit path: every move, rotate, place or remove in Your Room */
   setRoomLayout(layout: PlacedItem[]) {
     set({ roomLayout: layout.map((p) => ({ ...p })) });
+    completeQuest("room");
   },
-  answerDaily() {
+  answerDaily(answer: string) {
     const today = todayKey();
     if (state.lastDailyAnswerDate === today) return false;
+    const dailyAnswers = trimDailyAnswers({
+      ...state.dailyAnswers,
+      [today]: { promptId: promptForToday().id, answer },
+    });
     // gentle streak: yesterday continues it, a gap just starts over — nothing is lost
     const yesterday = todayKey(new Date(Date.now() - 86_400_000));
     const currentStreak = state.lastDailyAnswerDate === yesterday ? state.currentStreak + 1 : 1;
@@ -314,11 +436,41 @@ export const playerActions = {
     set({
       coins: state.coins + DAILY_COIN_REWARD + bonus,
       lastDailyAnswerDate: today,
+      dailyAnswers,
       currentStreak,
       longestStreak: Math.max(state.longestStreak, currentStreak),
     });
     sfx.coin();
+    completeQuest("daily");
     return true;
+  },
+  /** opens today's package once; the roll is seeded by date so a refresh can't change it */
+  openPackage(): PackageReward {
+    const today = todayKey();
+    if (state.lastPackageDate === today && state.lastPackage?.date === today) return state.lastPackage.reward;
+    const prevSince = state.packagesSinceExclusive;
+    const reward = rollPackage(today, prevSince, state.ownedItemIds);
+    set({
+      coins: state.coins + reward.coins,
+      ownedItemIds:
+        reward.kind === "item" && !state.ownedItemIds.includes(reward.itemId)
+          ? [...state.ownedItemIds, reward.itemId]
+          : state.ownedItemIds,
+      packagesSinceExclusive: nextSinceExclusive(prevSince, reward),
+      lastPackageDate: today,
+      lastPackage: { date: today, reward, prevSince },
+    });
+    sfx.coin();
+    completeQuest("mail");
+    return reward;
+  },
+  /** quests completed from the UI (e.g. spotting something in common with Sam) */
+  completeQuest(id: QuestId) {
+    return completeQuest(id);
+  },
+  markQuestsCelebrated() {
+    if (state.questsCelebrated) return;
+    set({ questsCelebrated: true });
   },
   markShopSeen() {
     if (state.lastShopSeenDate === todayKey()) return;

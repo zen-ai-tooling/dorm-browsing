@@ -19,6 +19,7 @@ import {
   type Rotation,
 } from "@/data/items";
 import { buildTextures } from "./textures";
+import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type Light, type LightSpec } from "./lighting";
 import {
@@ -199,6 +200,8 @@ interface PropDef {
   payload?: PopupPayload;
   label?: string;
   solid?: boolean;
+  /** interactive but fixed to the wall: no idle bob */
+  still?: boolean;
 }
 
 const t = (n: number) => n * TILE;
@@ -266,6 +269,12 @@ export class DormScene extends Phaser.Scene {
   private beams: Array<{ g: Phaser.GameObjects.Graphics; phase: Phase }> = [];
   /** placed-item lights, keyed by sprite */
   private placedLights = new Map<Phaser.GameObjects.Sprite, Light>();
+  /** daily check-in: player's answer today (null = not yet) and whether the package is waiting */
+  private getMyDailyAnswer: () => string | null = () => null;
+  private isPackageReady: () => boolean = () => false;
+  private boards: Array<{ residentId: string; text: Phaser.GameObjects.Text; sparkle: Phaser.GameObjects.Image | null }> = [];
+  private mailPackage: Phaser.GameObjects.Image | null = null;
+  private mailSparkle: Phaser.GameObjects.Image | null = null;
 
 
   constructor() {
@@ -282,8 +291,12 @@ export class DormScene extends Phaser.Scene {
     getWallpaperId?: () => string;
     onWallTap?: () => void;
     getPhase?: () => Phase;
+    getMyDailyAnswer?: () => string | null;
+    isPackageReady?: () => boolean;
   }) {
     if (data?.getPhase) this.getPhase = data.getPhase;
+    if (data?.getMyDailyAnswer) this.getMyDailyAnswer = data.getMyDailyAnswer;
+    if (data?.isPackageReady) this.isPackageReady = data.isPackageReady;
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
@@ -315,6 +328,7 @@ export class DormScene extends Phaser.Scene {
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
+    this.refreshDaily();
     this.onReady(this);
   }
 
@@ -1035,7 +1049,7 @@ export class DormScene extends Phaser.Scene {
       this.interactives.push({ sprite: s, ring, payload: def.payload });
       // 2px stepped bob — reads as sprite animation, not a smooth CSS float.
       // Never attach while editing: it would fight the drag handler's setPosition.
-      if (!this.editMode) {
+      if (!this.editMode && !def.still) {
         this.tweens.add({
           targets: s,
           y: def.y - 2,
@@ -1132,6 +1146,8 @@ export class DormScene extends Phaser.Scene {
     const away = !room.isActive ? room.awayNote : undefined;
     const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
     if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
+    // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
+    this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
 
     if (room.isActive) {
       this.tweens.add({
@@ -1146,6 +1162,67 @@ export class DormScene extends Phaser.Scene {
       this.spawnSoundCue(dx, dy - 10, mood.glow);
       this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
     }
+  }
+
+  /** door whiteboard on the hall face: today's answer in marker; "?" + sparkle until you answer */
+  private buildDoorBoard(room: PersonRoom, left: number) {
+    const cx = Math.round(left + 32);
+    const cy = t(17);
+    this.prop({
+      key: "whiteboard",
+      x: cx,
+      y: cy,
+      still: true,
+      depthBias: -cy + 4.5,
+      payload: {
+        kind: "whiteboard",
+        residentId: room.id,
+        name: room.id === ROOMS[0]!.id ? "You" : room.name.replace(/'s Room$/, ""),
+        accent: room.accentColor,
+      },
+    });
+    const text = this.add
+      .text(cx, cy - 5, "", {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "8px",
+        color: room.id === ROOMS[0]!.id ? "#2f5fb8" : room.id === "room-2" ? "#c2452f" : "#6b3fa0",
+        fontStyle: "600",
+        align: "center",
+        wordWrap: { width: 52 },
+        lineSpacing: -2,
+      })
+      .setOrigin(0.5)
+      .setDepth(4.7);
+    let sparkle: Phaser.GameObjects.Image | null = null;
+    if (room.id === ROOMS[0]!.id) {
+      sparkle = this.add.image(cx + 26, cy - 14, "sparkle").setTint(0xffe3a6).setDepth(4.8).setAlpha(0);
+      this.tweens.add({
+        targets: sparkle,
+        alpha: { from: 0.15, to: 0.9 },
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: "Stepped",
+        easeParams: [3],
+      });
+    }
+    this.boards.push({ residentId: room.id, text, sparkle });
+  }
+
+  /** re-reads today's answers + package state (after answering, opening, or at a new day) */
+  refreshDaily() {
+    const prompt = promptForToday();
+    const mine = this.getMyDailyAnswer();
+    for (const b of this.boards) {
+      const isMine = b.residentId === ROOMS[0]!.id;
+      const answer = isMine ? mine : residentPick(b.residentId, prompt);
+      b.text.setText(answer ? boardText(answer) : "?");
+      b.text.setFontSize(answer ? 8 : 14);
+      b.sparkle?.setVisible(isMine && !answer);
+    }
+    const ready = this.isPackageReady();
+    this.mailPackage?.setVisible(ready);
+    this.mailSparkle?.setVisible(ready);
   }
 
   /**
@@ -1236,6 +1313,7 @@ export class DormScene extends Phaser.Scene {
       };
       const tint = this.moodTint(room, item);
       if (tint) def.tint = tint;
+      if (item.scale) def.scale = item.scale;
       if (payload) def.payload = payload;
 
       const sprite = this.prop(def);
@@ -1290,6 +1368,7 @@ export class DormScene extends Phaser.Scene {
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
     const tint = this.moodTint(ROOMS[0]!, item);
     if (tint) sprite.setTint(tint);
+    if (item.scale) sprite.setScale(item.scale);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
     this.itemLight(itemId, sprite);
@@ -1622,6 +1701,7 @@ export class DormScene extends Phaser.Scene {
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
     const ghostTint = this.moodTint(ROOMS[0]!, item);
     if (ghostTint) this.ghost.setTint(ghostTint);
+    if (item.scale) this.ghost.setScale(item.scale);
     this.ensureHighlight();
     this.updatePlacingPreview(this.input.activePointer);
   }
@@ -2067,7 +2147,7 @@ export class DormScene extends Phaser.Scene {
       [27.5, 16.9, "flyer-b", 0xf0ecdc],
       [41.5, 16.85, "flyer-a", 0xf3ecd8],
       [43.5, 17.1, "flyer-c", 0xfdf3ea],
-      [61, 17.0, "flyer-d", 0xf6f0dd],
+      [62.9, 17.0, "flyer-d", 0xf6f0dd], // clear of Jordan's door whiteboard
     ];
     for (const [fx, fy, key, tint] of flyers)
       this.add.image(t(fx), t(fy), key).setTint(tint).setDepth(4);
@@ -2095,7 +2175,24 @@ export class DormScene extends Phaser.Scene {
       key: "cubby",
       x: t(30),
       y: faceMid,
-      payload: { kind: "flavor", title: "Mail Cubbies", lines: ["Someone's Amazon package again", "One postcard from 2019"] },
+      still: true,
+      payload: { kind: "package" },
+    });
+    // today's package sits in the cubby's bottom-left slot until opened
+    this.mailPackage = this.add.image(t(30) - 20, faceMid + 12, "package").setDepth(faceMid + 2).setVisible(false);
+    this.mailSparkle = this.add
+      .image(t(30) - 8, faceMid + 2, "sparkle")
+      .setTint(0xffe3a6)
+      .setDepth(faceMid + 3)
+      .setVisible(false);
+    this.tweens.add({
+      targets: this.mailSparkle,
+      alpha: { from: 0.2, to: 1 },
+      duration: 1100,
+      yoyo: true,
+      repeat: -1,
+      ease: "Stepped",
+      easeParams: [3],
     });
 
     void zones;

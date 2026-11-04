@@ -9,6 +9,11 @@ declare module "bun:test" {
     toBeFalsy(): void;
     toBeUndefined(): void;
     toContain(item: unknown): void;
+    toBeGreaterThan(n: number): void;
+    toBeGreaterThanOrEqual(n: number): void;
+    toBeLessThan(n: number): void;
+    toBeLessThanOrEqual(n: number): void;
+    toHaveProperty(key: string): void;
     readonly not: Matchers;
   }
   export function describe(name: string, fn: () => void): void;

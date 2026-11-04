@@ -18,6 +18,7 @@ store.set("dorm-vibes-player-state", JSON.stringify({ coins: 300 }));
 let m: typeof import("./playerStore");
 beforeAll(async () => {
   m = await import("./playerStore");
+  m.__resetStoreForTests();
   m.hydratePlayerState();
 });
 

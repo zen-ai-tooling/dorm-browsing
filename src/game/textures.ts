@@ -743,6 +743,28 @@ export const buildTextures = (scene: Phaser.Scene) => {
       }
   });
 
+  // daily mail package 12x10 — kraft box, tape stripe, tiny label
+  make(scene, "package", 12, 10, (g) => {
+    r(g, 0, 0, 12, 10, INK);
+    r(g, 1, 1, 10, 8, 0xc99a5b);
+    r(g, 1, 6, 10, 3, 0xa97a43);
+    r(g, 1, 1, 10, 1, 0xe0b878);
+    r(g, 5, 1, 2, 8, 0xe9dcb8);
+    r(g, 7, 6, 3, 2, CREAM);
+  });
+
+  // door whiteboard 32x18 — aluminium frame, white field, marker tray
+  make(scene, "whiteboard", 32, 18, (g) => {
+    r(g, 0, 0, 32, 16, INK);
+    r(g, 1, 1, 30, 14, 0xa9adb6);
+    r(g, 2, 2, 28, 12, 0xfbfaf6);
+    r(g, 2, 12, 28, 2, 0xeceae4);
+    r(g, 4, 15, 24, 3, INK);
+    r(g, 5, 15, 22, 2, 0x8d919a);
+    r(g, 8, 15, 5, 1, 0x3b6fc9);
+    r(g, 15, 15, 4, 1, 0xd2554b);
+  });
+
   // room-number placard 26x13
   make(scene, "placard", 26, 13, (g) => {
     panel(g, 0, 0, 26, 13, 0x33292f, 0x241c26, 0x4b3f47);

@@ -8,7 +8,9 @@ import {
   effectiveFootprint,
   featuredForToday,
   isPlaceable,
+  isShopItem,
   ITEM_CATALOG,
+  MAIL_ITEM_IDS,
   ITEM_SETS,
   rarityFor,
   SET_BY_ID,
@@ -552,8 +554,9 @@ export const ShopPanel = ({
 
   const featuredIds = useMemo(() => featuredForToday(), []);
   const featured = new Set(featuredIds);
-  const all = Object.values(ITEM_CATALOG);
+  const all = Object.values(ITEM_CATALOG).filter(isShopItem);
   const ownedCount = all.filter((i) => ownedItemIds.includes(i.id)).length;
+  const mailFound = MAIL_ITEM_IDS.filter((id) => ownedItemIds.includes(id)).length;
   const q = query.trim().toLowerCase();
 
   useEffect(() => {
@@ -660,6 +663,12 @@ export const ShopPanel = ({
                 </span>
                 <span className="border-2 border-ink px-1.5 py-0.5 tabular-nums">
                   {ownedCount}/{all.length} owned
+                </span>
+                <span className="flex items-center gap-1 border-2 border-ink px-1.5 py-0.5 tabular-nums">
+                  <span className="border border-ink bg-[var(--tag-premium)] px-0.5 font-display text-[8px] leading-none text-ink">
+                    MAIL
+                  </span>
+                  Mail finds: {mailFound}/{MAIL_ITEM_IDS.length}
                 </span>
               </div>
             </div>
