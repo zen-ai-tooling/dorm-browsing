@@ -80,7 +80,7 @@ export class Lighting {
     const x = (spec.follow?.x ?? spec.x) + (spec.dx ?? 0);
     const y = (spec.follow?.y ?? spec.y) + (spec.dy ?? 0);
     const glow = this.scene.add
-      .image(x, y, "glow")
+      .image(x, y, "lightmask")
       .setTint(spec.color)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale(scaleFor(spec.radius))

@@ -945,7 +945,8 @@ export class DormScene extends Phaser.Scene {
     ] as const)
       this.add.sprite(t(x), t(y), "bush").setDepth(t(y));
     for (const x of [15, 40, 66]) {
-      const y = t(PATH_ROWS[0]!) - 46;
+      // stand on the grass just south of the path, clear of the building wall
+      const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
       this.add.sprite(t(x), y, "lamppost").setDepth(y);
       this.light({ x: t(x), y: y - 36, color: 0xffd9a0, radius: 80 });
     }
@@ -1870,7 +1871,7 @@ export class DormScene extends Phaser.Scene {
         }
         prev = { x: sx, y: by };
         this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
-        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.5 });
+        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.22 });
       }
     }
 
@@ -2005,7 +2006,7 @@ export class DormScene extends Phaser.Scene {
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
-      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.5 });
+      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.26 });
     }
 
 
