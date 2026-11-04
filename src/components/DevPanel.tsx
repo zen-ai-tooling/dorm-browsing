@@ -10,9 +10,9 @@ import type { Phase } from "@/game/timeOfDay";
 
 const TIME_OPTIONS: Array<[Phase | null, string]> = [
   [null, "Auto"],
-  ["morning", "Morn"],
+  ["morning", "Morning"],
   ["day", "Day"],
-  ["golden", "Gold"],
+  ["golden", "Golden"],
   ["night", "Night"],
 ];
 
@@ -118,7 +118,7 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
       </label>
       <div className="mb-2">
         <span className="mb-1 block font-body text-xs font-bold text-panel-foreground">Time of day</span>
-        <div className="grid grid-cols-5 gap-1">
+        <div className="flex flex-wrap gap-1">
           {TIME_OPTIONS.map(([value, label]) => {
             const on = timeOverride === value;
             return (
@@ -127,7 +127,7 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
                 type="button"
                 aria-pressed={on}
                 onClick={() => run(() => setTimeOverride(value), `Time: ${label}`)}
-                className={`rounded-[3px] border-2 border-ink px-0.5 py-1 font-body text-[10px] font-bold ${
+                className={`rounded-[3px] border-2 border-ink px-1.5 py-0.5 font-body text-[11px] font-bold ${
                   on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
                 }`}
               >
