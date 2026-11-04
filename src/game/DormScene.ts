@@ -262,7 +262,7 @@ export class DormScene extends Phaser.Scene {
   private look: Look = lookFor("day");
   private phaseTween: Phaser.Tweens.Tween | null = null;
   /** per window: one sky image per phase, crossfaded by look.w */
-  private skies: Array<Record<Phase, Phase extends never ? never : Phaser.GameObjects.Image>> = [];
+  private skies: Array<Record<Phase, Phaser.GameObjects.Image>> = [];
   private beams: Array<{ g: Phaser.GameObjects.Graphics; phase: Phase }> = [];
   /** placed-item lights, keyed by sprite */
   private placedLights = new Map<Phaser.GameObjects.Sprite, Light>();
@@ -281,7 +281,9 @@ export class DormScene extends Phaser.Scene {
     onReady?: (scene: DormScene) => void;
     getWallpaperId?: () => string;
     onWallTap?: () => void;
+    getPhase?: () => Phase;
   }) {
+    if (data?.getPhase) this.getPhase = data.getPhase;
     if (data?.onPopup) this.onPopup = data.onPopup;
     if (data?.getMyLayout) this.getMyLayout = data.getMyLayout;
     if (data?.onLayoutChange) this.onLayoutChange = data.onLayoutChange;
@@ -302,9 +304,14 @@ export class DormScene extends Phaser.Scene {
     this.buildGrid(zones);
     this.paintFloor(zones);
     this.buildColliders();
+    // lighting exists before decor so every prop can register its light where it's created
+    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE);
     this.decorate(zones);
+    this.decorateExterior();
     this.spawnPlayer();
+    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -14, color: 0xffd9a0, radius: 28, cut: false, strength: 0.22 });
     this.setupCamera();
+    this.refreshPhase(true);
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
