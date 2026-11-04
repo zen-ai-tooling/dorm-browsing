@@ -21,12 +21,15 @@ export const RoomEditorTray = ({
   onCancelPlacing,
   placingItemId = null,
   thumbnails = {},
+  itemThumbnails = {},
 }: {
   onDone: () => void;
   onTrayClick: (itemId: string) => void;
   onCancelPlacing?: () => void;
   placingItemId?: string | null;
   thumbnails?: Record<string, string>;
+  /** tinted per-item thumbnails (match the room); falls back to the raw texture */
+  itemThumbnails?: Record<string, { src: string }>;
 }) => {
   const { ownedItemIds, roomLayout } = usePlayerState();
   const placedIds = new Set(roomLayout.map((p) => p.itemId));
@@ -97,7 +100,7 @@ export const RoomEditorTray = ({
                 ) : (
                   <ul className="flex flex-wrap gap-2 pt-2">
                     {items.map((item) => {
-                      const thumb = thumbnails[item.textureKey];
+                      const thumb = itemThumbnails[item.id]?.src ?? thumbnails[item.textureKey];
                       const active = placingItemId === item.id;
                       const placeable = isPlaceable(item);
                       return (

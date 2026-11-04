@@ -37,6 +37,7 @@ import { DAILY_COIN_REWARD, promptForToday, todayKey } from "@/data/prompts";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
+import { PixelIcon } from "./PixelIcon";
 import { sfx } from "@/game/sounds";
 
 const MY_ROOM_ID = "room-1";
@@ -163,32 +164,6 @@ const MiniChip = ({ label, onClick }: { label: "Move up" | "Move down"; onClick:
 );
 
 /* ---------------- shared bits ---------------- */
-
-/** 12×12 string-grid pixel icon rendered as SVG rects */
-export const PixelIcon = ({ def, size = 24 }: { def: StickerDef; size?: number }) => {
-  const fill: Record<string, string> = {
-    X: "var(--color-ink)",
-    o: def.color,
-    a: def.color2,
-    "+": "var(--polaroid)",
-  };
-  return (
-    <svg
-      viewBox="0 0 12 12"
-      width={size}
-      height={size}
-      shapeRendering="crispEdges"
-      aria-hidden
-      className="shrink-0"
-    >
-      {def.icon.flatMap((row, y) =>
-        Array.from(row).map((ch, x) =>
-          fill[ch] ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={fill[ch]} /> : null,
-        ),
-      )}
-    </svg>
-  );
-};
 
 const YouToo = ({ accent }: { accent: string }) => (
   <span

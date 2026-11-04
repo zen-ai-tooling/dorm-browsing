@@ -11,6 +11,7 @@ import {
 } from "@/data/dorm";
 import {
   ITEM_CATALOG,
+  displayTintFor,
   effectiveFootprint,
   isWallItem,
   zoomTextureKey,
@@ -896,10 +897,7 @@ export class DormScene extends Phaser.Scene {
    * greyscale-authored textures multiplied by a pale accent read as that room's colour.
    */
   private moodTint(room: PersonRoom, item: ItemDef): number | undefined {
-    const mood = MOODS[room.mood];
-    if (item.category === "poster") return mix(mood.posterAccent, 0xffffff, 0.32);
-    if (item.textureKey === "tv") return mix(mood.glow, 0xffffff, 0.62);
-    return item.tint;
+    return displayTintFor(item, room.mood);
   }
 
   /** footprint-aware sprite placement for rooms that are not editable */
@@ -1101,7 +1099,8 @@ export class DormScene extends Phaser.Scene {
     this.time.delayedCall(150, () => {
       if (!sprite.active) return;
       const entry = this.placed.find((p) => p.sprite === sprite);
-      const tint = entry ? ITEM_CATALOG[entry.itemId]?.tint : undefined;
+      const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
+      const tint = def ? this.moodTint(ROOMS[0]!, def) : undefined;
       sprite.clearTint();
       if (tint) sprite.setTint(tint);
       if (entry && this.placed.indexOf(entry) === this.selectedIdx) sprite.setTint(0xfff3b0);
@@ -1196,7 +1195,8 @@ export class DormScene extends Phaser.Scene {
       const entry = this.placed[this.selectedIdx];
       if (entry?.sprite.active) {
         entry.sprite.clearTint();
-        const tint = ITEM_CATALOG[entry.itemId]?.tint;
+        const def = ITEM_CATALOG[entry.itemId];
+        const tint = def ? this.moodTint(ROOMS[0]!, def) : undefined;
         if (tint) entry.sprite.setTint(tint);
       }
     }
@@ -1274,6 +1274,8 @@ export class DormScene extends Phaser.Scene {
     const item = ITEM_CATALOG[itemId]!;
     this.ghost?.destroy();
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
+    const ghostTint = this.moodTint(ROOMS[0]!, item);
+    if (ghostTint) this.ghost.setTint(ghostTint);
     this.ensureHighlight();
     this.updatePlacingPreview(this.input.activePointer);
   }
@@ -1437,6 +1439,13 @@ export class DormScene extends Phaser.Scene {
     });
   }
 
+
+  /** raw source canvas of a generated texture — the shop tints these into per-item thumbnails */
+  getTextureSource(key: string): HTMLCanvasElement | HTMLImageElement | null {
+    if (!this.textures.exists(key)) return null;
+    const src = this.textures.get(key).getSourceImage(0);
+    return src instanceof HTMLCanvasElement || src instanceof HTMLImageElement ? src : null;
+  }
 
   /** data-url thumbnail for a generated texture — used by the shop/tray UI */
   getTextureDataUrl(key: string): string | null {

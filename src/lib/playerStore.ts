@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { ROOMS, type Bulletin, type NowWatching, type PlacedItem, type Song } from "@/data/dorm";
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
-import { ITEM_CATALOG } from "@/data/items";
+import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
 import { migrateMountLayout } from "@/data/placement";
 import { DAILY_COIN_REWARD, todayKey } from "@/data/prompts";
 import { setSfxMuted, sfx } from "@/game/sounds";
@@ -39,6 +39,8 @@ export interface PlayerState {
   myWallpaperId: string;
   /** collapses the controls hint card for returning players */
   seenControls: boolean;
+  /** collection sets already rewarded — each grants its bonus exactly once, ever */
+  completedSets: string[];
 }
 
 const seed = ROOMS[0]!;
@@ -61,6 +63,7 @@ const defaultState = (): PlayerState => ({
     : { title: "Nothing yet", status: "" },
   myWallpaperId: seed.wallpaperId,
   seenControls: false,
+  completedSets: [],
 });
 
 /** older saves predate the poster catalog item and the TV's side-wall spot */
@@ -107,6 +110,9 @@ const read = (): PlayerState => {
       lastShopSeenDate:
         typeof parsed.lastShopSeenDate === "string" ? parsed.lastShopSeenDate : null,
       seenControls: parsed.seenControls === true,
+      completedSets: Array.isArray(parsed.completedSets)
+        ? parsed.completedSets.filter((x): x is string => typeof x === "string")
+        : [],
       muted: typeof parsed.muted === "boolean" ? parsed.muted : false,
       mySongs: normalizeSongs(parsed.mySongs, base.mySongs),
       // Iteration 21: legacy { interests, event } boards become pins — nothing is dropped
@@ -268,13 +274,29 @@ export const devActions = {
   },
 };
 
+let lastCompletedSets: string[] = [];
+/** sets the most recent successful buy() completed (and paid out), for the shop's celebration */
+export const takeCompletedSets = () => {
+  const out = lastCompletedSets;
+  lastCompletedSets = [];
+  return out;
+};
+
 export const playerActions = {
   buy(itemId: string) {
     const item = ITEM_CATALOG[itemId];
     if (!item || state.ownedItemIds.includes(itemId) || !canAfford(item.price)) return false;
     // dev "unlimited" runs the full purchase flow but never touches the real balance
     const coins = isUnlimited() ? state.coins : state.coins - item.price;
-    set({ coins, ownedItemIds: [...state.ownedItemIds, itemId] });
+    const ownedItemIds = [...state.ownedItemIds, itemId];
+    // only sets this purchase finished — sets completed by other means (dev unlock) aren't paid out later
+    const finished = newlyCompletedSets(ownedItemIds, state.completedSets).filter((id) => id === item.set);
+    set({
+      coins: coins + finished.length * SET_REWARD,
+      ownedItemIds,
+      completedSets: [...state.completedSets, ...finished],
+    });
+    lastCompletedSets = finished;
     sfx.purchase();
     sfx.coin();
     return true;

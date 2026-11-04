@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Coins, Flame, Pencil, Store, Volume2, VolumeX } from "lucide-react";
-import type { PopupPayload } from "@/data/dorm";
+import { ROOMS, type PopupPayload } from "@/data/dorm";
+import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup } from "./DormPopup";
@@ -33,6 +34,8 @@ const DormGame = () => {
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  /** per item id, tinted exactly like the room renders it (see displayTintFor) */
+  const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
   const { coins, muted, currentStreak, lastShopSeenDate, myWallpaperId, seenControls } =
     usePlayerState();
@@ -103,6 +106,7 @@ const DormGame = () => {
             }
           }
           setThumbs(map);
+          setItemThumbs(buildItemThumbs(scene, ROOMS[0]!.mood));
         },
       });
     })();
@@ -344,6 +348,7 @@ const DormGame = () => {
           onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
           placingItemId={placingItemId}
           thumbnails={thumbs}
+          itemThumbnails={itemThumbs}
         />
         </div>
       ) : (
@@ -354,7 +359,20 @@ const DormGame = () => {
         <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
       ) : null}
 
-      <ShopPanel open={shopOpen} onOpenChange={setShopOpen} thumbnails={thumbs} />
+      <ShopPanel
+        open={shopOpen}
+        onOpenChange={setShopOpen}
+        thumbnails={itemThumbs}
+        onPlaceNow={(itemId) => {
+          // close the shop, enter edit mode, and go straight into tap-to-place
+          setShopOpen(false);
+          if (!editing) toggleEdit(true);
+          setWallpaperOpen(false);
+          requestAnimationFrame(() => {
+            if (placingItemId !== itemId) sceneRef.current?.togglePlacing(itemId);
+          });
+        }}
+      />
     </div>
   );
 };

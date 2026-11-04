@@ -1,3 +1,5 @@
+import { MOODS, type MoodKey } from "./dorm";
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -19,6 +21,8 @@ export interface ItemDef {
   wallPattern?: "flat" | "stripes" | "checker" | "botanical" | "night" | "graph" | "sunset";
   /** optional recolor applied to the (neutral-authored) texture */
   tint?: number;
+  /** collection set this item belongs to (at most one) — assigned from ITEM_SETS below */
+  set?: SetId;
   /** coin cost in the shop; 0 for starter items */
   price: number;
   unlockedByDefault: boolean;
@@ -633,7 +637,7 @@ export const ROTATING_ITEM_IDS: string[] = [
 export type RarityTier = "standard" | "nice" | "premium";
 /** visual tier derived purely from price so new items classify themselves */
 export const rarityFor = (price: number): RarityTier =>
-  price >= 40 ? "premium" : price >= 15 ? "nice" : "standard";
+  price >= 90 ? "premium" : price >= 40 ? "nice" : "standard";
 
 export const FEATURED_COUNT = 3;
 
@@ -652,7 +656,7 @@ export const featuredForToday = (d = new Date()): string[] => {
 
 
 /** categories that can actually be dropped into a room layout */
-export const PLACEABLE_CATEGORIES: ItemDef["category"][] = ["furniture", "companion"];
+export const PLACEABLE_CATEGORIES: ItemDef["category"][] = ["furniture", "companion", "poster"];
 
 export const isPlaceable = (item: ItemDef) => PLACEABLE_CATEGORIES.includes(item.category);
 
@@ -681,3 +685,76 @@ export const WALLPAPER_ITEM_IDS = Object.values(ITEM_CATALOG)
 
 export const WALLPAPER_DEFAULT = "wallpaper_default";
 export const POSTER_DEFAULT = "poster_default";
+
+/* ---------------- shared display tint ---------------- */
+
+const mixColor = (a: number, b: number, t: number) => {
+  const ch = (shift: number) =>
+    Math.round(((a >> shift) & 0xff) * (1 - t) + ((b >> shift) & 0xff) * t);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+};
+
+/**
+ * The one recolor rule for neutral-authored textures, used by the room scene AND the shop
+ * thumbnails so they can never drift: posters take the room mood's accent, the basic TV a
+ * pale mood glow, everything else its own catalog tint (or none).
+ */
+export const displayTintFor = (item: ItemDef, moodKey: MoodKey): number | undefined => {
+  const mood = MOODS[moodKey] ?? MOODS.chill_ambient;
+  if (item.category === "poster") return mixColor(mood.posterAccent, 0xffffff, 0.32);
+  if (item.textureKey === "tv") return mixColor(mood.glow, 0xffffff, 0.62);
+  return item.tint;
+};
+
+/* ---------------- collection sets ---------------- */
+
+export type SetId = "arcade_night" | "vinyl_head" | "cozy_corner" | "movie_night" | "night_owl" | "small_friends";
+
+export interface ItemSet {
+  id: SetId;
+  name: string;
+  itemIds: string[];
+}
+
+/** one-time coin bonus for owning every item in a set */
+export const SET_REWARD = 25;
+
+export const ITEM_SETS: ItemSet[] = [
+  { id: "arcade_night", name: "Arcade Night", itemIds: ["arcade_cabinet", "tv_gaming", "neon_sign", "disco_ball"] },
+  {
+    id: "vinyl_head",
+    name: "Vinyl Head",
+    itemIds: ["record_player", "vinyl_crate", "speaker_boombox", "speaker_tower", "speaker_vintage"],
+  },
+  {
+    id: "cozy_corner",
+    name: "Cozy Corner",
+    itemIds: ["hammock_chair", "papasan_chair", "cushion_stack", "lava_lamp", "shelf_books"],
+  },
+  { id: "movie_night", name: "Movie Night", itemIds: ["projector_screen", "tv_crt", "chair_lounge", "rug_shag"] },
+  { id: "night_owl", name: "Night Owl", itemIds: ["bed_canopy", "wallpaper_night", "poster_space"] },
+  { id: "small_friends", name: "Small Friends", itemIds: ["pet_hamster", "pet_betta", "pet_axolotl", "plant_bonsai"] },
+];
+
+export const SET_BY_ID = Object.fromEntries(ITEM_SETS.map((st) => [st.id, st])) as Record<SetId, ItemSet>;
+
+for (const st of ITEM_SETS)
+  for (const id of st.itemIds) {
+    const item = ITEM_CATALOG[id];
+    if (item) item.set = st.id;
+  }
+
+export const setProgress = (setId: SetId, ownedIds: Iterable<string>) => {
+  const owned = new Set(ownedIds);
+  const st = SET_BY_ID[setId];
+  return { owned: st.itemIds.filter((id) => owned.has(id)).length, total: st.itemIds.length };
+};
+
+/** sets that are fully owned but not yet rewarded */
+export const newlyCompletedSets = (ownedIds: Iterable<string>, completed: Iterable<string>): SetId[] => {
+  const owned = new Set(ownedIds);
+  const done = new Set(completed);
+  return ITEM_SETS.filter((st) => !done.has(st.id) && st.itemIds.every((id) => owned.has(id))).map(
+    (st) => st.id,
+  );
+};
