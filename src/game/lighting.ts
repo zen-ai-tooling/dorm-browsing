@@ -47,8 +47,8 @@ export interface Light {
 
 const FLECK_COLORS = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b, 0xc9a7f0];
 
-/** integer scale keeps the pixel grid crisp */
-const scaleFor = (radius: number) => Math.max(1, Math.round(radius / 16));
+/** glow/lightmask are 64px (radius 32); half-steps keep every art pixel a whole screen pixel */
+const scaleFor = (radius: number) => Math.max(0.5, Math.round(radius / 16) / 2);
 
 export class Lighting {
   private scene: Phaser.Scene;
