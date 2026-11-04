@@ -35,7 +35,7 @@ export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
 
   if (all)
     return (
-      <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-28">
+      <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-48">
         <GamePanel accent="#c9a227" className="p-3">
           <div className="flex items-center gap-2">
             <IconChip>
@@ -104,7 +104,7 @@ export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
   );
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-28 max-sm:w-auto max-sm:max-w-[16rem]">
+    <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-48 max-sm:w-auto max-sm:max-w-[16rem]">
       <GamePanel accent="#7f9c86" className="p-2.5">
         <button
           type="button"
