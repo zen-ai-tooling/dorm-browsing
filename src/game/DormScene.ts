@@ -1848,6 +1848,7 @@ export class DormScene extends Phaser.Scene {
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
     this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
     this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
+    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60 });
     // string lights along the top face row, skipping the doorway span — small bulbs on a sagging wire
     {
       const wire = this.add.graphics().setDepth(4);
@@ -1869,12 +1870,14 @@ export class DormScene extends Phaser.Scene {
         }
         prev = { x: sx, y: by };
         this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
+        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.5 });
       }
     }
 
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
+    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true });
     // console on the floor in front of the TV's right side — clear of the TV and the door plant
     this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
@@ -1891,6 +1894,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
     this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
     this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
+    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60 });
     // party-light flecks: slow drifting, fading spots of colored light across the rug
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
     for (let i = 0; i < 6; i++) {
@@ -1929,6 +1933,8 @@ export class DormScene extends Phaser.Scene {
     // right: the games corner
     this.prop({ key: "arcade", x: lx(11.22), y: ly(1.7), solid: true });
     this.prop({ key: "arcade", x: lx(12.85), y: ly(1.7), tint: 0xd7b8e8, solid: true });
+    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40 });
+    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40 });
     this.prop({ key: "foosball", x: lx(12.6), y: ly(4.8), solid: true });
     this.prop({ key: "papasan", x: lx(11.2), y: ly(7.9), solid: true });
     this.prop({ key: "beanbag", x: lx(13.6), y: ly(8.1), tint: 0x74a8ab });
@@ -1940,6 +1946,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "desk", x: t(S.x + 1.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "desk", x: t(S.x + 4.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "lamp", x: t(S.x + 13.3), y: t(S.y + 1.5) });
+    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60 });
     this.prop({
       key: "shelf",
       x: t(S.x + 9.4),
@@ -1964,6 +1971,8 @@ export class DormScene extends Phaser.Scene {
       solid: true,
     });
     this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
+    // under-cabinet strip so the kitchenette isn't a black box at night
+    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44 });
     this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
     // eating nook, centered in the open floor (door lane cols 5–6 stays clear)
@@ -1996,6 +2005,7 @@ export class DormScene extends Phaser.Scene {
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
+      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.5 });
     }
 
 
@@ -2021,6 +2031,7 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
+    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50 });
     this.prop({
       key: "crate",
       x: t(8),
@@ -2064,6 +2075,7 @@ export class DormScene extends Phaser.Scene {
       .setAlpha(0.3)
       .setScale(1.8)
       .setDepth(1);
+    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70 });
 
     // recycling + trash pair
     this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
@@ -2099,7 +2111,7 @@ export class DormScene extends Phaser.Scene {
   private setupCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
-    cam.setBackgroundColor("#2b2431");
+    cam.setBackgroundColor(EXT_GROUND);
     cam.startFollow(this.player, true, 0.16, 0.16);
     cam.setZoom(1.6);
   }
@@ -2279,6 +2291,12 @@ export class DormScene extends Phaser.Scene {
 
     if (!this.editMode) this.checkProximity();
     if (this.editMode && this.selectedIdx >= 0) this.positionSelectionUi();
+
+    if (_time >= this.nextPhaseCheck) {
+      this.nextPhaseCheck = _time + 60_000;
+      this.refreshPhase();
+    }
+    this.lighting.update(_time);
 
     this.trackMyRoom();
   }
