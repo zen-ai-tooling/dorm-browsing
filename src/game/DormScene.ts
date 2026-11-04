@@ -824,11 +824,50 @@ export class DormScene extends Phaser.Scene {
       });
       this.spawnSoundCue(dx, dy - 10, mood.glow);
       this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
-    } else if (room.awayNote) {
-      // "someone's out" note taped to the door, rather than a blank dim door
-      this.add.image(dx, dy + 2, "awaynote").setDepth(7);
-      this.label(dx, dy + 30, room.awayNote, "#4a3d43", 11).setDepth(7);
     }
+  }
+
+  /**
+   * Wall-mounted sign: text in the world lives on signs on walls, never floating on floors.
+   * `left` is the sign's left edge; `cy` its vertical centre. Returns its bounds.
+   */
+  private wallSign(
+    left: number,
+    cy: number,
+    lines: string[],
+    style: "cream" | "dark",
+    anchor: "left" | "center" = "left",
+  ) {
+    const ink = 0x241c26;
+    const bg = style === "cream" ? 0xf3ead2 : 0x33292f;
+    const fg = style === "cream" ? "#2b2027" : "#f3ead2";
+    const texts = lines.map((s, i) =>
+      this.add
+        .text(0, 0, s, {
+          fontFamily: '"Pixelify Sans", sans-serif',
+          fontSize: i === 0 ? "11px" : "9px",
+          color: i === 0 ? fg : style === "cream" ? "#6b5c50" : "#cdbfa8",
+          fontStyle: i === 0 ? "700" : "500",
+        })
+        .setOrigin(0.5, 0.5)
+        .setDepth(4.6),
+    );
+    const lineH = [12, 10];
+    const w = Math.ceil(Math.max(...texts.map((tx) => tx.width)) / 2) * 2 + 12;
+    const h = lines.reduce((a, _, i) => a + (lineH[i] ?? 10), 0) + 6;
+    const x0 = Math.round(anchor === "left" ? left : left - w / 2);
+    const y0 = Math.round(cy - h / 2);
+    const g = this.add.graphics().setDepth(4.5);
+    g.fillStyle(ink, 1).fillRect(x0, y0, w, h);
+    g.fillStyle(bg, 1).fillRect(x0 + 2, y0 + 2, w - 4, h - 4);
+    g.fillStyle(ink, 0.25).fillRect(x0 + 2, y0 + h - 4, w - 4, 2); // bottom lip shade
+    let yy = y0 + 3;
+    texts.forEach((tx, i) => {
+      const lh = lineH[i] ?? 10;
+      tx.setPosition(x0 + w / 2, yy + lh / 2);
+      yy += lh;
+    });
+    return { left: x0, right: x0 + w, top: y0, bottom: y0 + h };
   }
 
   // ---------- layout rendering + room editor ----------
