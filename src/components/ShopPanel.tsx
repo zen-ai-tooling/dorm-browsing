@@ -283,7 +283,7 @@ const PriceTag = ({
           <Check className="size-3" aria-label="Owned" />
         ) : (
           <>
-            <PixelIcon def={COIN_GLYPH} size={12} />
+            <PixelIcon def={COIN_GLYPH} size={18} />
             {item.price}
           </>
         )}
@@ -638,7 +638,7 @@ export const ShopPanel = ({
           <div className="flex shrink-0 items-end gap-3 border-b-[3px] border-ink px-4 pb-2 pt-2">
             <div className="flex items-end gap-2">
               <span style={{ animation: "mo-bob 900ms steps(2) infinite alternate" }} aria-hidden>
-                <PixelIcon def={MO_GLYPH} size={40} />
+                <PixelIcon def={MO_GLYPH} size={36} />
               </span>
               <div className="relative mb-6 max-w-[180px] border-2 border-ink bg-panel px-2 py-1 font-body text-xs font-semibold text-panel-foreground">
                 <span className="sr-only">Mo says: </span>
@@ -655,7 +655,7 @@ export const ShopPanel = ({
               </DialogDescription>
               <div className="flex items-center gap-2 font-body text-xs font-bold text-panel-foreground">
                 <span ref={coinRef} className="flex items-center gap-1 border-2 border-ink bg-panel px-1.5 py-0.5">
-                  <PixelIcon def={COIN_GLYPH} size={14} />
+                  <PixelIcon def={COIN_GLYPH} size={24} />
                   <CoinAmount value={unlimited ? coins : shownCoins} unlimited={unlimited} />
                 </span>
                 <span className="border-2 border-ink px-1.5 py-0.5 tabular-nums">
@@ -722,7 +722,7 @@ export const ShopPanel = ({
                       onClick={() => sfx.uiClick()}
                       className="flex-1 gap-1.5 rounded-[2px] font-display text-xs font-bold"
                     >
-                      <PixelIcon def={TAB_ICON[c]} size={16} />
+                      <PixelIcon def={TAB_ICON[c]} size={24} />
                       {CATEGORY_LABEL[c]}
                     </TabsTrigger>
                   ))}
@@ -847,7 +847,7 @@ export const ShopPanel = ({
                 } as CSSProperties
               }
             >
-              <PixelIcon def={COIN_GLYPH} size={12} />
+              <PixelIcon def={COIN_GLYPH} size={24} />
             </span>
           ))}
         </div>
