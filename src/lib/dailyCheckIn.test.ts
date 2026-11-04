@@ -75,14 +75,14 @@ describe("mail package", () => {
 
   test("odds land near 60 / 20 / 15 / 5 over many days", () => {
     const n = 4000;
-    const count: Record<string, number> = { coins: 0, postcard: 0, item: 0, jackpot: 0 };
-    for (const d of Array.from({ length: n }, (_, i) => `day-${i}`)) count[rollPackage(d, 0, []).kind]!++;
-    expect(count.coins! / n).toBeGreaterThan(0.55);
-    expect(count.coins! / n).toBeLessThan(0.65);
-    expect(count.postcard! / n).toBeGreaterThan(0.16);
-    expect(count.item! / n).toBeGreaterThan(0.12);
-    expect(count.jackpot! / n).toBeGreaterThan(0.03);
-    expect(count.jackpot! / n).toBeLessThan(0.07);
+    const count = { coins: 0, postcard: 0, item: 0, jackpot: 0, allFound: 0 };
+    for (const d of Array.from({ length: n }, (_, i) => `day-${i}`)) count[rollPackage(d, 0, []).kind]++;
+    expect(count.coins / n).toBeGreaterThan(0.55);
+    expect(count.coins / n).toBeLessThan(0.65);
+    expect(count.postcard / n).toBeGreaterThan(0.16);
+    expect(count.item / n).toBeGreaterThan(0.12);
+    expect(count.jackpot / n).toBeGreaterThan(0.03);
+    expect(count.jackpot / n).toBeLessThan(0.07);
   });
 
   test("coin packages pay 10–20, jackpots 50, postcards 5", () => {
