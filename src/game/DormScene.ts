@@ -204,8 +204,10 @@ export class DormScene extends Phaser.Scene {
   private getWallpaperId: () => string = () => ROOMS[0]!.wallpaperId;
   private onWallTap: () => void = () => {};
   private wallGfx: Phaser.GameObjects.Graphics | null = null;
-  /** "x,y" keys of back-wall face tiles (2 rows tall) in personal + common rooms */
+  /** "x,y" keys of back-wall face tiles (2 rows tall) in personal + common rooms + hallway */
   private faceTiles = new Set<string>();
+  /** which zone's face each face tile belongs to (painting must not guess via zoneNear) */
+  private faceOwner = new Map<string, Zone>();
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
 
@@ -291,16 +293,21 @@ export class DormScene extends Phaser.Scene {
         }
     for (const [x, y] of DOORWAYS) this.grid[y]![x] = FLOOR;
 
-    // back-wall face: the top ring row + the first interior row read as one tall wall
+    // back-wall face: the top ring row + the first interior row read as one tall wall.
+    // Indoor rooms and the hallway get one; the courtyard (outdoor) does not.
     this.faceTiles.clear();
+    this.faceOwner.clear();
     for (const z of zones) {
-      if (z.kind !== "personal" && z.kind !== "common") continue;
+      if (z.kind !== "personal" && z.kind !== "common" && z.kind !== "hall") continue;
       const topDoor = new Set(DOORWAYS.filter(([, dy]) => dy === z.y - 1).map(([dx]) => dx));
       for (let x = z.x; x < z.x + z.w; x++) {
         if (topDoor.has(x)) continue;
         this.grid[z.y]![x] = WALL;
-        this.faceTiles.add(`${x},${z.y - 1}`);
-        this.faceTiles.add(`${x},${z.y}`);
+        for (const y of [z.y - 1, z.y]) {
+          this.faceTiles.add(`${x},${y}`);
+          // explicit owner: the hall face shares row 16 with the bedrooms' bottom ring
+          this.faceOwner.set(`${x},${y}`, z);
+        }
       }
     }
   }
