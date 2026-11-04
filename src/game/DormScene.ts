@@ -1250,6 +1250,7 @@ export class DormScene extends Phaser.Scene {
       };
       const tint = this.moodTint(room, item);
       if (tint) def.tint = tint;
+      if (item.scale) def.scale = item.scale;
       if (payload) def.payload = payload;
 
       const sprite = this.prop(def);
@@ -1304,6 +1305,7 @@ export class DormScene extends Phaser.Scene {
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
     const tint = this.moodTint(ROOMS[0]!, item);
     if (tint) sprite.setTint(tint);
+    if (item.scale) sprite.setScale(item.scale);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
     this.itemLight(itemId, sprite);
@@ -1636,6 +1638,7 @@ export class DormScene extends Phaser.Scene {
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
     const ghostTint = this.moodTint(ROOMS[0]!, item);
     if (ghostTint) this.ghost.setTint(ghostTint);
+    if (item.scale) this.ghost.setScale(item.scale);
     this.ensureHighlight();
     this.updatePlacingPreview(this.input.activePointer);
   }
