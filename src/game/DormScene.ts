@@ -1245,7 +1245,7 @@ export class DormScene extends Phaser.Scene {
       follow: sprite,
       color: l.color,
       radius: l.radius,
-      flicker: l.flicker,
+      flicker: l.flicker === true,
       disco: itemId === "disco_ball",
     });
     this.placedLights.set(sprite, light);

@@ -185,7 +185,7 @@ export class Lighting {
       l.cutX = l.x;
       l.cutY = l.y;
       const s = scaleFor(l.spec.radius);
-      rt.stamp("lightmask", null, Math.round(l.x), Math.round(l.y), {
+      rt.stamp("lightmask", undefined, Math.round(l.x), Math.round(l.y), {
         scale: s,
         blendMode: Phaser.BlendModes.ERASE,
       });
