@@ -579,11 +579,22 @@ export class DormScene extends Phaser.Scene {
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         if (this.grid[y]![x] !== WALL) continue;
+        const owner = this.faceOwner.get(`${x},${y}`);
+        if (owner) {
+          this.drawFaceTile(
+            g,
+            x,
+            y,
+            mix(owner.wall, 0xf3e6d0, 0.38),
+            owner.wall,
+            y === owner.y - 1,
+            owner.kind === "hall" ? "wainscot" : "flat",
+          );
+          continue;
+        }
         const zone = this.zoneNear(x, y, zones);
         const base = zone?.wall ?? NEUTRAL_WALL;
-        if (this.faceTiles.has(`${x},${y}`) && zone)
-          this.drawFaceTile(g, x, y, mix(base, 0xf3e6d0, 0.38), base, y === zone.y - 1);
-        else if (zone && (zone.kind === "personal" || zone.kind === "common"))
+        if (zone && (zone.kind === "personal" || zone.kind === "common"))
           this.drawCapTile(g, x, y, base);
         else this.drawWallTile(g, x, y, base);
       }
@@ -611,9 +622,10 @@ export class DormScene extends Phaser.Scene {
     this.layDoormats();
   }
 
-  /** communal hallway runner rug down the corridor spine, inset a tile from each wall */
+  /** communal hallway runner rug down the corridor spine, centred on the walkable rows (below the face) */
   private layHallwayRunner() {
-    const cy = t(HALL.y + HALL.h / 2);
+    const floorTop = HALL.y + 1; // row HALL.y is the back-wall face
+    const cy = t(floorTop + (HALL.h - 1) / 2);
     const x0 = HALL.x + 1;
     const x1 = HALL.x + HALL.w - 1;
     for (let tx = x0; tx < x1; tx++)
@@ -631,17 +643,18 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
   }
 
-  /** thin woven mat layered on top of every doorway sill */
+  /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
   private layDoormats() {
     DOORWAYS.forEach(([x, y], i) => {
       const personal = i < 6 ? ROOMS[Math.floor(i / 2)] : undefined;
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
         : 0xc3b39a;
+      const my = personal ? HALL.y + 1 : y;
       this.add
-        .image(t(x) + TILE / 2, t(y) + TILE / 2, "doormat")
+        .image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat")
         .setTint(tint)
-        .setDepth(1);
+        .setDepth(1.2);
     });
   }
 
