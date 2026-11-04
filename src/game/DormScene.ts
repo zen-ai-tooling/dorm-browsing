@@ -1062,6 +1062,9 @@ export class DormScene extends Phaser.Scene {
     // the poster is a real catalog item now (see ITEM_CATALOG.poster_default) and
     // is drawn through room.layout like every other prop — no hardcoded rectangles.
 
+    // the back wall faces outside: a window in the reserved face columns
+    this.buildWindow(rect, accent);
+
     if (editable) this.renderMyLayout(room, rect);
     else this.renderLayout(room, rect, room.layout);
 
@@ -1114,6 +1117,7 @@ export class DormScene extends Phaser.Scene {
     this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
+    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
 
     // nameplate mounted on the face; an away note becomes its second line
     const away = !room.isActive ? room.awayNote : undefined;
@@ -1227,7 +1231,30 @@ export class DormScene extends Phaser.Scene {
 
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
+      this.itemLight(placed.itemId, sprite);
     }
+  }
+
+  /** placed items with ItemDef.light glow at night and follow their sprite (drag, move) */
+  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite) {
+    const l = ITEM_CATALOG[itemId]?.light;
+    if (!l) return null;
+    const light = this.light({
+      x: sprite.x,
+      y: sprite.y,
+      follow: sprite,
+      color: l.color,
+      radius: l.radius,
+      flicker: l.flicker,
+      disco: itemId === "disco_ball",
+    });
+    this.placedLights.set(sprite, light);
+    return light;
+  }
+
+  private dropItemLight(sprite: Phaser.GameObjects.Sprite) {
+    this.lighting.remove(this.placedLights.get(sprite));
+    this.placedLights.delete(sprite);
   }
 
   private centerOf(gx: number, gy: number, w: number, h: number) {
@@ -1256,6 +1283,7 @@ export class DormScene extends Phaser.Scene {
     if (tint) sprite.setTint(tint);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
+    this.itemLight(itemId, sprite);
 
     let zone: Phaser.GameObjects.Zone | null = null;
     if (item.solid) {
@@ -1310,6 +1338,7 @@ export class DormScene extends Phaser.Scene {
   /** full teardown/rebuild — only used when leaving edit mode */
   private rebuildMyRoom() {
     this.clearSelection();
+    for (const p of this.placed) this.dropItemLight(p.sprite);
     for (const o of this.myObjs) {
       if (o instanceof Phaser.GameObjects.Zone) this.walls.remove(o, true, true);
       else o.destroy();
@@ -1395,6 +1424,7 @@ export class DormScene extends Phaser.Scene {
     this.myObjs = this.myObjs.filter((o) => !dead.includes(o));
     if (entry.zone) this.walls.remove(entry.zone, true, true);
     entry.ring?.destroy();
+    this.dropItemLight(entry.sprite);
     entry.sprite.destroy();
     this.placed.splice(idx, 1);
     sfx.removeItem();
