@@ -19,7 +19,17 @@ import {
   type Rotation,
 } from "@/data/items";
 import { buildTextures } from "./textures";
-import { canPlaceIn } from "@/data/placement";
+import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
+import { Lighting, type Light, type LightSpec } from "./lighting";
+import {
+  DARKNESS_ALPHA,
+  DARKNESS_COLOR,
+  PHASE_FADE_MS,
+  PHASE_LOOK,
+  PHASES,
+  phaseFor,
+  type Phase,
+} from "./timeOfDay";
 
 export const TILE = 32;
 const GRID_W = 88;
@@ -57,6 +67,40 @@ const mix = (a: number, b: number, t: number) =>
 
 const NEUTRAL_WALL = 0x8b7461; // muted warm-neutral trim for hallway + common rooms
 
+/** campus ground outside the building (darker than the courtyard lawn) */
+const EXT_GROUND = 0x5b7848;
+const BRICK = 0x7a4334;
+const BRICK_MORTAR = 0x4f2b25;
+const BRICK_HI = 0x985a45;
+/** stone path rows below the building + the spur up to the courtyard */
+const PATH_ROWS = [35, 36];
+const PATH_X: [number, number] = [3, 78];
+const SPUR_COLS = [76, 77];
+const SPUR_ROWS: [number, number] = [29, 34];
+const HALL_STRIPE = 0x93a8a2;
+
+interface Look {
+  tint: number;
+  tintAlpha: number;
+  night: number;
+  /** per-phase weights (window skies + sunbeams) */
+  w: Record<Phase, number>;
+}
+
+const lookFor = (p: Phase): Look => ({
+  ...PHASE_LOOK[p],
+  w: { morning: 0, day: 0, golden: 0, night: 0, [p]: 1 },
+});
+
+const lerpColor = (a: number, b: number, k: number) => {
+  const ch = (s: number) => {
+    const x = (a >> s) & 255;
+    const y = (b >> s) & 255;
+    return Math.round(x + (y - x) * k) << s;
+  };
+  return ch(16) | ch(8) | ch(0);
+};
+
 const HALL: Zone = {
   id: "hall",
   label: "Hallway",
@@ -64,7 +108,7 @@ const HALL: Zone = {
   y: 17,
   w: 66,
   h: 5,
-  floor: 0xc9b59b,
+  floor: 0xdcd3c3,
   wall: NEUTRAL_WALL,
   kind: "hall",
 };
@@ -211,6 +255,17 @@ export class DormScene extends Phaser.Scene {
   private faceOwner = new Map<string, Zone>();
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
+  private lighting!: Lighting;
+  private getPhase: () => Phase = () => phaseFor(new Date());
+  private phase: Phase | null = null;
+  private nextPhaseCheck = 0;
+  private look: Look = lookFor("day");
+  private phaseTween: Phaser.Tweens.Tween | null = null;
+  /** per window: one sky image per phase, crossfaded by look.w */
+  private skies: Array<Record<Phase, Phase extends never ? never : Phaser.GameObjects.Image>> = [];
+  private beams: Array<{ g: Phaser.GameObjects.Graphics; phase: Phase }> = [];
+  /** placed-item lights, keyed by sprite */
+  private placedLights = new Map<Phaser.GameObjects.Sprite, Light>();
 
 
   constructor() {
