@@ -860,10 +860,18 @@ export class DormScene extends Phaser.Scene {
     ] as const) {
       const b = this.add.graphics().setDepth(1.4).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
       const y0 = t(rect.y + 1);
+      // clipped to the room's floor so a beam never spills onto the side walls
+      const minX = t(rect.x);
+      const maxX = t(rect.x + rect.w);
+      const band = (x: number, y: number, w: number, a: number) => {
+        const l = Math.max(minX, x);
+        const r = Math.min(maxX, x + w);
+        if (r > l) b.fillStyle(color, a).fillRect(l, y, r - l, 4);
+      };
       for (let i = 0; i < 28; i++) {
         const sx = gx + dir * Math.floor(i / 2) * 4;
-        b.fillStyle(color, 0.6).fillRect(sx, y0 + i * 4, 44, 4);
-        b.fillStyle(color, 1).fillRect(sx + 10, y0 + i * 4, 24, 4);
+        band(sx, y0 + i * 4, 44, 0.6);
+        band(sx + 10, y0 + i * 4, 24, 1);
       }
       this.beams.push({ g: b, phase });
     }
