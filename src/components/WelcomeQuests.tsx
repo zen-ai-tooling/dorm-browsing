@@ -7,7 +7,7 @@ import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
 
 const rewardLabel = (q: (typeof QUESTS)[number]) =>
-  q.itemId ? `Free ${ITEM_CATALOG[q.itemId]?.name ?? "gift"}` : `+${q.coins}`;
+  q.itemId ? `Free ${ITEM_CATALOG[q.itemId]?.category ?? "gift"}` : `+${q.coins}`;
 
 /** "Welcome to Floor 3": first-session checklist. Bottom-left card on desktop, a chip on mobile. */
 export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
