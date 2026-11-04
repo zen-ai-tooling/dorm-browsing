@@ -468,7 +468,7 @@ export class DormScene extends Phaser.Scene {
     paper: number,
     trim: number,
     isTopRow: boolean,
-    pattern: NonNullable<ItemDef["wallPattern"]> = "flat",
+    pattern: NonNullable<ItemDef["wallPattern"]> | "wainscot" = "flat",
   ) {
     const bx = t(x);
     const by = t(y);
@@ -513,11 +513,19 @@ export class DormScene extends Phaser.Scene {
     } else if (pattern === "sunset") {
       if (isTopRow) fill(light, 0, 8, TILE, TILE - 8);
       else fill(accent, 0, 0, TILE, TILE);
+    } else if (pattern === "wainscot" && !isTopRow) {
+      // institutional corridor: darker vertical-board paneling below a chair rail;
+      // the top row stays plain painted wall
+      const board = mix(paper, 0x2b2027, 0.25);
+      fill(board, 0, 0, TILE, TILE);
+      for (let i = 0; i < TILE; i += 8) fill(mix(board, 0x2b2027, 0.28), i, 6, 2, TILE - 6);
+      fill(mix(board, 0xfaf0e0, 0.18), 2, 6, 2, TILE - 13); // board edge catch-light
     }
     if (isTopRow) {
       fill(deep, 0, 0, TILE, 6); // crown
       fill(hi, 0, 6, TILE, 2);
     } else {
+      if (pattern === "wainscot") fill(mix(trim, 0xfaf0e0, 0.55), 0, 0, TILE, 2); // rail cap highlight
       fill(shade, 0, 4, TILE, 2); // chair rail
       fill(hi, 0, 6, TILE, 1);
       fill(shade, 0, TILE - 9, TILE, 2);
