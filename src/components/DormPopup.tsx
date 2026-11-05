@@ -46,7 +46,7 @@ import { ITEM_CATALOG } from "@/data/items";
 import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { roomNameFor } from "@/data/avatar";
-import { blockAt, MAX_HEARTS, pickLine, RESIDENTS, type ResidentId } from "@/data/residents";
+import { blockAt, MAX_HEARTS, pickLine, RESIDENTS, roomActiveAt, type ResidentId } from "@/data/residents";
 import { avatarDataUrl } from "@/lib/avatarCanvas";
 import { talkContextFor } from "@/lib/residentTalk";
 import { currentHour, useTimeVersion } from "@/lib/timeStore";
@@ -342,14 +342,14 @@ const SongsView = ({
             className="absolute left-[60px] top-1 size-[88px]"
             style={{
               ...pixelated,
-              animation: room.isActive ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
+              animation: roomActiveAt(room, currentHour()) ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
             }}
           />
           <Cover song={hero} mood={room.mood} scale={6} className="absolute left-0 top-0" />
         </div>
         <div className="min-w-0 flex-1">
           <span className="font-display text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>
-            {room.isActive ? "now playing" : "on repeat"}
+            {roomActiveAt(room, currentHour()) ? "now playing" : "on repeat"}
           </span>
           <Marquee text={hero.title} />
           <span className="block truncate font-body text-xs text-panel-muted">{hero.artist}</span>
@@ -555,7 +555,7 @@ const WatchingView = ({
           <span aria-hidden className="crt-static pointer-events-none absolute inset-0" />
         </div>
         <div aria-hidden className="mt-1.5 flex items-center justify-end gap-1.5">
-          <span className="size-2 border border-ink" style={{ backgroundColor: room.isActive ? "#7cc46a" : "#8d8090" }} />
+          <span className="size-2 border border-ink" style={{ backgroundColor: roomActiveAt(room, currentHour()) ? "#7cc46a" : "#8d8090" }} />
           <span className="size-2.5 border-2 border-ink bg-panel-muted" />
           <span className="size-2.5 border-2 border-ink bg-panel-muted" />
         </div>

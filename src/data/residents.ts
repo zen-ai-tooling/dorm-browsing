@@ -359,3 +359,9 @@ export const GIFT_DUPLICATE_COINS = 25;
 /** gifts unlocked by going from `before` to `after` hearts */
 export const giftsUnlocked = (id: ResidentId, before: number, after: number): string[] =>
   GIFT_AT.flatMap((at, i) => (before < at && after >= at ? [GIFTS[id][i]!] : []));
+
+/** a personal room's door state right now: home + awake glows and plays music; fallback to the seed flag */
+export const roomActiveAt = (room: { id: string; isActive: boolean }, hour: number) => {
+  const r = residentByRoom(room.id);
+  return r ? isHome(blockAt(r.id, hour)) : room.isActive;
+};
