@@ -1,11 +1,12 @@
 import { MOODS, type MoodKey } from "./dorm";
+import type { OutfitDef } from "./avatar";
 
 export interface ItemDef {
   id: string;
   name: string;
   /** one line of shop flavor text */
   blurb: string;
-  category: "furniture" | "wallpaper" | "poster" | "companion";
+  category: "furniture" | "wallpaper" | "poster" | "companion" | "outfit";
   /** matches a texture key generated in game/textures.ts */
   textureKey: string;
   /** tile footprint, used for grid snapping and overlap prevention */
@@ -32,7 +33,23 @@ export interface ItemDef {
   exclusive?: "mail";
   /** optional sprite scale in the room (e.g. the mini cactus) */
   scale?: number;
+  /** outfit items only: the top / bottom / accessory it puts on your avatar */
+  outfit?: OutfitDef;
 }
+
+/** wearables: never placed in a room, previewed on your own avatar */
+const outfit = (id: string, name: string, price: number, blurb: string, o: OutfitDef): ItemDef => ({
+  id,
+  name,
+  blurb,
+  category: "outfit",
+  textureKey: "outfit",
+  footprint: { w: 1, h: 1 },
+  solid: false,
+  price,
+  unlockedByDefault: false,
+  outfit: o,
+});
 
 export const ITEM_CATALOG: Record<string, ItemDef> = {
   bed_basic: {
@@ -708,7 +725,42 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     unlockedByDefault: false,
     exclusive: "mail",
   },
+  outfit_floor3_hoodie: outfit("outfit_floor3_hoodie", "Floor 3 Hoodie", 30, "Official merch. Unofficially never washed.", {
+    top: { style: "hoodie", color: 0 },
+    bottom: { style: "joggers", color: 7 },
+    accessory: "none",
+  }),
+  outfit_varsity: outfit("outfit_varsity", "Varsity Jacket", 60, "Lettered in vibes.", {
+    top: { style: "varsity", color: 2 },
+    bottom: { style: "jeans", color: 1 },
+    accessory: "none",
+  }),
+  outfit_overalls: outfit("outfit_overalls", "Overalls", 45, "One strap undone, on purpose.", {
+    top: { style: "overalls", color: 6 },
+    bottom: { style: "jeans", color: 9 },
+    accessory: "none",
+  }),
+  outfit_band_tee: outfit("outfit_band_tee", "Band Tee + Beanie", 40, "You've heard of them. Barely.", {
+    top: { style: "bandtee", color: 7 },
+    bottom: { style: "jeans", color: 7 },
+    accessory: "beanie",
+  }),
+  outfit_bucket_hat: outfit("outfit_bucket_hat", "Bucket Hat Fit", 35, "Festival-ready, quad-adjacent.", {
+    top: { style: "stripe", color: 4 },
+    bottom: { style: "shorts", color: 6 },
+    accessory: "buckethat",
+  }),
+  outfit_grad_gown: outfit("outfit_grad_gown", "Graduation Gown", 120, "Manifesting it four years early.", {
+    top: { style: "gown", color: 7 },
+    bottom: { style: "jeans", color: 7 },
+    accessory: "gradcap",
+  }),
 };
+
+/** every wearable outfit, in catalog order */
+export const OUTFIT_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "outfit")
+  .map((i) => i.id);
 
 /** the mail-exclusive collection, in catalog order */
 export const MAIL_ITEM_IDS = Object.values(ITEM_CATALOG)
@@ -747,7 +799,15 @@ export const AFFORDABLE_MAX = 45;
 
 /** every shop item priced inside the affordable band, in catalog order */
 export const AFFORDABLE_ITEM_IDS: string[] = Object.values(ITEM_CATALOG)
-  .filter((i) => isShopItem(i) && !i.unlockedByDefault && i.price >= AFFORDABLE_MIN && i.price <= AFFORDABLE_MAX)
+  // outfits stay out so the room-item drop is the same as before they existed
+  .filter(
+    (i) =>
+      isShopItem(i) &&
+      i.category !== "outfit" &&
+      !i.unlockedByDefault &&
+      i.price >= AFFORDABLE_MIN &&
+      i.price <= AFFORDABLE_MAX,
+  )
   .map((i) => i.id);
 
 /**
