@@ -84,7 +84,7 @@ export const PhaseChip = () => {
       className="rounded-[3px]"
     >
       <GamePanel className="flex items-center gap-1.5 px-2 py-1.5">
-        <PixelIcon def={GLYPHS[phase]} size={18} />
+        <PixelIcon def={PHASE_GLYPHS[phase]} size={18} />
         {showName ? (
           <span className="font-body text-xs font-bold text-panel-foreground">{label}</span>
         ) : null}
