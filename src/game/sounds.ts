@@ -104,6 +104,13 @@ export const sfx = {
   placeItem() {
     play([{ freq: 180, to: 120, dur: 0.09, gain: 0.3, type: "triangle" }]);
   },
+  /** two soft wooden taps on a door */
+  knock() {
+    play([
+      { freq: 150, to: 90, dur: 0.07, gain: 0.5, type: "triangle" },
+      { freq: 150, to: 90, at: 0.17, dur: 0.07, gain: 0.5, type: "triangle" },
+    ]);
+  },
   removeItem() {
     play([{ freq: 300, to: 150, dur: 0.1, gain: 0.26, type: "square" }]);
   },
