@@ -13,6 +13,7 @@ import {
   ITEM_CATALOG,
   displayTintFor,
   effectiveFootprint,
+  isShopItem,
   isWallItem,
   zoomTextureKey,
   type ItemDef,
@@ -41,7 +42,6 @@ import {
   type ResidentDef,
   type ResidentId,
 } from "@/data/residents";
-import { isShopItem } from "@/data/items";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type Light, type LightSpec } from "./lighting";
