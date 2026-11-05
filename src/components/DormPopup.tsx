@@ -50,8 +50,7 @@ import { blockAt, MAX_HEARTS, pickLine, RESIDENTS, type ResidentId } from "@/dat
 import { avatarDataUrl } from "@/lib/avatarCanvas";
 import { talkContextFor } from "@/lib/residentTalk";
 import { currentHour, useTimeVersion } from "@/lib/timeStore";
-import { getPlayerState } from "@/lib/playerStore";
-import { playerActions, usePlayerState } from "@/lib/playerStore";
+import { getPlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
 import { PixelIcon } from "./PixelIcon";
 import { sfx } from "@/game/sounds";
