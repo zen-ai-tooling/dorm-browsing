@@ -1052,6 +1052,88 @@ export const displayTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: num
   return item.tint;
 };
 
+/* ---------------- player recolor (Iteration 28) ---------------- */
+
+/** one shared palette, tuned to the pixel art (not saturated primaries) */
+export const RECOLOR_PALETTE: Array<{ id: string; name: string; color: number }> = [
+  { id: "cream", name: "Cream", color: 0xefe4cf },
+  { id: "terracotta", name: "Terracotta", color: 0xc96f4a },
+  { id: "mustard", name: "Mustard", color: 0xd6a73c },
+  { id: "sage", name: "Sage", color: 0x8fae86 },
+  { id: "teal", name: "Teal", color: 0x4f9a9a },
+  { id: "dusty_blue", name: "Dusty Blue", color: 0x6f8fbf },
+  { id: "lavender", name: "Lavender", color: 0xa58cc8 },
+  { id: "rose", name: "Rose", color: 0xd88a9a },
+];
+export const RECOLOR_COST = 5;
+export const isPaletteColor = (n: unknown): n is number =>
+  typeof n === "number" && RECOLOR_PALETTE.some((p) => p.color === n);
+
+/** greyscale-authored textures take a full tint; baked ones recolor only their accent overlay */
+const RECOLORABLE: Record<string, "full" | "accent"> = {
+  chair_lounge: "full",
+  rug_woven: "full",
+  rug_shag: "full",
+  rug_midnight: "full",
+  cushion_stack: "full",
+  disco_ball: "full",
+  poster_default: "full",
+  poster_gig: "full",
+  poster_tour: "full",
+  poster_travel: "full",
+  poster_space: "full",
+  poster_abstract: "full",
+  poster_quote: "full",
+  poster_postcards: "full",
+  poster_pennant: "full",
+  bed_basic: "accent",
+  bed_loft: "accent",
+  bed_canopy: "accent",
+  lava_lamp: "accent",
+  lava_lamp_gold: "accent",
+  papasan_chair: "accent",
+  hammock_chair: "accent",
+};
+for (const [id, mode] of Object.entries(RECOLORABLE)) {
+  const item = ITEM_CATALOG[id];
+  if (item) item.recolor = mode;
+}
+export const RECOLORABLE_IDS = Object.keys(RECOLORABLE).filter((id) => !!ITEM_CATALOG[id]);
+
+/** overlay texture key for "accent" items */
+export const accentTextureKey = (textureKey: string) => `${textureKey}-accent`;
+
+/** tint for the base sprite: accent items keep their baked base (a player colour goes on the overlay) */
+export const baseTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: number | null) =>
+  item.recolor === "accent" ? displayTintFor(item, moodKey) : displayTintFor(item, moodKey, placedTint);
+
+/** tint for the accent overlay, or undefined when it shouldn't be drawn (Original) */
+export const accentTintFor = (item: ItemDef, placedTint?: number | null) =>
+  item.recolor === "accent" && typeof placedTint === "number" ? placedTint : undefined;
+
+/** lamps follow their shade: the light colour mixes 40% toward the player's tint */
+export const lightColorFor = (item: ItemDef, placedTint?: number | null) => {
+  if (!item.light) return undefined;
+  return item.recolor && typeof placedTint === "number" ? mixColor(item.light.color, placedTint, 0.4) : item.light.color;
+};
+
+/** the recolor charge: a new colour costs RECOLOR_COST, Original (null) and the same colour are free */
+export const recolorCost = (current: number | null | undefined, next: number | null) =>
+  next === null || next === (current ?? null) ? 0 : RECOLOR_COST;
+
+/* ---------------- floors + mats (Iteration 28) ---------------- */
+
+export const FLOOR_DEFAULT = "floor_checker";
+export const MAT_DEFAULT = "mat_plain";
+export const FLOOR_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "floor")
+  .map((i) => i.id);
+export const MAT_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "mat")
+  .map((i) => i.id);
+export const floorStyleFor = (floorId: string | null | undefined): FloorStyle =>
+  ITEM_CATALOG[floorId ?? ""]?.floorStyle ?? "checker";
+
 /* ---------------- collection sets ---------------- */
 
 export type SetId = "arcade_night" | "vinyl_head" | "cozy_corner" | "movie_night" | "night_owl" | "small_friends";
