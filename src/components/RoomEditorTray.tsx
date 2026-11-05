@@ -6,7 +6,8 @@ import { usePlayerState } from "@/lib/playerStore";
 import { GamePanel } from "./GamePanel";
 import { sfx } from "@/game/sounds";
 
-const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
+/** outfits are worn, never placed — they live in the avatar creator, not the tray */
+const CATEGORY_LABEL: Record<Exclude<ItemDef["category"], "outfit">, string> = {
   furniture: "Furniture",
   companion: "Companions",
   wallpaper: "Wallpaper",
