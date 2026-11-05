@@ -363,4 +363,5 @@ export type PopupPayload =
   | { kind: "package" }
   | { kind: "whiteboard"; residentId: string; name: string; accent: string }
   | { kind: "art"; title: string; textureKey: string; accent?: string }
-  | { kind: "flavor"; title: string; lines: string[]; accent?: string };
+  | { kind: "flavor"; title: string; lines: string[]; accent?: string }
+  | { kind: "resident"; residentId: "sam" | "jordan" };

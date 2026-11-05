@@ -1,6 +1,6 @@
 import { MOODS, ROOMS } from "@/data/dorm";
 import { pinMatches, songMatches } from "@/data/interests";
-import { ITEM_CATALOG } from "@/data/items";
+import { ITEM_CATALOG, type ItemDef } from "@/data/items";
 import { promptForToday, residentPick, todayKey } from "@/data/prompts";
 import { RESIDENTS, type ResidentId, type RoomInfo, type TalkContext } from "@/data/residents";
 import { stickerFor } from "@/data/stickers";
@@ -32,7 +32,7 @@ const PLANT_TEXTURES = new Set(["plant", "bonsai"]);
 
 /** what a visitor can see in Your Room */
 export const roomInfoFor = (s: PlayerState): RoomInfo => {
-  const items = s.roomLayout.map((p) => ITEM_CATALOG[p.itemId]).filter((i) => !!i);
+  const items = s.roomLayout.map((p) => ITEM_CATALOG[p.itemId]).filter((i): i is ItemDef => !!i);
   const newest = s.newestItemId && s.roomLayout.some((p) => p.itemId === s.newestItemId) ? s.newestItemId : null;
   const paper = ITEM_CATALOG[s.myWallpaperId];
   return {
