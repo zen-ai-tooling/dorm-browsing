@@ -29,8 +29,11 @@ export interface ItemDef {
   /** coin cost in the shop; 0 for starter items */
   price: number;
   unlockedByDefault: boolean;
-  /** never sold in the shop — only found in the daily mail package */
-  exclusive?: "mail";
+  /**
+   * never sold in the shop: "mail" = daily package find, "gift" = a resident's friendship gift,
+   * "resident" = only ever seen in a neighbor's room
+   */
+  exclusive?: "mail" | "gift" | "resident";
   /** optional sprite scale in the room (e.g. the mini cactus) */
   scale?: number;
   /** outfit items only: the top / bottom / accessory it puts on your avatar */
@@ -724,6 +727,108 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     price: 0,
     unlockedByDefault: false,
     exclusive: "mail",
+  },
+  // ---- Iteration 26: resident-only pieces + friendship gifts (never sold) ----
+  pottery_wheel: {
+    blurb: "Sam's wheel. Spins true, mostly.",
+    id: "pottery_wheel",
+    name: "Pottery Wheel",
+    category: "furniture",
+    textureKey: "potterywheel",
+    footprint: { w: 1, h: 1 },
+    solid: true,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "gift",
+  },
+  clay_shelf: {
+    blurb: "Little bowls, littler vases.",
+    id: "clay_shelf",
+    name: "Clay Shelf",
+    category: "furniture",
+    textureKey: "clayshelf",
+    footprint: { w: 2, h: 1 },
+    solid: true,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "resident",
+  },
+  skateboard_wall: {
+    blurb: "Leaning, waiting for the next hill.",
+    id: "skateboard_wall",
+    name: "Skateboard",
+    category: "furniture",
+    mount: "wall",
+    textureKey: "skateboard",
+    footprint: { w: 1, h: 1 },
+    solid: false,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "resident",
+  },
+  polaroid_frame: {
+    blurb: "First bowl that didn't crack.",
+    id: "polaroid_frame",
+    name: "Framed Polaroid",
+    category: "furniture",
+    mount: "wall",
+    textureKey: "polaroidframe",
+    footprint: { w: 1, h: 1 },
+    solid: false,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "resident",
+  },
+  gift_clay_bowl: {
+    blurb: "Lopsided. Made for you. From Sam.",
+    id: "gift_clay_bowl",
+    name: "Sam's Clay Bowl",
+    category: "furniture",
+    mount: "wall",
+    textureKey: "claybowl",
+    footprint: { w: 1, h: 1 },
+    solid: false,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "gift",
+  },
+  dj_decks: {
+    blurb: "Two turntables and a mixer. Jordan's pride.",
+    id: "dj_decks",
+    name: "DJ Decks",
+    category: "furniture",
+    textureKey: "djdecks",
+    footprint: { w: 2, h: 1 },
+    solid: true,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "gift",
+  },
+  dumbbell_rack: {
+    blurb: "Mostly used as a coat rack.",
+    id: "dumbbell_rack",
+    name: "Dumbbell Rack",
+    category: "furniture",
+    textureKey: "dumbbells",
+    footprint: { w: 2, h: 1 },
+    solid: true,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "resident",
+  },
+  gift_mixtape: {
+    blurb: "Side A: hype. Side B: cooldown. From Jordan.",
+    id: "gift_mixtape",
+    name: "Mixtape Poster",
+    category: "poster",
+    mount: "wall",
+    interactive: "art",
+    textureKey: "poster-mixtape",
+    footprint: { w: 3, h: 1 },
+    solid: false,
+    price: 0,
+    unlockedByDefault: false,
+    exclusive: "gift",
   },
   outfit_floor3_hoodie: outfit("outfit_floor3_hoodie", "Floor 3 Hoodie", 30, "Official merch. Unofficially never washed.", {
     top: { style: "hoodie", color: 0 },
