@@ -163,6 +163,7 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
           Reset today's package
         </DevButton>
         <DevButton onClick={() => run(devActions.resetQuests, "Welcome quests reset")}>Reset quests</DevButton>
+        <DevButton onClick={() => run(devActions.replayMoveIn, "Move-in starting")}>Replay move-in</DevButton>
         <DevButton danger onClick={resetEverything}>
           {confirmReset ? "Tap again to confirm" : "Reset everything"}
         </DevButton>
