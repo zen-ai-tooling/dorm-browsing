@@ -66,7 +66,7 @@ describe("schedules", () => {
       for (let h = 0; h < 24; h++) expect(r.schedule.filter((b) => h >= b.from && h < b.to).length).toBe(1);
   });
 
-  test("the table: Sam 9am kitchen, 2pm away at the clay studio, 3am asleep; Jordan 7am on a run, 6pm in his room", () => {
+  test("the table: Sam 9am kitchen, 2pm away at the clay studio, 3am asleep; Jordan 7am on a run, 6pm at home", () => {
     expect(blockAt("sam", 9).place).toBe("kitchen");
     expect(blockAt("sam", 14).awayNote).toBe("at the clay studio");
     expect(blockAt("sam", 3).place).toBe("bed");
