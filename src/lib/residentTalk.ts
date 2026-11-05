@@ -25,6 +25,7 @@ export const talkContextFor = (id: ResidentId, s: PlayerState, hour: number): Ta
     commonInterest: pinHit && pinHit.kind === "interest" ? stickerFor(pinHit.stickerId).label : null,
     newestItem: s.newestItemId ? ITEM_CATALOG[s.newestItemId]?.name ?? null : null,
     outfit,
+    doorNews: s.doorVersion > (s.doorSeen?.[id] ?? 0) ? s.doorLastChange : null,
   };
 };
 

@@ -1504,6 +1504,7 @@ const ResidentPopup = ({ residentId }: { residentId: ResidentId }) => {
   });
   useEffect(() => {
     playerActions.talk(residentId, line.id);
+    if (line.id === "you-door") playerActions.markDoorSeen(residentId);
   }, [residentId, line.id]);
   const portrait = avatarDataUrl(r.look, "down", 0, 4);
   return (

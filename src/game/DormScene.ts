@@ -1,4 +1,6 @@
 import * as Phaser from "phaser";
+import { DOOR_DEFAULT, doorStickerSlots, type DoorState as MyDoor, type PlateStyle } from "@/data/door";
+import { stickerFor } from "@/data/stickers";
 import { sfx, unlockAudio } from "./sounds";
 import {
   COMMUNITY_CORKBOARD,
@@ -12,6 +14,16 @@ import {
 import {
   ITEM_CATALOG,
   displayTintFor,
+  accentTextureKey,
+  accentTintFor,
+  baseTintFor,
+  floorStyleFor,
+  FLOOR_ITEM_IDS,
+  lightColorFor,
+  RECOLOR_COST,
+  RECOLOR_PALETTE,
+  recolorCost,
+  type FloorStyle,
   effectiveFootprint,
   isShopItem,
   isWallItem,
@@ -75,8 +87,25 @@ interface Zone extends Rect {
   floor: number;
   wall: number;
   kind: "hall" | "personal" | "common" | "outdoor";
-  floorStyle?: "planks" | "linoleum";
+  floorStyle?: "planks" | FloorStyle;
 }
+
+/** neutral floor materials — never the wall colour (checker + shag take the room's mood instead) */
+const FLOOR_BASE: Record<Exclude<FloorStyle, "checker" | "shag">, number> = {
+  oak: 0xc9a06c,
+  walnut: 0x7a5238,
+  linoleum: 0xdcc9a0,
+  cork: 0xc39a6b,
+  concrete: 0xa9aba8,
+};
+/** neighbors' floors (Iteration 28): reinforce their rooms' identities */
+const NEIGHBOR_FLOOR: Record<string, FloorStyle> = { "room-2": "cork", "room-3": "concrete" };
+const personalFloorColor = (style: FloorStyle, mood: (typeof MOODS)[MoodKey]) =>
+  style === "checker"
+    ? mix(mood.wallpaper, 0xb59774, 0.18)
+    : style === "shag"
+      ? mix(mood.posterAccent, 0xd8cfc2, 0.45)
+      : FLOOR_BASE[style];
 
 const mix = (a: number, b: number, t: number) =>
   Phaser.Display.Color.ObjectToColor(
@@ -306,6 +335,8 @@ export class DormScene extends Phaser.Scene {
     gx: number;
     gy: number;
     rotation: Rotation;
+    tint?: number;
+    accent: Phaser.GameObjects.Sprite | null;
   }> = [];
   private selectedIdx = -1;
   private selectionUi: Phaser.GameObjects.Container | null = null;
@@ -358,6 +389,18 @@ export class DormScene extends Phaser.Scene {
   private getMyMood: () => MoodKey = () => ROOMS[0]!.mood;
   private getPlayerName: () => string = () => "";
   private builtMood: MoodKey = ROOMS[0]!.mood;
+  private builtFloor: FloorStyle = "checker";
+  private getMyFloorId: () => string = () => "floor_checker";
+  private getDoor: () => MyDoor = () => DOOR_DEFAULT;
+  private onRecolor: (index: number, tint: number | null) => boolean = () => false;
+  private canAffordCb: (price: number) => boolean = () => true;
+  /** recolor overlays riding on their base sprite (position, angle, depth, bob) */
+  private accentPairs: Array<{ base: Phaser.GameObjects.Sprite; overlay: Phaser.GameObjects.Sprite }> = [];
+  private myDoorObjs: Phaser.GameObjects.GameObject[] = [];
+  private myDoorLight: ReturnType<Lighting["add"]> | null = null;
+  private myBoardText: Phaser.GameObjects.Text | null = null;
+  private floorSweep: Phaser.Time.TimerEvent | null = null;
+  private camTween: Phaser.Tweens.Tween | null = null;
   private myFloorGfx: Phaser.GameObjects.Graphics | null = null;
   private myRug: Phaser.GameObjects.Image | null = null;
   private myGlow: Phaser.GameObjects.Image | null = null;
@@ -406,7 +449,15 @@ export class DormScene extends Phaser.Scene {
     onSoldHint?: (h: { itemId: string; x: number; y: number } | null) => void;
     getVisitLine?: (id: ResidentId) => string | null;
     onVisitLine?: (id: ResidentId, line: string) => void;
+    getMyFloorId?: () => string;
+    getDoor?: () => MyDoor;
+    onRecolor?: (index: number, tint: number | null) => boolean;
+    canAfford?: (price: number) => boolean;
   }) {
+    if (data?.getMyFloorId) this.getMyFloorId = data.getMyFloorId;
+    if (data?.getDoor) this.getDoor = data.getDoor;
+    if (data?.onRecolor) this.onRecolor = data.onRecolor;
+    if (data?.canAfford) this.canAffordCb = data.canAfford;
     if (data?.getHour) this.getHour = data.getHour;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
     if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
@@ -454,6 +505,7 @@ export class DormScene extends Phaser.Scene {
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
+    this.buildFloorSwatches();
     this.refreshDaily();
     this.applyAvatar();
     this.spawnResidents();
@@ -471,15 +523,18 @@ export class DormScene extends Phaser.Scene {
 
   private buildZones(): Zone[] {
     this.builtMood = this.getMyMood();
+    this.builtFloor = floorStyleFor(this.getMyFloorId());
     const personal: Zone[] = ROOMS.map((room, i) => {
       const mood = MOODS[i === 0 ? this.builtMood : room.mood];
       const r = PERSONAL_RECTS[i]!;
       const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
+      const style: FloorStyle = i === 0 ? this.builtFloor : NEIGHBOR_FLOOR[room.id] ?? "checker";
       return {
         ...r,
         id: room.id,
         label: room.name,
-        floor: mix(mood.wallpaper, 0xb59774, 0.18),
+        floor: personalFloorColor(style, mood),
+        floorStyle: style,
         // personal rooms get accent-tinted wall trim
         wall: mix(accent, 0x7a6250, 0.22),
         kind: "personal" as const,
@@ -523,6 +578,41 @@ export class DormScene extends Phaser.Scene {
     }
   }
 
+  /** wood planks: staggered joints + seeded per-tile grain variation (common rooms, oak, walnut) */
+  private paintPlanks(
+    px: (x: number, y: number, w: number, h: number, c: number) => void,
+    floor: number,
+    tx: number,
+    ty: number,
+    ox: number,
+    oy: number,
+    U: number,
+  ) {
+    const dark = mix(floor, 0x3d3128, 0.22);
+    const darker = mix(floor, 0x3d3128, 0.34);
+    const light = mix(floor, 0xf6ead6, 0.3);
+    const z = { floor };
+    const stagger = ty % 2 === 0 ? 0 : U / 2;
+    const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
+    const worn = seed % 15 === 0;
+    if (ty % 2 === 0) px(ox, oy, U, U, mix(z.floor, 0xf6ead6, 0.12));
+    if (worn) {
+      // scattered worn plank: off-value tile + a small scuff scratch
+      px(ox, oy, U, U, mix(z.floor, seed % 2 === 0 ? 0x3d3128 : 0xf6ead6, 0.16));
+      const sx = 3 + (seed % 6);
+      const sy = 6 + ((seed >> 3) % 5);
+      px(ox + sx, oy + sy, 4, 1, darker);
+      px(ox + sx + 2, oy + sy + 1, 3, 1, darker);
+    }
+    px(ox, oy, U, 1, darker); // plank seam
+    px(ox, oy + 1, U, 1, light);
+    const skip = seed % 4;
+    const gj = (seed >> 5) % 3; // grain jitter
+    if (skip !== 0) px(ox + 2, oy + 4 + gj + (tx % 2) * 2, U - 6, 1, dark);
+    if (skip !== 1) px(ox + 3 + gj, oy + 11 - (ty % 2) * 2, U - 8, 1, dark);
+    px(ox + ((stagger + 4) % U), oy + 2, 1, U - 2, darker); // joint
+  }
+
   /** per-tile pixel texture: plank grain, woven tile, grass tufts — hard edges only */
   private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
     const PX = 2; // art-pixel size, matches the sprite tileset
@@ -545,7 +635,47 @@ export class DormScene extends Phaser.Scene {
         const oy = ty * U;
         const alt = (tx + ty) % 2 === 0;
 
-        if (z.kind === "personal") {
+        const seedT = Math.abs((tx * 73856093) ^ (ty * 19349663));
+        const pstyle = z.kind === "personal" ? z.floorStyle ?? "checker" : null;
+        if (pstyle === "cork") {
+          // warm tan, dithered speckle, faint 2-tile seams
+          for (let i = 0; i < 14; i++) {
+            const sx = (seedT >> (i % 13)) % U;
+            const sy = ((seedT >> ((i * 3) % 11)) * (i + 1)) % U;
+            px(ox + sx, oy + sy, 1, 1, i % 3 === 0 ? light : i % 3 === 1 ? dark : darker);
+          }
+          if (tx % 2 === 0) px(ox, oy, 1, U, mix(z.floor, 0x3d3128, 0.12));
+          if (ty % 2 === 0) px(ox, oy, U, 1, mix(z.floor, 0x3d3128, 0.12));
+        } else if (pstyle === "shag") {
+          // greyscale-ish tufts: short 1×2 strands on a staggered grid, light tips
+          for (let yy = 1; yy < U; yy += 3)
+            for (let xx = (yy % 2) + 1; xx < U; xx += 3) {
+              const jig = (seedT >> ((xx + yy) % 9)) & 1;
+              px(ox + xx, oy + yy + jig, 1, 2, dark);
+              px(ox + xx, oy + yy + jig, 1, 1, light);
+            }
+        } else if (pstyle === "concrete") {
+          // cool grey slab: faint aggregate dots, a seam every 3 tiles
+          for (let i = 0; i < 6; i++) {
+            const sx = ((seedT >> (i * 2)) * (i + 7)) % U;
+            const sy = ((seedT >> (i + 3)) * (i + 2)) % U;
+            px(ox + sx, oy + sy, 1, 1, i % 2 ? mix(z.floor, 0xffffff, 0.25) : mix(z.floor, 0x2a2c30, 0.18));
+          }
+          if (tx % 3 === 0) px(ox, oy, 1, U, mix(z.floor, 0x2a2c30, 0.14));
+          if (ty % 3 === 0) px(ox, oy, U, 1, mix(z.floor, 0x2a2c30, 0.14));
+        } else if (pstyle === "oak" || pstyle === "walnut") {
+          this.paintPlanks(px, z.floor, tx, ty, ox, oy, U);
+        } else if (pstyle === "linoleum" || (z.kind === "common" && z.floorStyle === "linoleum")) {
+          // two-tone 16px checker (8 art px) with 1px grout — the kitchenette pattern
+          const half = U / 2;
+          for (let cy = 0; cy < 2; cy++)
+            for (let cx = 0; cx < 2; cx++) {
+              const c = (cx + cy) % 2 === 0 ? z.floor : mix(z.floor, 0x3d3128, 0.12);
+              px(ox + cx * half, oy + cy * half, half, half, c);
+              px(ox + cx * half, oy + cy * half, half, 1, darker);
+              px(ox + cx * half, oy + cy * half, 1, half, darker);
+            }
+        } else if (z.kind === "personal") {
           // woven square tile: 1px grout + dithered weave, alternating phase
           if (alt) px(ox, oy, U, U, mix(z.floor, 0x3d3128, 0.1));
           for (let yy = 2; yy < U - 1; yy += 2)
@@ -587,26 +717,7 @@ export class DormScene extends Phaser.Scene {
               px(ox + cx * half, oy + cy * half, 1, half, darker);
             }
         } else {
-          // wood planks: staggered joints + seeded per-tile grain variation
-          const stagger = ty % 2 === 0 ? 0 : U / 2;
-          const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
-          const worn = seed % 15 === 0;
-          if (ty % 2 === 0) px(ox, oy, U, U, mix(z.floor, 0xf6ead6, 0.12));
-          if (worn) {
-            // scattered worn plank: off-value tile + a small scuff scratch
-            px(ox, oy, U, U, mix(z.floor, seed % 2 === 0 ? 0x3d3128 : 0xf6ead6, 0.16));
-            const sx = 3 + (seed % 6);
-            const sy = 6 + ((seed >> 3) % 5);
-            px(ox + sx, oy + sy, 4, 1, darker);
-            px(ox + sx + 2, oy + sy + 1, 3, 1, darker);
-          }
-          px(ox, oy, U, 1, darker); // plank seam
-          px(ox, oy + 1, U, 1, light);
-          const skip = seed % 4;
-          const gj = (seed >> 5) % 3; // grain jitter
-          if (skip !== 0) px(ox + 2, oy + 4 + gj + (tx % 2) * 2, U - 6, 1, dark);
-          if (skip !== 1) px(ox + 3 + gj, oy + 11 - (ty % 2) * 2, U - 8, 1, dark);
-          px(ox + ((stagger + 4) % U), oy + 2, 1, U - 2, darker); // joint
+          this.paintPlanks(px, z.floor, tx, ty, ox, oy, U);
         }
       }
     }
@@ -1136,6 +1247,7 @@ export class DormScene extends Phaser.Scene {
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
   private layDoormats() {
     DOORWAYS.forEach(([x, y], i) => {
+      if (i < 2) return; // your mat is part of your door (applyMyDoor)
       const personal = i < 6 ? ROOMS[Math.floor(i / 2)] : undefined;
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
@@ -1251,7 +1363,8 @@ export class DormScene extends Phaser.Scene {
     const faceH = TILE * 2;
     const openL = t(doorX);
     const openR = t(doorX + 2);
-    {
+    // Your door (frame, stickers, plate, mat) is drawn from your save by applyMyDoor
+    if (!editable) {
       const fr = this.add.graphics().setDepth(4);
       const jamb = (x: number) => {
         fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
@@ -1267,7 +1380,7 @@ export class DormScene extends Phaser.Scene {
     }
 
     // door stickers on the face left of the frame, staggered
-    room.doorStickers.slice(0, 3).forEach((st, i) => {
+    if (!editable) room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
       if (!this.textures.exists(key)) return;
       this.add
@@ -1312,8 +1425,8 @@ export class DormScene extends Phaser.Scene {
 
     if (editable) {
       // your plate shows "{name}'s Room" and is redrawn on rename, so the board sits past the widest plate
-      this.applyMyName();
       this.buildDoorBoard(room, openR + 20 + MY_PLATE_MAX + 8);
+      this.applyMyDoor();
       return;
     }
     // neighbors: plate, glow and music follow their schedule (refreshDoors); the board sits past
@@ -1379,7 +1492,7 @@ export class DormScene extends Phaser.Scene {
         accent: room.accentColor,
       },
     });
-    const text = this.add
+    const text: Phaser.GameObjects.Text = this.add
       .text(cx, cy - 5, "", {
         fontFamily: '"Pixelify Sans", sans-serif',
         fontSize: "8px",
@@ -1405,6 +1518,7 @@ export class DormScene extends Phaser.Scene {
       });
     }
     this.boards.push({ residentId: room.id, text, sparkle });
+    if (room.id === ROOMS[0]!.id) this.myBoardText = text;
   }
 
   /** re-reads today's answers + package state (after answering, opening, or at a new day) */
@@ -1413,6 +1527,13 @@ export class DormScene extends Phaser.Scene {
     const mine = this.getMyDailyAnswer();
     for (const b of this.boards) {
       const isMine = b.residentId === ROOMS[0]!.id;
+      const door = isMine ? this.getDoor() : null;
+      // a custom message replaces today's answer on your board (same tiny handwriting)
+      if (door && door.boardMode === "custom") {
+        b.text.setText(door.boardText ?? "").setFontSize(8);
+        b.sparkle?.setVisible(false);
+        continue;
+      }
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
       const res = residentByRoom(b.residentId);
       const asleep = !!res && isAsleep(blockAt(res.id, this.getHour()));
@@ -1433,20 +1554,23 @@ export class DormScene extends Phaser.Scene {
     left: number,
     cy: number,
     lines: string[],
-    style: "cream" | "dark",
+    style: PlateStyle,
     anchor: "left" | "center" = "left",
     maxW = Infinity,
   ) {
     const ink = 0x241c26;
-    const bg = style === "cream" ? 0xf3ead2 : 0x33292f;
-    const fg = style === "cream" ? "#2b2027" : "#f3ead2";
+    const bg = style === "cream" ? 0xf3ead2 : style === "wood" ? 0xb07a4a : style === "neon" ? 0x231d2c : 0x33292f;
+    const fg = style === "cream" ? "#2b2027" : style === "wood" ? "#2e1c12" : style === "neon" ? "#ffc2e2" : "#f3ead2";
+    const light = style === "cream" || style === "wood";
     const texts = lines.map((s, i) =>
       this.add
         .text(0, 0, s, {
           fontFamily: '"Pixelify Sans", sans-serif',
           fontSize: i === 0 ? "11px" : "9px",
-          color: i === 0 ? fg : style === "cream" ? "#6b5c50" : "#cdbfa8",
+          color: i === 0 ? fg : light ? "#6b5c50" : "#cdbfa8",
           fontStyle: i === 0 ? "700" : "500",
+          // neon: a pink tube outline around the letters
+          ...(style === "neon" ? { stroke: "#f07ab8", strokeThickness: 2 } : {}),
         })
         .setOrigin(0.5, 0.5)
         .setDepth(4.6),
@@ -1464,6 +1588,13 @@ export class DormScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(4.5);
     g.fillStyle(ink, 1).fillRect(x0, y0, w, h);
     g.fillStyle(bg, 1).fillRect(x0 + 2, y0 + 2, w - 4, h - 4);
+    if (style === "wood") {
+      // wood grain: two staggered darker lines + a highlight
+      g.fillStyle(0x8a5a34, 1).fillRect(x0 + 4, y0 + 5, Math.round((w - 8) * 0.6), 2);
+      g.fillStyle(0x8a5a34, 1).fillRect(x0 + Math.round(w * 0.35), y0 + h - 8, Math.round((w - 8) * 0.55), 2);
+      g.fillStyle(0xcf9a66, 1).fillRect(x0 + 2, y0 + 2, w - 4, 2);
+    }
+    if (style === "neon") g.lineStyle(2, 0xf07ab8, 1).strokeRect(x0 + 3, y0 + 3, w - 6, h - 6);
     g.fillStyle(ink, 0.25).fillRect(x0 + 2, y0 + h - 4, w - 4, 2); // bottom lip shade
     let yy = y0 + 3;
     texts.forEach((tx, i) => {
@@ -1517,34 +1648,72 @@ export class DormScene extends Phaser.Scene {
         y: t(rect.y + placed.gy + f.h / 2),
         solid: item.solid,
       };
-      const tint = placed.tint ?? this.moodTint(room, item);
+      const tint = baseTintFor(item, room.mood, placed.tint);
       if (tint) def.tint = tint;
       if (item.scale) def.scale = item.scale;
       if (payload) def.payload = payload;
 
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
-      this.itemLight(placed.itemId, sprite);
+      this.attachAccent(sprite, item, placed.tint);
+      this.itemLight(placed.itemId, sprite, placed.tint);
       // neighbor rooms advertise the shop: "Sold at Floor 3 Supply" on hover / tap-and-hold
       if (isShopItem(item) && item.price > 0) this.soldHint(sprite, item.id);
     }
   }
 
   /** placed items with ItemDef.light glow at night and follow their sprite (drag, move) */
-  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite) {
-    const l = ITEM_CATALOG[itemId]?.light;
-    if (!l) return null;
+  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite, tint?: number) {
+    const item = ITEM_CATALOG[itemId];
+    const l = item?.light;
+    if (!item || !l) return null;
     const light = this.light({
       x: sprite.x,
       y: sprite.y,
       follow: sprite,
-      color: l.color,
+      // lamps follow their shade colour (40% mix)
+      color: lightColorFor(item, tint) ?? l.color,
       radius: l.radius,
       flicker: l.flicker === true,
       disco: itemId === "disco_ball",
     });
     this.placedLights.set(sprite, light);
     return light;
+  }
+
+  /** "accent" recolor: a tinted greyscale overlay riding on the base sprite (none for Original) */
+  private attachAccent(base: Phaser.GameObjects.Sprite, item: ItemDef, tint?: number) {
+    const key = accentTextureKey(item.textureKey);
+    const at = accentTintFor(item, tint);
+    if (at === undefined || !this.textures.exists(key)) return null;
+    const overlay = this.add
+      .sprite(base.x, base.y, key)
+      .setTint(at)
+      .setScale(base.scaleX, base.scaleY)
+      .setAngle(base.angle)
+      .setDepth(base.depth + 0.01);
+    this.collecting?.push(overlay);
+    this.accentPairs.push({ base, overlay });
+    return overlay;
+  }
+
+  /** keeps overlays glued to their base (drag, bob, rotate); drops pairs whose sprites are gone */
+  private syncAccents() {
+    if (!this.accentPairs.length) return;
+    this.accentPairs = this.accentPairs.filter(({ base, overlay }) => {
+      if (!base.active || !overlay.active) {
+        if (overlay.active) overlay.destroy();
+        return false;
+      }
+      overlay.setPosition(base.x, base.y).setAngle(base.angle).setDepth(base.depth + 0.01).setVisible(base.visible);
+      return true;
+    });
+  }
+
+  /** the base tint a placed piece of Your Room wears right now */
+  private placedTint(entry: { itemId: string; tint?: number }) {
+    const def = ITEM_CATALOG[entry.itemId];
+    return def ? baseTintFor(def, this.getMyMood(), entry.tint) : undefined;
   }
 
   private dropItemLight(sprite: Phaser.GameObjects.Sprite) {
@@ -1568,18 +1737,20 @@ export class DormScene extends Phaser.Scene {
   }
 
   /** creates exactly one sprite (+ collision zone / glow ring) and tracks it */
-  private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation): number {
+  private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation, placedTint?: number): number {
     const item = ITEM_CATALOG[itemId];
     if (!item) return -1;
     const f = effectiveFootprint(item, rotation);
     const c = this.centerOf(gx, gy, f.w, f.h);
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
-    const tint = this.moodTint(this.myRoom(), item);
+    const tint = baseTintFor(item, this.getMyMood(), placedTint);
     if (tint) sprite.setTint(tint);
     if (item.scale) sprite.setScale(item.scale);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
-    this.itemLight(itemId, sprite);
+    const accent = this.attachAccent(sprite, item, placedTint);
+    if (accent) this.myObjs.push(accent);
+    this.itemLight(itemId, sprite, placedTint);
 
     let zone: Phaser.GameObjects.Zone | null = null;
     if (item.solid) {
@@ -1613,7 +1784,7 @@ export class DormScene extends Phaser.Scene {
       }
     }
 
-    this.placed.push({ sprite, zone, ring, itemId, gx, gy, rotation });
+    this.placed.push({ sprite, zone, ring, itemId, gx, gy, rotation, accent, ...(placedTint !== undefined ? { tint: placedTint } : {}) });
     return this.placed.length - 1;
   }
 
@@ -1621,7 +1792,7 @@ export class DormScene extends Phaser.Scene {
     this.myObjs = [];
     this.placed = [];
     for (const p of this.getMyLayout()) {
-      this.spawnPlaced(p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation);
+      this.spawnPlaced(p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation, typeof p.tint === "number" ? p.tint : undefined);
     }
     if (this.editMode) this.enableDragging();
   }
@@ -1716,7 +1887,8 @@ export class DormScene extends Phaser.Scene {
     this.clearSelection();
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     this.interactives = this.interactives.filter((i) => i.sprite !== entry.sprite);
-    const dead = [entry.sprite, entry.ring, entry.zone].filter(Boolean) as Phaser.GameObjects.GameObject[];
+    const dead = [entry.sprite, entry.ring, entry.zone, entry.accent].filter(Boolean) as Phaser.GameObjects.GameObject[];
+    entry.accent?.destroy();
     this.myObjs = this.myObjs.filter((o) => !dead.includes(o));
     if (entry.zone) this.walls.remove(entry.zone, true, true);
     entry.ring?.destroy();
@@ -1732,8 +1904,7 @@ export class DormScene extends Phaser.Scene {
     this.time.delayedCall(150, () => {
       if (!sprite.active) return;
       const entry = this.placed.find((p) => p.sprite === sprite);
-      const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
-      const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
+      const tint = entry ? this.placedTint(entry) : undefined;
       sprite.clearTint();
       if (tint) sprite.setTint(tint);
       if (entry && this.placed.indexOf(entry) === this.selectedIdx) sprite.setTint(0xfff3b0);
@@ -1773,7 +1944,13 @@ export class DormScene extends Phaser.Scene {
   }
 
   private currentLayout(): PlacedItem[] {
-    return this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy, rotation: p.rotation }));
+    return this.placed.map((p) => ({
+      itemId: p.itemId,
+      gx: p.gx,
+      gy: p.gy,
+      rotation: p.rotation,
+      ...(p.tint !== undefined ? { tint: p.tint } : {}),
+    }));
   }
 
   private commitLayout() {
@@ -1828,25 +2005,27 @@ export class DormScene extends Phaser.Scene {
       const entry = this.placed[this.selectedIdx];
       if (entry?.sprite.active) {
         entry.sprite.clearTint();
-        const def = ITEM_CATALOG[entry.itemId];
-        const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
+        const tint = this.placedTint(entry);
         if (tint) entry.sprite.setTint(tint);
       }
     }
     this.selectedIdx = -1;
     this.selectionUi?.destroy();
     this.selectionUi = null;
+    this.swatchUi = null;
   }
 
   private iconButton(label: string, fill: number, onTap: () => void) {
     const bg = this.add.rectangle(0, 0, 22, 22, fill, 1).setStrokeStyle(2, 0x241c26);
-    const icon = this.add
-      .text(0, 0, label, {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: "13px",
-        color: "#fff6e8",
-      })
-      .setOrigin(0.5);
+    const icon = label.startsWith("tex:")
+      ? this.add.image(0, 0, label.slice(4))
+      : this.add
+          .text(0, 0, label, {
+            fontFamily: '"Pixelify Sans", sans-serif',
+            fontSize: "13px",
+            color: "#fff6e8",
+          })
+          .setOrigin(0.5);
     const c = this.add
       .container(0, 0, [bg, icon])
       .setSize(22, 22)
@@ -1871,12 +2050,139 @@ export class DormScene extends Phaser.Scene {
     if (def && !isWallItem(def)) {
       // wall items never rotate, so they get only the remove button
       const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
-      remove.setPosition(14, 0);
-      rotate.setPosition(-14, 0);
       buttons.unshift(rotate);
     }
+    if (def?.recolor) {
+      const paint = this.iconButton("tex:icon-palette", 0xc9a227, () => this.toggleSwatches());
+      buttons.unshift(paint);
+    }
+    // centre the row: [paint] [rotate] [remove]
+    buttons.forEach((b, i) => b.setPosition((i - (buttons.length - 1) / 2) * 28, 0));
     this.selectionUi = this.add.container(p.sprite.x, 0, buttons).setDepth(5000);
     this.positionSelectionUi();
+  }
+
+  private swatchUi: Phaser.GameObjects.Container | null = null;
+
+  /** the 8-colour strip (+ Original) just above the selected item */
+  private toggleSwatches() {
+    if (this.swatchUi) {
+      this.swatchUi.destroy();
+      this.swatchUi = null;
+      sfx.uiClick();
+      return;
+    }
+    sfx.uiClick();
+    this.buildSwatches();
+  }
+
+  private buildSwatches() {
+    this.swatchUi?.destroy();
+    this.swatchUi = null;
+    const entry = this.placed[this.selectedIdx];
+    if (!entry || !this.selectionUi) return;
+    const current = entry.tint ?? null;
+    const affordable = this.canAffordCb(RECOLOR_COST);
+    const chips: Array<{ tint: number | null; color: number }> = [
+      { tint: null, color: 0xf3ead2 },
+      ...RECOLOR_PALETTE.map((p) => ({ tint: p.color as number | null, color: p.color })),
+    ];
+    const kids: Phaser.GameObjects.GameObject[] = [];
+    const STEP = 22;
+    const x0 = -((chips.length - 1) * STEP) / 2;
+    const backW = chips.length * STEP + 8;
+    const back = this.add.rectangle(0, 0, backW, 30, 0x241c26, 1);
+    kids.push(back);
+    chips.forEach((c, i) => {
+      const x = x0 + i * STEP;
+      const isCur = c.tint === current;
+      const locked = !affordable && recolorCost(current, c.tint) > 0;
+      if (isCur) kids.push(this.add.rectangle(x, 0, 24, 24, 0xfff3b0, 1));
+      const chip = this.add.rectangle(x, 0, 18, 18, c.color, 1).setStrokeStyle(2, 0x241c26).setAlpha(locked ? 0.35 : 1);
+      kids.push(chip);
+      if (c.tint === null) {
+        // Original: cream chip with a pixel slash
+        const g = this.add.graphics();
+        g.fillStyle(0xc96f4a, 1);
+        for (let k = 0; k < 7; k++) g.fillRect(x - 7 + k * 2, 5 - k * 2, 2, 2);
+        kids.push(g);
+      }
+      chip.setInteractive({ useHandCursor: !locked });
+      chip.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation();
+        this.applyRecolor(c.tint, locked);
+      });
+    });
+    if (!affordable) {
+      kids.push(
+        this.add
+          .text(0, 22, "Need 5 coins", {
+            fontFamily: '"Pixelify Sans", sans-serif',
+            fontSize: "9px",
+            color: "#fff6e8",
+            backgroundColor: "#241c26",
+            padding: { x: 3, y: 1 },
+          })
+          .setOrigin(0.5),
+      );
+    }
+    this.swatchUi = this.add.container(0, -32, kids);
+    this.selectionUi.add(this.swatchUi);
+  }
+
+  private applyRecolor(tint: number | null, locked: boolean) {
+    const idx = this.selectedIdx;
+    const entry = this.placed[idx];
+    const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
+    if (!entry || !def) return;
+    if (locked) {
+      this.flashReject(entry.sprite);
+      return;
+    }
+    const cost = recolorCost(entry.tint, tint);
+    if (!this.onRecolor(idx, tint)) {
+      this.flashReject(entry.sprite);
+      return;
+    }
+    if (tint === null) delete entry.tint;
+    else entry.tint = tint;
+    // overlay + light follow the new colour
+    entry.accent?.destroy();
+    this.myObjs = this.myObjs.filter((o) => o !== entry.accent);
+    entry.accent = this.attachAccent(entry.sprite, def, entry.tint);
+    if (entry.accent) this.myObjs.push(entry.accent);
+    if (def.light) {
+      this.dropItemLight(entry.sprite);
+      this.itemLight(entry.itemId, entry.sprite, entry.tint);
+    }
+    entry.sprite.clearTint().setTint(0xfff3b0); // still selected
+    if (cost > 0) this.coinPop(entry.sprite.x, entry.sprite.y - 30, `-${cost}`);
+    else sfx.uiClick();
+    this.buildSwatches();
+  }
+
+  /** small stepped "-5" pop above a recolored item */
+  private coinPop(x: number, y: number, label: string) {
+    const txt = this.add
+      .text(x, y, label, {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "11px",
+        fontStyle: "700",
+        color: "#f2cf5c",
+        stroke: "#241c26",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(6200);
+    this.tweens.add({
+      targets: txt,
+      y: y - 18,
+      alpha: { from: 1, to: 0 },
+      duration: 700,
+      ease: "Stepped",
+      easeParams: [5],
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private positionSelectionUi() {
@@ -2456,10 +2762,200 @@ export class DormScene extends Phaser.Scene {
   /** redraws your door plate as "{name}'s Room" */
   applyMyName() {
     for (const o of this.myPlateObjs) o.destroy();
+    this.lighting.remove(this.myDoorLight);
+    this.myDoorLight = null;
+    const door = this.getDoor();
     const openR = t(13);
-    const label = roomNameFor(this.getPlayerName());
-    const plate = this.wallSign(openR + 20, t(17), [label], "cream", "left", MY_PLATE_MAX);
+    const label = door.plateText ?? roomNameFor(this.getPlayerName());
+    const plate = this.wallSign(openR + 20, t(17), [label], door.plateStyle, "left", MY_PLATE_MAX);
     this.myPlateObjs = plate.objs;
+    if (door.plateStyle === "neon") {
+      // a small pink night light, clipped to the hall so it never bleeds into your room
+      this.myDoorLight = this.light({
+        x: (plate.left + plate.right) / 2,
+        y: t(17),
+        color: 0xff5fa8,
+        radius: 30,
+        poolDy: 26,
+        strength: 0.7,
+        clip: this.zoneClips.get(HALL.id) ?? null,
+      });
+    }
+  }
+
+  /** your whole door from the save: frame colour, stickers (2×2 slots), plate, board, mat */
+  applyMyDoor() {
+    for (const o of this.myDoorObjs) o.destroy();
+    this.myDoorObjs = [];
+    const door = this.getDoor();
+    const room = ROOMS[0]!;
+    const doorX = 11;
+    const faceTop = t(16);
+    const faceH = TILE * 2;
+    const openL = t(doorX);
+    const openR = t(doorX + 2);
+    const accent = door.frameColor ?? Phaser.Display.Color.HexStringToColor(room.accentColor).color;
+    const fr = this.add.graphics().setDepth(4);
+    const jamb = (x: number) => {
+      fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
+      fr.fillStyle(accent, 1).fillRect(x, faceTop, 4, faceH);
+      fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(x, faceTop, 2, faceH);
+    };
+    jamb(openL - 4);
+    jamb(openR);
+    fr.fillStyle(0x241c26, 1).fillRect(openL - 6, faceTop, openR - openL + 12, 8);
+    fr.fillStyle(accent, 1).fillRect(openL - 4, faceTop, openR - openL + 8, 6);
+    fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(openL - 4, faceTop, openR - openL + 8, 2);
+    this.myDoorObjs.push(fr);
+
+    // stickers: fixed 2×2 slots on the face left of the frame, ×1 scale
+    const slots = doorStickerSlots(t(doorX - 1), openL - 6, faceTop);
+    door.stickers.forEach((id, i) => {
+      const slot = slots[i];
+      if (!slot) return;
+      const key = this.doorStickerTexture(id);
+      this.myDoorObjs.push(
+        this.add.image(slot.x, slot.y, key).setOrigin(0, 0).setDepth(6),
+      );
+    });
+
+    // welcome mat on the first hall floor row outside your door
+    const matDef = ITEM_CATALOG[door.matId];
+    const style = matDef?.matStyle ?? "plain";
+    const my = HALL.y + 1;
+    if (style === "plain") {
+      const tint = mix(Phaser.Display.Color.HexStringToColor(room.accentColor).color, 0xd8c8ad, 0.45);
+      for (const x of [doorX, doorX + 1])
+        this.myDoorObjs.push(this.add.image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat").setTint(tint).setDepth(1.2));
+    } else {
+      this.myDoorObjs.push(this.add.image(t(doorX + 1), t(my) + TILE / 2, `mat-${style}`).setDepth(1.2));
+    }
+    this.applyMyName();
+    this.refreshDaily();
+  }
+
+  /** 12×12 texture for a sticker-sheet bitmap (stickers.ts), drawn once per id */
+  private doorStickerTexture(id: string) {
+    const key = `dsticker-${id}`;
+    if (this.textures.exists(key)) return key;
+    const def = stickerFor(id);
+    const tex = this.textures.createCanvas(key, 12, 12);
+    const ctx = tex?.getContext();
+    if (tex && ctx) {
+      const col: Record<string, string> = { X: "#241c26", o: def.color, a: def.color2, "+": "#fff6e6" };
+      def.icon.forEach((row, y) =>
+        [...row].forEach((ch, x) => {
+          const c = col[ch];
+          if (!c) return;
+          ctx.fillStyle = c;
+          ctx.fillRect(x, y, 1, 1);
+        }),
+      );
+      tex.refresh();
+    }
+    return key;
+  }
+
+  /** the camera in the editor's Door tab: frame your door from the hall */
+  frameMyDoor(bottomInsetPx: number) {
+    const cam = this.cameras.main;
+    const x0 = t(9);
+    const x1 = t(19.5);
+    const y0 = t(15.2);
+    const y1 = t(19.4);
+    const visH = Math.max(120, cam.height - bottomInsetPx - 12);
+    const zoom = Math.min(cam.width / (x1 - x0), visH / (y1 - y0)) * 0.92;
+    this.glideCamera((x0 + x1) / 2, (y0 + y1) / 2 + bottomInsetPx / (2 * zoom), Math.min(zoom, 4), 400);
+  }
+
+  /** stepped camera glide (pixel-art feel), used between the room and the door */
+  private glideCamera(cx: number, cy: number, zoom: number, ms: number) {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.removeBounds();
+    this.camTween?.stop();
+    const from = { x: cam.midPoint.x, y: cam.midPoint.y, z: cam.zoom };
+    this.camTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: ms,
+      ease: "Stepped",
+      easeParams: [8],
+      onUpdate: (tw) => {
+        const k = tw.getValue() ?? 1;
+        cam.setZoom(from.z + (zoom - from.z) * k);
+        cam.centerOn(from.x + (cx - from.x) * k, from.y + (cy - from.y) * k);
+      },
+    });
+  }
+
+  /** Your Room's floor: repaints when the floor or mood changes; `sweep` steps it in row by row (~300ms) */
+  applyMyFloor(sweep = false) {
+    const z = this.myZone;
+    if (!z) return;
+    this.buildFloorSwatches();
+    const style = floorStyleFor(this.getMyFloorId());
+    const moodKey = this.getMyMood();
+    const zone: Zone = { ...z, floorStyle: style, floor: personalFloorColor(style, MOODS[moodKey]) };
+    const baked = style === this.builtFloor && moodKey === this.builtMood;
+    this.floorSweep?.remove(false);
+    this.floorSweep = null;
+    const rows = z.h - 1; // interior rows only (row 0 is the wall face)
+    if (!sweep) {
+      this.myFloorGfx?.destroy();
+      this.myFloorGfx = null;
+      if (baked) return;
+      const g = this.add.graphics().setDepth(0.3);
+      this.paintZoneFloor(g, { ...zone, y: z.y + 1, h: rows });
+      this.myFloorGfx = g;
+      return;
+    }
+    const old = this.myFloorGfx;
+    const g = this.add.graphics().setDepth(0.31);
+    let row = 0;
+    this.floorSweep = this.time.addEvent({
+      delay: Math.round(300 / rows),
+      repeat: rows - 1,
+      callback: () => {
+        this.paintZoneFloor(g, { ...zone, y: z.y + 1 + row, h: 1 });
+        row++;
+        if (row >= rows) {
+          old?.destroy();
+          g.setDepth(0.3);
+          if (baked) {
+            g.destroy();
+            this.myFloorGfx = null;
+          } else this.myFloorGfx = g;
+          this.floorSweep = null;
+        }
+      },
+    });
+    this.myFloorGfx = old;
+  }
+
+  /** shop/tray thumbnails for floors: a 2×2-tile sample painted by the same floor painter */
+  buildFloorSwatches() {
+    const mood = MOODS[this.getMyMood()];
+    for (const id of FLOOR_ITEM_IDS) {
+      const style = ITEM_CATALOG[id]!.floorStyle!;
+      const key = `floorswatch-${style}`;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      this.paintZoneFloor(g, {
+        id: "swatch",
+        label: "",
+        x: 0,
+        y: 0,
+        w: 2,
+        h: 2,
+        floor: personalFloorColor(style, mood),
+        wall: 0,
+        kind: "personal",
+        floorStyle: style,
+      });
+      g.generateTexture(key, t(2), t(2));
+      g.destroy();
+    }
   }
 
   /** recolours Your Room for the current mood without rebuilding the world */
@@ -2467,14 +2963,10 @@ export class DormScene extends Phaser.Scene {
     const moodKey = this.getMyMood();
     const mood = MOODS[moodKey];
     const z = this.myZone;
-    this.myFloorGfx?.destroy();
-    this.myFloorGfx = null;
-    if (z && moodKey !== this.builtMood) {
-      // floor overlay over the baked floormap, interior rows only (row 0 is the wall face)
-      const g = this.add.graphics().setDepth(0.3);
-      this.paintZoneFloor(g, { ...z, y: z.y + 1, h: z.h - 1, floor: mix(mood.wallpaper, 0xb59774, 0.18) });
-      this.myFloorGfx = g;
-    }
+    void z;
+    void moodKey;
+    // floor overlay over the baked floormap (checker + shag follow the mood)
+    this.applyMyFloor(false);
     this.myRug?.setTint(mix(mood.posterAccent, 0xbca584, 0.18));
     this.myGlow?.setTint(mood.glow);
     if (!this.editMode) this.rebuildMyRoom();
@@ -3034,14 +3526,13 @@ export class DormScene extends Phaser.Scene {
     const h = t(r.h + 2);
     const visH = Math.max(120, cam.height - bottomInsetPx - 12);
     const zoom = Math.min(cam.width / w, visH / h) * 0.96;
-    cam.stopFollow();
-    cam.removeBounds();
-    cam.setZoom(zoom);
     // shift the center down so the room sits in the visible band above the tray
-    cam.centerOn(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom));
+    this.glideCamera(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom), zoom, 400);
   }
 
   restoreCamera() {
+    this.camTween?.stop();
+    this.camTween = null;
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
     cam.setZoom(this.baseZoom());
@@ -3242,6 +3733,7 @@ export class DormScene extends Phaser.Scene {
       this.nextResidentCheck = _time + 2000;
       this.maybeVisit(false);
     }
+    this.syncAccents();
     this.lighting.update(_time);
 
     this.trackMyRoom();

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleHelp, Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
 import type { PopupPayload } from "@/data/dorm";
-import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
+import { buildItemThumb, buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
 import { DormPopup, PopupSheetContext, popupTitle } from "./DormPopup";
@@ -12,12 +12,13 @@ import { effectiveLook } from "@/data/avatar";
 import { outfitThumbs } from "@/lib/avatarCanvas";
 import { useIsPhone, useIsTouch } from "@/hooks/use-media-query";
 import { GamePanel, IconChip } from "./GamePanel";
-import { RoomEditorTray } from "./RoomEditorTray";
+import { RoomEditorTray, type TrayTab } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { ShopPanel } from "./ShopPanel";
 import { promptForToday, todayKey } from "@/data/prompts";
 import { toast } from "sonner";
 import {
+  canAfford,
   devActions,
   getPlayerState,
   hydrateDevMode,
@@ -64,7 +65,13 @@ const DormGame = () => {
     onboarded,
     avatarNewsSeen,
     ownedItemIds,
+    myFloorId,
+    door,
+    roomLayout,
   } = usePlayerState();
+  const [trayTab, setTrayTab] = useState<TrayTab>("furniture");
+  /** placed colours, so thumbnails only rebuild when a recolor actually changes something */
+  const tintKey = roomLayout.map((p) => `${p.itemId}:${p.tint ?? ""}`).join("|");
   const isTouch = useIsTouch();
   const isPhone = useIsPhone();
   const [hydrated, setHydrated] = useState(false);
@@ -96,8 +103,20 @@ const DormGame = () => {
     const sc = sceneRef.current;
     if (!sc) return;
     sc.applyMyMood();
-    setItemThumbs(buildItemThumbs(sc, myMood));
+    setItemThumbs(buildItemThumbs(sc, myMood, getPlayerState().roomLayout));
   }, [myMood]);
+  // recolors show up in tray + shop thumbnails
+  useEffect(() => {
+    const sc = sceneRef.current;
+    if (sc) setItemThumbs(buildItemThumbs(sc, getPlayerState().myMood, getPlayerState().roomLayout));
+  }, [tintKey]);
+  // floors repaint with a quick stepped sweep; the door redraws live
+  useEffect(() => {
+    sceneRef.current?.applyMyFloor(true);
+  }, [myFloorId]);
+  useEffect(() => {
+    sceneRef.current?.applyMyDoor();
+  }, [door]);
   useEffect(() => {
     sceneRef.current?.applyMyName();
   }, [playerName]);
@@ -193,6 +212,10 @@ const DormGame = () => {
         getMyMood: () => getPlayerState().myMood,
         getPlayerName: () => getPlayerState().playerName,
         getHour: () => currentHour(),
+        getMyFloorId: () => getPlayerState().myFloorId,
+        getDoor: () => getPlayerState().door,
+        onRecolor: (index: number, tint: number | null) => playerActions.recolorPlaced(index, tint),
+        canAfford: (price: number) => canAfford(price),
         onKnockSpot: setKnockSpot,
         onSoldHint: showSoldHint,
         getVisitLine: (id: ResidentId) => {
@@ -218,7 +241,7 @@ const DormGame = () => {
             }
           }
           setThumbs(map);
-          setItemThumbs(buildItemThumbs(scene, getPlayerState().myMood));
+          setItemThumbs(buildItemThumbs(scene, getPlayerState().myMood, getPlayerState().roomLayout));
         },
       });
     })();
@@ -265,7 +288,8 @@ const DormGame = () => {
         const hr = host.getBoundingClientRect();
         inset = Math.max(0, hr.bottom - tray.getBoundingClientRect().top);
       }
-      sceneRef.current?.frameMyRoom(inset);
+      if (trayTab === "door") sceneRef.current?.frameMyDoor(inset);
+      else sceneRef.current?.frameMyRoom(inset);
     };
     const raf = requestAnimationFrame(frame);
     window.addEventListener("resize", frame);
@@ -273,7 +297,7 @@ const DormGame = () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", frame);
     };
-  }, [editing, wallpaperOpen]);
+  }, [editing, wallpaperOpen, trayTab]);
 
   useEffect(() => {
     sceneRef.current?.applyWallpaper();
@@ -318,6 +342,7 @@ const DormGame = () => {
 
   const toggleEdit = (on: boolean) => {
     setEditing(on);
+    setTrayTab("furniture");
     if (!on) setWallpaperOpen(false);
     sceneRef.current?.setEditMode(on);
     if (!on) sceneRef.current?.restoreCamera();
@@ -629,6 +654,10 @@ const DormGame = () => {
             onDone={() => toggleEdit(false)}
             onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
             onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
+            onTabChange={(tab) => {
+              if (tab === "door") sceneRef.current?.cancelPlacing();
+              setTrayTab(tab);
+            }}
             placingItemId={placingItemId}
             thumbnails={thumbs}
             itemThumbnails={itemThumbs}
@@ -725,6 +754,11 @@ const DormGame = () => {
         }}
         focusItemId={shopFocus}
         thumbnails={shopThumbs}
+        getThumb={(itemId, tint) => {
+          const sc = sceneRef.current;
+          const item = ITEM_CATALOG[itemId];
+          return sc && item ? buildItemThumb(sc, item, getPlayerState().myMood, tint) : null;
+        }}
         onPlaceNow={(itemId) => {
           // close the shop, enter edit mode, and go straight into tap-to-place
           setShopOpen(false);

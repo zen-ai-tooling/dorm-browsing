@@ -6,7 +6,7 @@ export interface ItemDef {
   name: string;
   /** one line of shop flavor text */
   blurb: string;
-  category: "furniture" | "wallpaper" | "poster" | "companion" | "outfit";
+  category: "furniture" | "wallpaper" | "poster" | "companion" | "outfit" | "floor" | "mat";
   /** matches a texture key generated in game/textures.ts */
   textureKey: string;
   /** tile footprint, used for grid snapping and overlap prevention */
@@ -22,6 +22,15 @@ export interface ItemDef {
   wallPattern?: "flat" | "stripes" | "checker" | "botanical" | "night" | "graph" | "sunset";
   /** optional recolor applied to the (neutral-authored) texture */
   tint?: number;
+  /**
+   * player recolor: "full" tints the whole greyscale sprite, "accent" tints only the
+   * `<textureKey>-accent` overlay (bedding, shade, cushion) — assigned from RECOLORABLE below
+   */
+  recolor?: "full" | "accent";
+  /** floor items only: the pattern painted across Your Room's floor */
+  floorStyle?: FloorStyle;
+  /** mat items only: the welcome-mat design outside your door */
+  matStyle?: MatStyle;
   /** collection set this item belongs to (at most one) — assigned from ITEM_SETS below */
   set?: SetId;
   /** night light source when placed — assigned from ITEM_LIGHTS below */
@@ -39,6 +48,35 @@ export interface ItemDef {
   /** outfit items only: the top / bottom / accessory it puts on your avatar */
   outfit?: OutfitDef;
 }
+
+export type FloorStyle = "checker" | "oak" | "walnut" | "linoleum" | "cork" | "shag" | "concrete";
+export type MatStyle = "plain" | "hello" | "goaway" | "vinyl" | "cat" | "pizza";
+
+const floorItem = (id: string, name: string, style: FloorStyle, price: number, blurb: string): ItemDef => ({
+  id,
+  name,
+  blurb,
+  category: "floor",
+  textureKey: `floorswatch-${style}`,
+  footprint: { w: 1, h: 1 },
+  solid: false,
+  floorStyle: style,
+  price,
+  unlockedByDefault: price === 0,
+});
+
+const matItem = (id: string, name: string, style: MatStyle, price: number, blurb: string): ItemDef => ({
+  id,
+  name,
+  blurb,
+  category: "mat",
+  textureKey: `mat-${style}`,
+  footprint: { w: 2, h: 1 },
+  solid: false,
+  matStyle: style,
+  price,
+  unlockedByDefault: price === 0,
+});
 
 /** wearables: never placed in a room, previewed on your own avatar */
 const outfit = (id: string, name: string, price: number, blurb: string, o: OutfitDef): ItemDef => ({
@@ -860,6 +898,23 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     bottom: { style: "jeans", color: 7 },
     accessory: "gradcap",
   }),
+
+  // ---- floors (Iteration 28): a surface you pick, like wallpaper ----
+  floor_checker: floorItem("floor_checker", "Checker Tile", "checker", 0, "The classic. Tinted by your mood."),
+  floor_oak: floorItem("floor_oak", "Oak Planks", "oak", 25, "Light wood. Creaks in a friendly way."),
+  floor_walnut: floorItem("floor_walnut", "Walnut Planks", "walnut", 35, "Dark wood for people with a reading lamp."),
+  floor_linoleum: floorItem("floor_linoleum", "Speckled Linoleum", "linoleum", 20, "Kitchenette chic. Mop-friendly."),
+  floor_cork: floorItem("floor_cork", "Cork", "cork", 30, "Warm, soft, slightly bouncy. Like a corkboard you live on."),
+  floor_shag: floorItem("floor_shag", "Shag Carpet", "shag", 45, "Wall-to-wall fuzz in your mood's colour."),
+  floor_concrete: floorItem("floor_concrete", "Polished Concrete", "concrete", 40, "Gallery energy. Cold feet."),
+
+  // ---- welcome mats (Iteration 28): outside your door ----
+  mat_plain: matItem("mat_plain", "Plain Mat", "plain", 0, "Wipe your feet. That's the whole message."),
+  mat_hello: matItem("mat_hello", "\"Hello\" Mat", "hello", 10, "Says hi so you don't have to."),
+  mat_goaway: matItem("mat_goaway", "\"Go Away (Nicely)\" Mat", "goaway", 15, "Boundaries, but make it cute."),
+  mat_vinyl: matItem("mat_vinyl", "Vinyl Record Mat", "vinyl", 15, "Spin twice before entering."),
+  mat_cat: matItem("mat_cat", "Pixel Cat Mat", "cat", 20, "Does not shed. Does judge."),
+  mat_pizza: matItem("mat_pizza", "Pizza Slice Mat", "pizza", 20, "Extra cheese, zero crumbs."),
 };
 
 /** every wearable outfit, in catalog order */
@@ -909,6 +964,9 @@ export const AFFORDABLE_ITEM_IDS: string[] = Object.values(ITEM_CATALOG)
     (i) =>
       isShopItem(i) &&
       i.category !== "outfit" &&
+      // floors + mats (Iteration 28) stay out too, so the daily drop math is unchanged
+      i.category !== "floor" &&
+      i.category !== "mat" &&
       !i.unlockedByDefault &&
       i.price >= AFFORDABLE_MIN &&
       i.price <= AFFORDABLE_MAX,
@@ -973,7 +1031,7 @@ export const POSTER_DEFAULT = "poster_default";
 
 /* ---------------- shared display tint ---------------- */
 
-const mixColor = (a: number, b: number, t: number) => {
+export const mixColor = (a: number, b: number, t: number) => {
   const ch = (shift: number) =>
     Math.round(((a >> shift) & 0xff) * (1 - t) + ((b >> shift) & 0xff) * t);
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
@@ -984,13 +1042,97 @@ const mixColor = (a: number, b: number, t: number) => {
  * thumbnails so they can never drift: posters take the room mood's accent, the basic TV a
  * pale mood glow, everything else its own catalog tint (or none).
  */
-export const displayTintFor = (item: ItemDef, moodKey: MoodKey): number | undefined => {
+export const displayTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: number | null): number | undefined => {
+  // a placed piece's own colour (Iteration 28 recolor, Sam's terracotta rug) always wins
+  if (typeof placedTint === "number") return placedTint;
   const mood = MOODS[moodKey] ?? MOODS.chill_ambient;
   // posters wear the room's accent unless the catalog gives them their own colour (mail finds)
   if (item.category === "poster") return item.tint ?? mixColor(mood.posterAccent, 0xffffff, 0.32);
   if (item.textureKey === "tv") return mixColor(mood.glow, 0xffffff, 0.62);
   return item.tint;
 };
+
+/* ---------------- player recolor (Iteration 28) ---------------- */
+
+/** one shared palette, tuned to the pixel art (not saturated primaries) */
+export const RECOLOR_PALETTE: Array<{ id: string; name: string; color: number }> = [
+  { id: "cream", name: "Cream", color: 0xefe4cf },
+  { id: "terracotta", name: "Terracotta", color: 0xc96f4a },
+  { id: "mustard", name: "Mustard", color: 0xd6a73c },
+  { id: "sage", name: "Sage", color: 0x8fae86 },
+  { id: "teal", name: "Teal", color: 0x4f9a9a },
+  { id: "dusty_blue", name: "Dusty Blue", color: 0x6f8fbf },
+  { id: "lavender", name: "Lavender", color: 0xa58cc8 },
+  { id: "rose", name: "Rose", color: 0xd88a9a },
+];
+export const RECOLOR_COST = 5;
+export const isPaletteColor = (n: unknown): n is number =>
+  typeof n === "number" && RECOLOR_PALETTE.some((p) => p.color === n);
+
+/** greyscale-authored textures take a full tint; baked ones recolor only their accent overlay */
+const RECOLORABLE: Record<string, "full" | "accent"> = {
+  chair_lounge: "full",
+  rug_woven: "full",
+  rug_shag: "full",
+  rug_midnight: "full",
+  cushion_stack: "full",
+  disco_ball: "full",
+  poster_default: "full",
+  poster_gig: "full",
+  poster_tour: "full",
+  poster_travel: "full",
+  poster_space: "full",
+  poster_abstract: "full",
+  poster_quote: "full",
+  poster_postcards: "full",
+  poster_pennant: "full",
+  bed_basic: "accent",
+  bed_loft: "accent",
+  bed_canopy: "accent",
+  lava_lamp: "accent",
+  lava_lamp_gold: "accent",
+  papasan_chair: "accent",
+  hammock_chair: "accent",
+};
+for (const [id, mode] of Object.entries(RECOLORABLE)) {
+  const item = ITEM_CATALOG[id];
+  if (item) item.recolor = mode;
+}
+export const RECOLORABLE_IDS = Object.keys(RECOLORABLE).filter((id) => !!ITEM_CATALOG[id]);
+
+/** overlay texture key for "accent" items */
+export const accentTextureKey = (textureKey: string) => `${textureKey}-accent`;
+
+/** tint for the base sprite: accent items keep their baked base (a player colour goes on the overlay) */
+export const baseTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: number | null) =>
+  item.recolor === "accent" ? displayTintFor(item, moodKey) : displayTintFor(item, moodKey, placedTint);
+
+/** tint for the accent overlay, or undefined when it shouldn't be drawn (Original) */
+export const accentTintFor = (item: ItemDef, placedTint?: number | null) =>
+  item.recolor === "accent" && typeof placedTint === "number" ? placedTint : undefined;
+
+/** lamps follow their shade: the light colour mixes 40% toward the player's tint */
+export const lightColorFor = (item: ItemDef, placedTint?: number | null) => {
+  if (!item.light) return undefined;
+  return item.recolor && typeof placedTint === "number" ? mixColor(item.light.color, placedTint, 0.4) : item.light.color;
+};
+
+/** the recolor charge: a new colour costs RECOLOR_COST, Original (null) and the same colour are free */
+export const recolorCost = (current: number | null | undefined, next: number | null) =>
+  next === null || next === (current ?? null) ? 0 : RECOLOR_COST;
+
+/* ---------------- floors + mats (Iteration 28) ---------------- */
+
+export const FLOOR_DEFAULT = "floor_checker";
+export const MAT_DEFAULT = "mat_plain";
+export const FLOOR_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "floor")
+  .map((i) => i.id);
+export const MAT_ITEM_IDS = Object.values(ITEM_CATALOG)
+  .filter((i) => i.category === "mat")
+  .map((i) => i.id);
+export const floorStyleFor = (floorId: string | null | undefined): FloorStyle =>
+  ITEM_CATALOG[floorId ?? ""]?.floorStyle ?? "checker";
 
 /* ---------------- collection sets ---------------- */
 
