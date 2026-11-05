@@ -1180,36 +1180,74 @@ export class DormScene extends Phaser.Scene {
     // pixel wall sconce on the face right of the frame
     const sconceX = openR + 12;
     this.add.rectangle(sconceX, faceTop + 18, 8, 6, 0x241c26, 1).setDepth(5);
-    this.add
+    const sconce = this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
     this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
 
-    // nameplate mounted on the face; an away note becomes its second line
-    const away = !room.isActive ? room.awayNote : undefined;
+    const pulse = this.tweens.add({
+      targets: [glow],
+      alpha: { from: 0.55, to: 0.22 },
+      duration: mood.pulseMs,
+      yoyo: true,
+      repeat: -1,
+      ease: "Stepped",
+      easeParams: [3],
+    });
+    const notes = [
+      ...this.spawnSoundCue(dx, dy - 10, mood.glow),
+      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow),
+    ];
+
     if (editable) {
       // your plate shows "{name}'s Room" and is redrawn on rename, so the board sits past the widest plate
       this.applyMyName();
       this.buildDoorBoard(room, openR + 20 + MY_PLATE_MAX + 8);
-    } else {
-      const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
-      if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
-      // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
-      this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
+      return;
     }
+    // neighbors: plate, glow and music follow their schedule (refreshDoors); the board sits past
+    // the widest plate their away notes can make, so it never moves
+    const notesText = residentByRoom(room.id)?.schedule.map((b) => b.awayNote ?? "") ?? [room.awayNote ?? ""];
+    const longest = notesText.reduce((a, b) => (b.length > a.length ? b : a), "");
+    const probe = this.wallSign(openR + 20, t(17), longest ? [room.name, longest] : [room.name], "cream");
+    for (const o of probe.objs) o.destroy();
+    this.doors.set(room.id, {
+      room,
+      plateLeft: openR + 20,
+      plateObjs: [],
+      awayIcon: this.add.image(probe.right + 4 + 22, t(17), "awaynote").setDepth(4.5).setVisible(false),
+      glow,
+      pulse,
+      notes,
+      sconce,
+      glowColor: mood.glow,
+      key: "",
+    });
+    // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
+    this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (longest ? probe.right + 4 + 44 : probe.right) + 8);
+  }
 
-    if (room.isActive) {
-      this.tweens.add({
-        targets: [glow],
-        alpha: { from: 0.55, to: 0.22 },
-        duration: mood.pulseMs,
-        yoyo: true,
-        repeat: -1,
-        ease: "Stepped",
-        easeParams: [3],
-      });
-      this.spawnSoundCue(dx, dy - 10, mood.glow);
-      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
+  /** neighbor doors: away note on the plate, glow + music while they're home and awake */
+  refreshDoors() {
+    const hour = this.getHour();
+    for (const d of this.doors.values()) {
+      const r = residentByRoom(d.room.id);
+      const block = r ? blockAt(r.id, hour) : null;
+      const away = block ? (isAway(block) ? block.awayNote ?? "away" : undefined) : d.room.isActive ? undefined : d.room.awayNote;
+      const active = block ? isHome(block) : d.room.isActive;
+      const key = `${away ?? ""}|${active}`;
+      if (key === d.key) continue;
+      d.key = key;
+      for (const o of d.plateObjs) o.destroy();
+      d.plateObjs = this.wallSign(d.plateLeft, t(17), away ? [d.room.name, away] : [d.room.name], "cream").objs;
+      d.awayIcon.setVisible(!!away);
+      if (active) d.pulse.resume();
+      else {
+        d.pulse.pause();
+        d.glow.setAlpha(0.1);
+      }
+      for (const n of d.notes) n.setVisible(active);
+      d.sconce.setFillStyle(active ? d.glowColor : 0x6b6270, 1);
     }
   }
 
@@ -1937,6 +1975,7 @@ export class DormScene extends Phaser.Scene {
 
   /** drifting music notes — reuses one shared texture */
   private spawnSoundCue(x: number, y: number, tint: number) {
+    const out: Phaser.GameObjects.Image[] = [];
     for (let i = 0; i < 3; i++) {
       const note = this.add
         .image(x, y, "note")
@@ -1957,7 +1996,9 @@ export class DormScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeOut",
       });
+      out.push(note);
     }
+    return out;
   }
 
 
