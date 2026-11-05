@@ -964,6 +964,9 @@ export const AFFORDABLE_ITEM_IDS: string[] = Object.values(ITEM_CATALOG)
     (i) =>
       isShopItem(i) &&
       i.category !== "outfit" &&
+      // floors + mats (Iteration 28) stay out too, so the daily drop math is unchanged
+      i.category !== "floor" &&
+      i.category !== "mat" &&
       !i.unlockedByDefault &&
       i.price >= AFFORDABLE_MIN &&
       i.price <= AFFORDABLE_MAX,
@@ -1028,7 +1031,7 @@ export const POSTER_DEFAULT = "poster_default";
 
 /* ---------------- shared display tint ---------------- */
 
-const mixColor = (a: number, b: number, t: number) => {
+export const mixColor = (a: number, b: number, t: number) => {
   const ch = (shift: number) =>
     Math.round(((a >> shift) & 0xff) * (1 - t) + ((b >> shift) & 0xff) * t);
   return (ch(16) << 16) | (ch(8) << 8) | ch(0);
@@ -1039,7 +1042,9 @@ const mixColor = (a: number, b: number, t: number) => {
  * thumbnails so they can never drift: posters take the room mood's accent, the basic TV a
  * pale mood glow, everything else its own catalog tint (or none).
  */
-export const displayTintFor = (item: ItemDef, moodKey: MoodKey): number | undefined => {
+export const displayTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: number | null): number | undefined => {
+  // a placed piece's own colour (Iteration 28 recolor, Sam's terracotta rug) always wins
+  if (typeof placedTint === "number") return placedTint;
   const mood = MOODS[moodKey] ?? MOODS.chill_ambient;
   // posters wear the room's accent unless the catalog gives them their own colour (mail finds)
   if (item.category === "poster") return item.tint ?? mixColor(mood.posterAccent, 0xffffff, 0.32);
