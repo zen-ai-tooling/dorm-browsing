@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Coins, Flame, Mail, Pencil, Store, Volume2, VolumeX } from "lucide-react";
+import { Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
 import { ROOMS, type PopupPayload } from "@/data/dorm";
 import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
-import { DormPopup } from "./DormPopup";
+import { DormPopup, PopupSheetContext, popupTitle } from "./DormPopup";
+import { AvatarCreator } from "./AvatarCreator";
+import { MoveIn } from "./MoveIn";
+import { effectiveLook } from "@/data/avatar";
+import { outfitThumbs } from "@/lib/avatarCanvas";
+import { useIsPhone, useIsTouch } from "@/hooks/use-media-query";
 import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
@@ -49,7 +54,20 @@ const DormGame = () => {
     seenControls,
     dailyAnswers,
     lastPackageDate,
+    avatar,
+    playerName,
+    myMood,
+    onboarded,
+    avatarNewsSeen,
+    ownedItemIds,
   } = usePlayerState();
+  const isTouch = useIsTouch();
+  const isPhone = useIsPhone();
+  const [hydrated, setHydrated] = useState(false);
+  const [scene, setScene] = useState<DormScene | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const moveIn = hydrated && !!scene && !onboarded;
   const packageReady = lastPackageDate !== todayKey();
   const [hintOpen, setHintOpen] = useState<boolean | null>(null);
   const showHint = hintOpen ?? !seenControls;
@@ -63,7 +81,37 @@ const DormGame = () => {
     hydratePlayerState();
     hydrateDevMode();
     hydrateTimeOverride();
+    setHydrated(true);
   }, []);
+
+  // live avatar / room mood / name in the world
+  useEffect(() => {
+    sceneRef.current?.applyAvatar();
+  }, [avatar]);
+  useEffect(() => {
+    const sc = sceneRef.current;
+    if (!sc) return;
+    sc.applyMyMood();
+    setItemThumbs(buildItemThumbs(sc, myMood));
+  }, [myMood]);
+  useEffect(() => {
+    sceneRef.current?.applyMyName();
+  }, [playerName]);
+
+  // saves from before avatars: one gentle nudge
+  useEffect(() => {
+    if (!hydrated || avatarNewsSeen || !onboarded) return;
+    playerActions.markAvatarNewsSeen();
+    toast("New: make your avatar", {
+      duration: 8000,
+      action: { label: "Make it", onClick: () => setAvatarOpen(true) },
+    });
+  }, [hydrated, avatarNewsSeen, onboarded]);
+
+  // a popup is "nearby" until tapped open on touch devices; a new one starts closed
+  useEffect(() => {
+    setSheetOpen(false);
+  }, [popup]);
 
   // dev time override (panel or ?time=) applies right away, with the usual crossfade
   const timeOverride = useTimeOverride();
@@ -118,8 +166,16 @@ const DormGame = () => {
           return e && e.promptId === promptForToday().id ? e.answer : null;
         },
         isPackageReady: () => getPlayerState().lastPackageDate !== todayKey(),
+        getAvatar: () => effectiveLook(getPlayerState().avatar, ITEM_CATALOG),
+        onAvatarTap: () => {
+          sfx.uiClick();
+          setAvatarOpen(true);
+        },
+        getMyMood: () => getPlayerState().myMood,
+        getPlayerName: () => getPlayerState().playerName,
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
+          setScene(scene);
 
           (window as unknown as { __scene?: DormScene }).__scene = scene;
           const map: Record<string, string> = {};
@@ -131,7 +187,7 @@ const DormGame = () => {
             }
           }
           setThumbs(map);
-          setItemThumbs(buildItemThumbs(scene, ROOMS[0]!.mood));
+          setItemThumbs(buildItemThumbs(scene, getPlayerState().myMood));
         },
       });
     })();
@@ -139,6 +195,7 @@ const DormGame = () => {
     return () => {
       destroyed = true;
       sceneRef.current = null;
+      setScene(null);
       game?.destroy(true);
     };
   }, []);
