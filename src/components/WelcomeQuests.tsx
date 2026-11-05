@@ -10,7 +10,11 @@ const rewardLabel = (q: (typeof QUESTS)[number]) =>
   q.itemId ? `Free ${ITEM_CATALOG[q.itemId]?.category ?? "gift"}` : `+${q.coins}`;
 
 /** "Welcome to Floor 3": first-session checklist. Bottom-left card on desktop, a chip on mobile. */
-export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
+export const WelcomeQuests = ({ hidden = false, docked = false }: { hidden?: boolean; docked?: boolean }) => {
+  // phones: the chip sits just above the bottom dock instead of under the top-left HUD
+  const mobilePos = docked
+    ? "max-sm:left-2 max-sm:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"
+    : "max-sm:bottom-auto max-sm:top-48";
   const { questsDone, questsCelebrated } = usePlayerState();
   const [open, setOpen] = useState(false);
   const [pop, setPop] = useState<QuestId | null>(null);
@@ -35,7 +39,7 @@ export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
 
   if (all)
     return (
-      <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-48">
+      <div className={`pointer-events-auto absolute bottom-4 left-4 z-30 w-60 ${mobilePos}`}>
         <GamePanel accent="#c9a227" className="p-3">
           <div className="flex items-center gap-2">
             <IconChip>
@@ -104,7 +108,7 @@ export const WelcomeQuests = ({ hidden = false }: { hidden?: boolean }) => {
   );
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:bottom-auto max-sm:top-48 max-sm:w-auto max-sm:max-w-[16rem]">
+    <div className={`pointer-events-auto absolute bottom-4 left-4 z-30 w-60 max-sm:w-auto max-sm:max-w-[16rem] ${mobilePos}`}>
       <GamePanel accent="#7f9c86" className="p-2.5">
         <button
           type="button"

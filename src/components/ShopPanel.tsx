@@ -41,6 +41,7 @@ const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
   companion: "Companions",
   wallpaper: "Wallpaper",
   poster: "Posters",
+  outfit: "Outfits",
 };
 
 /* ---------------- pixel glyphs ---------------- */
@@ -80,6 +81,24 @@ const TAB_ICON: Record<ItemDef["category"], PixelGlyph> = {
       ".XoaoaoaoaX.",
       ".XXXXXXXXXX.",
       "............",
+      "............",
+    ],
+  },
+  outfit: {
+    color: "#6c9aa2",
+    color2: "#4c757d",
+    icon: [
+      "............",
+      "...XX..XX...",
+      ".XXo+XXooXX.",
+      "XooooooooooX",
+      "XooooooooooX",
+      "XXXooooooXXX",
+      "..XooooooX..",
+      "..XooooooX..",
+      "..XaaaaaaX..",
+      "..XaaaaaaX..",
+      "..XXXXXXXX..",
       "............",
     ],
   },
@@ -179,6 +198,7 @@ const INTERACTIVE_LINE: Record<NonNullable<ItemDef["interactive"]>, string> = {
 
 const footprintLine = (item: ItemDef) => {
   if (item.category === "wallpaper") return "covers your back wall";
+  if (item.category === "outfit") return "wearable · shown on your avatar";
   const f = effectiveFootprint(item);
   return `${f.w}×${f.h} · ${item.mount === "wall" ? "hangs on wall" : "floor"}`;
 };
@@ -378,11 +398,13 @@ const Detail = ({
   justBought: boolean;
   hop: boolean;
 }) => {
-  const { coins, ownedItemIds, roomLayout, myWallpaperId } = usePlayerState();
+  const { coins, ownedItemIds, roomLayout, myWallpaperId, myMood, avatar } = usePlayerState();
   const owned = ownedItemIds.includes(item.id);
   const affordable = canAfford(item.price);
   const tier = rarityFor(item.price);
-  const mood = MOODS[MY_ROOM.mood];
+  const mood = MOODS[myMood] ?? MOODS[MY_ROOM.mood];
+  const isOutfit = item.category === "outfit";
+  const wearing = isOutfit && avatar.outfitItemId === item.id;
   const wallColor = ITEM_CATALOG[myWallpaperId]?.wallColor ?? mood.wall;
   const isWall = item.mount === "wall";
   const isPaper = item.category === "wallpaper";
@@ -437,6 +459,27 @@ const Detail = ({
           Put it up
         </button>
       );
+  } else if (isOutfit) {
+    action = wearing ? (
+      <button
+        type="button"
+        className={`${btn} bg-panel text-panel-foreground hover:bg-panel-foreground/10`}
+        onClick={() => {
+          sfx.uiClick();
+          playerActions.wearOutfit(null);
+        }}
+      >
+        Wearing · take it off
+      </button>
+    ) : (
+      <button
+        type="button"
+        className={`${btn} bg-ink text-panel hover:opacity-90`}
+        onClick={() => playerActions.wearOutfit(item.id)}
+      >
+        Wear it
+      </button>
+    );
   } else if (placed) {
     action = (
       <button type="button" disabled className={`${btn} bg-panel text-panel-muted`}>
@@ -654,7 +697,7 @@ export const ShopPanel = ({
                 FLOOR 3 SUPPLY
               </DialogTitle>
               <DialogDescription className="sr-only">
-                Buy furniture, companions, wallpaper and posters for your room. Today's drop rotates daily.
+                Buy furniture, companions, wallpaper, posters and outfits. Today's drop rotates daily.
               </DialogDescription>
               <div className="flex items-center gap-2 font-body text-xs font-bold text-panel-foreground">
                 <span ref={coinRef} className="flex items-center gap-1 border-2 border-ink bg-panel px-1.5 py-0.5">

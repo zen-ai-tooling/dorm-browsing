@@ -6,14 +6,15 @@ import { usePlayerState } from "@/lib/playerStore";
 import { GamePanel } from "./GamePanel";
 import { sfx } from "@/game/sounds";
 
-const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
+/** outfits are worn, never placed — they live in the avatar creator, not the tray */
+const CATEGORY_LABEL: Record<Exclude<ItemDef["category"], "outfit">, string> = {
   furniture: "Furniture",
   companion: "Companions",
   wallpaper: "Wallpaper",
   poster: "Posters",
 };
 
-const CATEGORIES = Object.keys(CATEGORY_LABEL) as ItemDef["category"][];
+const CATEGORIES = Object.keys(CATEGORY_LABEL) as Array<keyof typeof CATEGORY_LABEL>;
 
 export const RoomEditorTray = ({
   onDone,

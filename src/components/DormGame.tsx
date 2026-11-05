@@ -1,11 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { Coins, Flame, Mail, Pencil, Store, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
-import { ROOMS, type PopupPayload } from "@/data/dorm";
+import type { PopupPayload } from "@/data/dorm";
 import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
 import { featuredForToday, ITEM_CATALOG, zoomTextureKey } from "@/data/items";
 import { Button } from "@/components/ui/button";
-import { DormPopup } from "./DormPopup";
+import { DormPopup, PopupSheetContext, popupTitle } from "./DormPopup";
+import { AvatarCreator } from "./AvatarCreator";
+import { MoveIn } from "./MoveIn";
+import { effectiveLook } from "@/data/avatar";
+import { outfitThumbs } from "@/lib/avatarCanvas";
+import { useIsPhone, useIsTouch } from "@/hooks/use-media-query";
 import { GamePanel, IconChip } from "./GamePanel";
 import { RoomEditorTray } from "./RoomEditorTray";
 import { WallpaperPicker } from "./WallpaperPicker";
@@ -49,7 +54,20 @@ const DormGame = () => {
     seenControls,
     dailyAnswers,
     lastPackageDate,
+    avatar,
+    playerName,
+    myMood,
+    onboarded,
+    avatarNewsSeen,
+    ownedItemIds,
   } = usePlayerState();
+  const isTouch = useIsTouch();
+  const isPhone = useIsPhone();
+  const [hydrated, setHydrated] = useState(false);
+  const [scene, setScene] = useState<DormScene | null>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const moveIn = hydrated && !!scene && !onboarded;
   const packageReady = lastPackageDate !== todayKey();
   const [hintOpen, setHintOpen] = useState<boolean | null>(null);
   const showHint = hintOpen ?? !seenControls;
@@ -63,7 +81,37 @@ const DormGame = () => {
     hydratePlayerState();
     hydrateDevMode();
     hydrateTimeOverride();
+    setHydrated(true);
   }, []);
+
+  // live avatar / room mood / name in the world
+  useEffect(() => {
+    sceneRef.current?.applyAvatar();
+  }, [avatar]);
+  useEffect(() => {
+    const sc = sceneRef.current;
+    if (!sc) return;
+    sc.applyMyMood();
+    setItemThumbs(buildItemThumbs(sc, myMood));
+  }, [myMood]);
+  useEffect(() => {
+    sceneRef.current?.applyMyName();
+  }, [playerName]);
+
+  // saves from before avatars: one gentle nudge
+  useEffect(() => {
+    if (!hydrated || avatarNewsSeen || !onboarded) return;
+    playerActions.markAvatarNewsSeen();
+    toast("New: make your avatar", {
+      duration: 8000,
+      action: { label: "Make it", onClick: () => setAvatarOpen(true) },
+    });
+  }, [hydrated, avatarNewsSeen, onboarded]);
+
+  // a popup is "nearby" until tapped open on touch devices; a new one starts closed
+  useEffect(() => {
+    setSheetOpen(false);
+  }, [popup]);
 
   // dev time override (panel or ?time=) applies right away, with the usual crossfade
   const timeOverride = useTimeOverride();
@@ -118,8 +166,16 @@ const DormGame = () => {
           return e && e.promptId === promptForToday().id ? e.answer : null;
         },
         isPackageReady: () => getPlayerState().lastPackageDate !== todayKey(),
+        getAvatar: () => effectiveLook(getPlayerState().avatar, ITEM_CATALOG),
+        onAvatarTap: () => {
+          sfx.uiClick();
+          setAvatarOpen(true);
+        },
+        getMyMood: () => getPlayerState().myMood,
+        getPlayerName: () => getPlayerState().playerName,
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
+          setScene(scene);
 
           (window as unknown as { __scene?: DormScene }).__scene = scene;
           const map: Record<string, string> = {};
@@ -131,7 +187,7 @@ const DormGame = () => {
             }
           }
           setThumbs(map);
-          setItemThumbs(buildItemThumbs(scene, ROOMS[0]!.mood));
+          setItemThumbs(buildItemThumbs(scene, getPlayerState().myMood));
         },
       });
     })();
@@ -139,6 +195,7 @@ const DormGame = () => {
     return () => {
       destroyed = true;
       sceneRef.current = null;
+      setScene(null);
       game?.destroy(true);
     };
   }, []);
@@ -226,6 +283,9 @@ const DormGame = () => {
     setHintOpen(!showHint);
   };
 
+  /** shop thumbnails: room items as tinted in your room, outfits on your own avatar */
+  const shopThumbs = useMemo(() => ({ ...itemThumbs, ...outfitThumbs(avatar) }), [itemThumbs, avatar]);
+
   const toggleEdit = (on: boolean) => {
     setEditing(on);
     if (!on) setWallpaperOpen(false);
@@ -233,6 +293,142 @@ const DormGame = () => {
     if (!on) sceneRef.current?.restoreCamera();
   };
 
+
+  const hud = (
+    <>
+      <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
+          <IconChip>
+            <Coins className="size-3.5" aria-hidden />
+          </IconChip>
+          <span className="font-body text-sm font-bold text-panel-foreground">
+            <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
+          </span>
+        </GamePanel>
+      <PhaseChip />
+      {packageReady ? (
+        <GamePanel
+          className="relative flex items-center gap-1.5 px-2 py-1.5"
+          accent="#c99a5b"
+          title="A package is waiting in the mail cubby"
+        >
+          <IconChip>
+            <Mail className="size-3.5" aria-hidden />
+          </IconChip>
+          <span className="font-body text-xs font-bold text-panel-foreground max-sm:sr-only">Mail</span>
+          <span
+            aria-label="Unopened package"
+            className="absolute right-1 top-1 size-2.5 rounded-full border-2 border-ink bg-primary"
+          />
+        </GamePanel>
+      ) : null}
+      {currentStreak > 0 ? (
+        <GamePanel
+          className="flex items-center gap-2 px-2.5 py-1.5"
+          accent="#c8765c"
+          title={`${currentStreak}-day daily question streak`}
+        >
+          <IconChip>
+            <Flame className="size-3.5" aria-hidden />
+          </IconChip>
+          <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">{currentStreak}</span>
+        </GamePanel>
+      ) : null}
+      <button
+        type="button"
+        aria-label={muted ? "Unmute sound" : "Mute sound"}
+        aria-pressed={muted}
+        onClick={() => playerActions.toggleMute()}
+        className="rounded-[3px]"
+      >
+        <IconChip>
+          {muted ? <VolumeX className="size-3.5" aria-hidden /> : <Volume2 className="size-3.5" aria-hidden />}
+        </IconChip>
+      </button>
+      <div className="relative">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+          onClick={() => {
+            sfx.uiClick();
+            playerActions.markShopSeen();
+            setShopOpen(true);
+          }}
+        >
+          <IconChip>
+            <Store className="size-3.5" aria-hidden />
+          </IconChip>
+          {isPhone ? <span className="sr-only">Shop</span> : "Shop"}
+        </Button>
+        {hasNewFeatured ? (
+          <span
+            aria-label="New featured items in the shop"
+            className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
+          />
+        ) : null}
+      </div>
+      {inMyRoom && !editing ? (
+        <Button
+          size="sm"
+          variant="secondary"
+          className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+          onClick={() => {
+            sfx.uiClick();
+            toggleEdit(true);
+          }}
+        >
+          <IconChip>
+            <Pencil className="size-3.5" aria-hidden />
+          </IconChip>
+          {isPhone ? <span className="sr-only">Edit My Room</span> : "Edit My Room"}
+        </Button>
+      ) : null}
+      <Button
+        size="sm"
+        variant="secondary"
+        aria-label="Edit your avatar"
+        className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+        onClick={() => {
+          sfx.uiClick();
+          setAvatarOpen(true);
+        }}
+      >
+        <IconChip>
+          <UserRound className="size-3.5" aria-hidden />
+        </IconChip>
+        {isPhone ? <span className="sr-only">Me</span> : "Me"}
+      </Button>
+    </>
+  );
+
+  const popupLayer = editing ? null : isTouch ? (
+    popup ? (
+      sheetOpen ? (
+        <PopupSheetContext.Provider value={{ sheet: true, onClose: () => setSheetOpen(false) }}>
+          <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
+        </PopupSheetContext.Provider>
+      ) : (
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
+            isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              sfx.popupOpen();
+              setSheetOpen(true);
+            }}
+            className="pointer-events-auto animate-in fade-in slide-in-from-bottom-2 rounded-[3px] border-[3px] border-ink bg-panel px-3 py-1.5 font-display text-xs font-bold text-panel-foreground shadow-[0_3px_0_0_var(--color-ink)] duration-150"
+          >
+            Tap to open · {popupTitle(popup, playerName)}
+          </button>
+        </div>
+      )
+    ) : null
+  ) : (
+    <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
+  );
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-[6px] border-[6px] border-ink bg-secondary shadow-[0_10px_0_-2px_rgba(36,28,38,0.25)]">
@@ -255,125 +451,39 @@ const DormGame = () => {
         }}
       />
 
-      <div className="pointer-events-none absolute left-4 top-4 space-y-2">
-        <GamePanel accent="#7f9c86" className="pointer-events-auto px-3 py-2">
-          <button
-            type="button"
-            aria-expanded={showHint}
-            onClick={onTitleTap}
-            className="block text-left font-display text-sm font-bold tracking-wide text-panel-foreground"
-          >
-            Dorm Vibes · Floor 3
-          </button>
-          {showHint ? (
-            <>
-              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-                WASD / arrows or click a tile to walk
-              </p>
-              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-                Wander up to things — they open on their own
-              </p>
-            </>
-          ) : null}
-        </GamePanel>
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2">
-          <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
-            <IconChip>
-              <Coins className="size-3.5" aria-hidden />
-            </IconChip>
-            <span className="font-body text-sm font-bold text-panel-foreground">
-              <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
-            </span>
-          </GamePanel>
-          <PhaseChip />
-          {packageReady ? (
-            <GamePanel
-              className="relative flex items-center gap-1.5 px-2 py-1.5"
-              accent="#c99a5b"
-              title="A package is waiting in the mail cubby"
-            >
-              <IconChip>
-                <Mail className="size-3.5" aria-hidden />
-              </IconChip>
-              <span className="font-body text-xs font-bold text-panel-foreground">Mail</span>
-              <span
-                aria-label="Unopened package"
-                className="absolute right-1 top-1 size-2.5 rounded-full border-2 border-ink bg-primary"
-              />
-            </GamePanel>
-          ) : null}
-          {currentStreak > 0 ? (
-            <GamePanel
-              className="flex items-center gap-2 px-2.5 py-1.5"
-              accent="#c8765c"
-              title={`${currentStreak}-day daily question streak`}
-            >
-              <IconChip>
-                <Flame className="size-3.5" aria-hidden />
-              </IconChip>
-              <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">
-                {currentStreak}
-              </span>
-            </GamePanel>
-          ) : null}
-          <button
-            type="button"
-            aria-label={muted ? "Unmute sound" : "Mute sound"}
-            aria-pressed={muted}
-            onClick={() => playerActions.toggleMute()}
-            className="rounded-[3px]"
-          >
-            <IconChip>
-              {muted ? (
-                <VolumeX className="size-3.5" aria-hidden />
-              ) : (
-                <Volume2 className="size-3.5" aria-hidden />
-              )}
-            </IconChip>
-          </button>
-          <div className="relative">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-              onClick={() => {
-                sfx.uiClick();
-                playerActions.markShopSeen();
-                setShopOpen(true);
-              }}
-            >
-              <IconChip>
-                <Store className="size-3.5" aria-hidden />
-              </IconChip>
-              Shop
-            </Button>
-            {hasNewFeatured ? (
-              <span
-                aria-label="New featured items in the shop"
-                className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
-              />
-            ) : null}
+      {moveIn ? null : isPhone ? (
+        editing ? null : (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+            <div className="game-panel pointer-events-auto flex items-center justify-between gap-1 overflow-x-auto px-1.5 py-1.5 [&>*]:shrink-0 [&_button]:px-2">
+              {hud}
+            </div>
           </div>
-          {inMyRoom && !editing ? (
-            <Button
-              size="sm"
-              variant={editing ? "default" : "secondary"}
-              className={`rounded-[3px] border-2 border-ink font-display font-bold ${
-                editing ? "" : "bg-panel text-panel-foreground hover:bg-panel/80"
-              }`}
-              onClick={() => {
-                sfx.uiClick();
-                toggleEdit(!editing);
-              }}
+        )
+      ) : (
+        <div className="pointer-events-none absolute left-4 top-4 space-y-2">
+          <GamePanel accent="#7f9c86" className="pointer-events-auto px-3 py-2">
+            <button
+              type="button"
+              aria-expanded={showHint}
+              onClick={onTitleTap}
+              className="block text-left font-display text-sm font-bold tracking-wide text-panel-foreground"
             >
-              <IconChip>
-                <Pencil className="size-3.5" aria-hidden />
-              </IconChip>
-              {editing ? "Exit edit" : "Edit My Room"}
-            </Button>
-          ) : null}
+              Dorm Vibes · Floor 3
+            </button>
+            {showHint ? (
+              <>
+                <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                  {isTouch ? "Tap anywhere to walk" : "WASD / arrows or click a tile to walk"}
+                </p>
+                <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                  {isTouch ? "Walk up to things, then tap to open" : "Wander up to things — they open on their own"}
+                </p>
+              </>
+            ) : null}
+          </GamePanel>
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2">{hud}</div>
         </div>
-      </div>
+      )}
 
       {editing && wallpaperOpen ? (
         <WallpaperPicker
@@ -389,20 +499,56 @@ const DormGame = () => {
 
       {editing && !wallpaperOpen ? (
         <div ref={trayWrapRef} className="contents">
-        <RoomEditorTray
-          onDone={() => toggleEdit(false)}
-          onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
-          onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
-          placingItemId={placingItemId}
-          thumbnails={thumbs}
-          itemThumbnails={itemThumbs}
-        />
+          <RoomEditorTray
+            onDone={() => toggleEdit(false)}
+            onTrayClick={(itemId) => sceneRef.current?.togglePlacing(itemId)}
+            onCancelPlacing={() => sceneRef.current?.cancelPlacing()}
+            placingItemId={placingItemId}
+            thumbnails={thumbs}
+            itemThumbnails={itemThumbs}
+          />
         </div>
-      ) : (
-        <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
+      ) : moveIn ? null : (
+        popupLayer
       )}
 
-      <WelcomeQuests hidden={editing} />
+      <WelcomeQuests hidden={editing || moveIn || !onboarded} docked={isPhone} />
+
+      {moveIn && scene ? <MoveIn scene={scene} onDone={() => setHintOpen(null)} /> : null}
+
+      {avatarOpen && !moveIn ? (
+        <div
+          className="absolute inset-0 z-50 flex items-end justify-center bg-ink/30 p-3 sm:items-center"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAvatarOpen(false);
+          }}
+        >
+          <GamePanel accent="#6c9aa2" className="max-h-[88%] w-[min(100%,520px)] overflow-y-auto p-4">
+            <h2 className="mb-2 font-display text-base font-bold text-panel-foreground">You</h2>
+            <AvatarCreator
+              look={avatar}
+              onChange={playerActions.setAvatar}
+              name={playerName}
+              onNameChange={playerActions.setPlayerName}
+              ownedItemIds={ownedItemIds}
+              footer={
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sfx.uiClick();
+                      setAvatarOpen(false);
+                    }}
+                    className="rounded-[3px] border-2 border-ink bg-ink px-4 py-1.5 font-display text-sm font-bold text-panel"
+                  >
+                    Done
+                  </button>
+                </div>
+              }
+            />
+          </GamePanel>
+        </div>
+      ) : null}
 
       {devMode.enabled ? (
         <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
@@ -411,7 +557,7 @@ const DormGame = () => {
       <ShopPanel
         open={shopOpen}
         onOpenChange={setShopOpen}
-        thumbnails={itemThumbs}
+        thumbnails={shopThumbs}
         onPlaceNow={(itemId) => {
           // close the shop, enter edit mode, and go straight into tap-to-place
           setShopOpen(false);
