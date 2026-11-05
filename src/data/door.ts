@@ -26,7 +26,8 @@ export const DOOR_DEFAULT: DoorState = {
   frameColor: null,
   plateText: null,
   plateStyle: "cream",
-  stickers: [],
+  // the two stickers every door started with (music + skating), now real sticker-sheet ids
+  stickers: ["house_music", "skating"],
   boardMode: "answer",
   boardText: null,
   matId: MAT_DEFAULT,
@@ -46,7 +47,7 @@ export const normalizeDoor = (raw: unknown, ownedItemIds: readonly string[] = []
         0,
         DOOR_STICKER_MAX,
       )
-    : [];
+    : [...DOOR_DEFAULT.stickers];
   const mat = typeof d.matId === "string" ? d.matId : MAT_DEFAULT;
   const matOk = ITEM_CATALOG[mat]?.category === "mat" && (mat === MAT_DEFAULT || ownedItemIds.includes(mat));
   return {

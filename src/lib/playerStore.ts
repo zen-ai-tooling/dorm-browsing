@@ -171,7 +171,7 @@ const defaultState = (): PlayerState => ({
   lastVisitDate: null,
   newestItemId: null,
   myFloorId: FLOOR_DEFAULT,
-  door: { ...DOOR_DEFAULT, stickers: [] },
+  door: { ...DOOR_DEFAULT, stickers: [...DOOR_DEFAULT.stickers] },
   doorVersion: 0,
   doorLastChange: null,
   doorSeen: { sam: 0, jordan: 0 },
