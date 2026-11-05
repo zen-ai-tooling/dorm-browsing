@@ -6,7 +6,7 @@ export interface ItemDef {
   name: string;
   /** one line of shop flavor text */
   blurb: string;
-  category: "furniture" | "wallpaper" | "poster" | "companion" | "outfit";
+  category: "furniture" | "wallpaper" | "poster" | "companion" | "outfit" | "floor" | "mat";
   /** matches a texture key generated in game/textures.ts */
   textureKey: string;
   /** tile footprint, used for grid snapping and overlap prevention */
@@ -22,6 +22,15 @@ export interface ItemDef {
   wallPattern?: "flat" | "stripes" | "checker" | "botanical" | "night" | "graph" | "sunset";
   /** optional recolor applied to the (neutral-authored) texture */
   tint?: number;
+  /**
+   * player recolor: "full" tints the whole greyscale sprite, "accent" tints only the
+   * `<textureKey>-accent` overlay (bedding, shade, cushion) — assigned from RECOLORABLE below
+   */
+  recolor?: "full" | "accent";
+  /** floor items only: the pattern painted across Your Room's floor */
+  floorStyle?: FloorStyle;
+  /** mat items only: the welcome-mat design outside your door */
+  matStyle?: MatStyle;
   /** collection set this item belongs to (at most one) — assigned from ITEM_SETS below */
   set?: SetId;
   /** night light source when placed — assigned from ITEM_LIGHTS below */
@@ -39,6 +48,35 @@ export interface ItemDef {
   /** outfit items only: the top / bottom / accessory it puts on your avatar */
   outfit?: OutfitDef;
 }
+
+export type FloorStyle = "checker" | "oak" | "walnut" | "linoleum" | "cork" | "shag" | "concrete";
+export type MatStyle = "plain" | "hello" | "goaway" | "vinyl" | "cat" | "pizza";
+
+const floorItem = (id: string, name: string, style: FloorStyle, price: number, blurb: string): ItemDef => ({
+  id,
+  name,
+  blurb,
+  category: "floor",
+  textureKey: `floorswatch-${style}`,
+  footprint: { w: 1, h: 1 },
+  solid: false,
+  floorStyle: style,
+  price,
+  unlockedByDefault: price === 0,
+});
+
+const matItem = (id: string, name: string, style: MatStyle, price: number, blurb: string): ItemDef => ({
+  id,
+  name,
+  blurb,
+  category: "mat",
+  textureKey: `mat-${style}`,
+  footprint: { w: 2, h: 1 },
+  solid: false,
+  matStyle: style,
+  price,
+  unlockedByDefault: price === 0,
+});
 
 /** wearables: never placed in a room, previewed on your own avatar */
 const outfit = (id: string, name: string, price: number, blurb: string, o: OutfitDef): ItemDef => ({
