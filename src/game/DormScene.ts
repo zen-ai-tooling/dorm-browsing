@@ -1302,7 +1302,7 @@ export class DormScene extends Phaser.Scene {
     const sconce = this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
-    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
+    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40, poolDy: 34, strength: 0.8 });
 
     const pulse = this.tweens.add({
       targets: [glow],
@@ -2320,14 +2320,23 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
     this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
     this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
-    // string lights across the courtyard
+    // string lights across the courtyard: tiny per-bulb cut-outs + one faint strip below
     for (let i = 0; i < 16; i++) {
       const lx = t(C.x + 0.6) + i * 30;
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
-      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.26 });
+      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 8, twinkle: i * 311, pool: false });
     }
+    this.light({
+      x: t(C.x + C.w / 2),
+      y: t(C.y + 2.4),
+      color: 0xffe3a6,
+      radius: 16,
+      cut: false,
+      strip: { w: t(C.w - 1), h: 34 },
+      strength: 0.7,
+    });
 
 
     // ---- hallway shared props ----
@@ -2352,7 +2361,7 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
-    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50 });
+    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50, poolDy: 34 });
     this.prop({
       key: "crate",
       x: t(8),
@@ -2390,13 +2399,14 @@ export class DormScene extends Phaser.Scene {
     // warm floor lamp lighting an otherwise empty stretch of corridor (clear of Sam's nameplate)
     const lampX = t(37.9);
     this.prop({ key: "lamp", x: lampX, y: standOn(88, 24) });
-    this.add
+    const lampGlow = this.add
       .image(lampX, t(HALL.y + 1) + 20, "glow")
       .setTint(0xffdca0)
-      .setAlpha(0.3)
+      .setAlpha(0)
       .setScale(1.8)
       .setDepth(1);
-    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70 });
+    this.nightGated.push({ o: lampGlow, a: 0.3 });
+    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70, poolDy: 30 });
 
     // recycling + trash pair
     this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
