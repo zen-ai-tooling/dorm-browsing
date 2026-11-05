@@ -208,6 +208,13 @@ interface PropDef {
 
 const t = (n: number) => n * TILE;
 
+/** widest "{name}'s Room" plate on your door — longer names shrink to fit */
+const MY_PLATE_MAX = 92;
+/** desktop camera zoom; phones fit ~11 tiles across instead */
+const DESKTOP_ZOOM = 1.6;
+const isPhoneWidth = () => typeof window !== "undefined" && window.innerWidth <= 640;
+const isTouch = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+
 
 export class DormScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -2246,11 +2253,165 @@ export class DormScene extends Phaser.Scene {
     void zones;
   }
 
+  // ---------- Your Room: live mood, name, avatar ----------
+
+  /** ROOMS[0] as the player sees it: same id/name (popup + quest matching), live mood */
+  private myRoom(): PersonRoom {
+    const mood = this.getMyMood();
+    return mood === ROOMS[0]!.mood ? ROOMS[0]! : { ...ROOMS[0]!, mood };
+  }
+
+  /** redraws your door plate as "{name}'s Room" */
+  applyMyName() {
+    for (const o of this.myPlateObjs) o.destroy();
+    const openR = t(13);
+    const label = roomNameFor(this.getPlayerName());
+    const plate = this.wallSign(openR + 20, t(17), [label], "cream", "left", MY_PLATE_MAX);
+    this.myPlateObjs = plate.objs;
+  }
+
+  /** recolours Your Room for the current mood without rebuilding the world */
+  applyMyMood() {
+    const moodKey = this.getMyMood();
+    const mood = MOODS[moodKey];
+    const z = this.myZone;
+    this.myFloorGfx?.destroy();
+    this.myFloorGfx = null;
+    if (z && moodKey !== this.builtMood) {
+      // floor overlay over the baked floormap, interior rows only (row 0 is the wall face)
+      const g = this.add.graphics().setDepth(0.3);
+      this.paintZoneFloor(g, { ...z, y: z.y + 1, h: z.h - 1, floor: mix(mood.wallpaper, 0xb59774, 0.18) });
+      this.myFloorGfx = g;
+    }
+    this.myRug?.setTint(mix(mood.posterAccent, 0xbca584, 0.18));
+    this.myGlow?.setTint(mood.glow);
+    if (!this.editMode) this.rebuildMyRoom();
+  }
+
+  /** builds the current look's 12 frames, swaps the player onto them, frees the old ones */
+  applyAvatar() {
+    const look = this.getAvatar();
+    const hash = lookHash(look);
+    if (hash === this.charHash && this.textures.exists(`${this.charPrefix}-down-0`)) return;
+    const old = this.charPrefix;
+    const prefix = hash === lookHash(DEFAULT_LOOK) ? "char" : `char-${hash}`;
+    buildCharTextures(this, prefix, look);
+    this.charPrefix = prefix;
+    this.charHash = hash;
+    if (this.player) {
+      const parts = this.player.texture.key.split("-");
+      const step = parts[parts.length - 1] ?? "0";
+      this.player.setTexture(`${prefix}-${this.facing}-${step}`);
+    }
+    // the default `char-*` keys are permanent; per-look keys are freed once unused
+    if (old !== "char" && old !== prefix)
+      for (const dir of ["down", "up", "left", "right"])
+        for (const step of [0, 1, 2]) this.textures.remove(`${old}-${dir}-${step}`);
+  }
+
+  /** texture keys currently registered for avatars (verification helper) */
+  avatarTextureCount() {
+    return this.textures.getTextureKeys().filter((k) => k.startsWith("char-")).length;
+  }
+
+  // ---------- Move-In Day ----------
+
+  /** camera inside Your Room with 3 moving boxes; player input locked */
+  startMoveIn() {
+    this.cinematic = true;
+    this.target = null;
+    this.path = [];
+    this.activePayload = null;
+    this.onPopup(null);
+    const r = PERSONAL_RECTS[0]!;
+    this.player.setPosition(t(r.x + 5) + 16, t(r.y + 5) + 16);
+    this.player.setVelocity(0, 0);
+    this.facing = "down";
+    this.player.setTexture(`${this.charPrefix}-down-0`);
+    for (const b of this.boxes) b.destroy();
+    this.boxes = (
+      [
+        [r.x + 7.5, r.y + 3, 0.9],
+        [r.x + 4, r.y + 7.4, 0.8],
+        [r.x + 7, r.y + 7.2, 0.85],
+      ] as const
+    ).map(([x, y, sc]) => this.add.image(t(x), t(y), "crate").setScale(sc).setDepth(t(y) + 4));
+    this.restoreCamera();
+    this.cameras.main.centerOn(this.player.x, this.player.y);
+  }
+
+  /** the boxes pop away one by one (stepped scale-down + click) */
+  popBoxes(): Promise<void> {
+    const boxes = this.boxes;
+    this.boxes = [];
+    if (!boxes.length) return Promise.resolve();
+    return new Promise((resolve) => {
+      boxes.forEach((b, i) => {
+        this.time.delayedCall(i * 260, () => {
+          sfx.uiClick();
+          this.tweens.add({
+            targets: b,
+            scale: 0,
+            duration: 220,
+            ease: "Stepped",
+            easeParams: [3],
+            onComplete: () => {
+              b.destroy();
+              if (i === boxes.length - 1) resolve();
+            },
+          });
+        });
+      });
+    });
+  }
+
+  /** ~4s glide: Sam's door, Jordan's door, the lounge doorway, back to you */
+  glideTour(onDone: () => void) {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    this.tourDone = onDone;
+    const stops: Array<[number, number]> = [
+      [t(33), t(18)],
+      [t(54), t(18)],
+      [t(14), t(22)],
+      [this.player.x, this.player.y],
+    ];
+    const leg = 1000;
+    const next = (i: number) => {
+      if (!this.tourDone) return;
+      if (i >= stops.length) {
+        this.skipTour();
+        return;
+      }
+      const [x, y] = stops[i]!;
+      cam.pan(x, y, leg, "Sine.easeInOut", true);
+      this.tourTimer = this.time.delayedCall(leg, () => next(i + 1));
+    };
+    next(0);
+  }
+
+  /** ends the glide now (any tap) and hands control back */
+  skipTour() {
+    this.tourTimer?.remove(false);
+    this.tourTimer = null;
+    const done = this.tourDone;
+    this.tourDone = null;
+    this.endMoveIn();
+    done?.();
+  }
+
+  endMoveIn() {
+    for (const b of this.boxes) b.destroy();
+    this.boxes = [];
+    this.cinematic = false;
+    this.restoreCamera();
+  }
+
   // ---------- player ----------
 
   private spawnPlayer() {
     this.player = this.physics.add
-      .sprite(t(12) + 16, t(19) + 16, "char-down-0")
+      .sprite(t(12) + 16, t(19) + 16, `${this.charPrefix}-down-0`)
       .setDepth(1000);
     this.player.setScale(1.1);
     this.player.setOrigin(0.5, 0.85);
@@ -2267,7 +2428,19 @@ export class DormScene extends Phaser.Scene {
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
     cam.setBackgroundColor(EXT_GROUND);
     cam.startFollow(this.player, true, 0.16, 0.16);
-    cam.setZoom(1.6);
+    cam.setZoom(this.baseZoom());
+  }
+
+  /** phones: ~11 tiles across (clamped), desktop: fixed */
+  private baseZoom() {
+    if (!isPhoneWidth()) return DESKTOP_ZOOM;
+    return Phaser.Math.Clamp(this.cameras.main.width / (11 * TILE), 1.1, DESKTOP_ZOOM);
+  }
+
+  private onResize() {
+    // edit mode frames the room itself; the move-in glide drives the camera
+    if (this.editMode || this.tourDone) return;
+    this.cameras.main.setZoom(this.baseZoom());
   }
 
   /** edit mode: fit Your Room (wall face included) into the area above the tray */
@@ -2290,7 +2463,7 @@ export class DormScene extends Phaser.Scene {
   restoreCamera() {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
-    cam.setZoom(1.6);
+    cam.setZoom(this.baseZoom());
     cam.startFollow(this.player, true, 0.16, 0.16);
   }
 
@@ -2325,10 +2498,17 @@ export class DormScene extends Phaser.Scene {
         return;
       }
 
+      if (this.cinematic) return;
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+      // tapping yourself opens the avatar creator
+      if (this.player.getBounds().contains(wp.x, wp.y)) {
+        this.onAvatarTap();
+        return;
+      }
       const tx = Math.floor(wp.x / TILE);
       const ty = Math.floor(wp.y / TILE);
       if (this.grid[ty]?.[tx] !== FLOOR) return;
+      if (isTouch()) this.tapMarker(tx, ty);
       this.path = this.findPath(
         Math.floor(this.player.x / TILE),
         Math.floor(this.player.y / TILE),
@@ -2336,6 +2516,22 @@ export class DormScene extends Phaser.Scene {
         ty,
       );
       this.target = this.path.shift() ?? null;
+    });
+  }
+
+  /** small pixel marker on the tapped tile, gone after 400ms */
+  private tapMarker(tx: number, ty: number) {
+    const m = this.add
+      .image(t(tx) + TILE / 2, t(ty) + TILE / 2 + 4, "tapmark")
+      .setDepth(t(ty) + 2)
+      .setAlpha(0.95);
+    this.tweens.add({
+      targets: m,
+      alpha: 0,
+      duration: 400,
+      ease: "Stepped",
+      easeParams: [4],
+      onComplete: () => m.destroy(),
     });
   }
 
@@ -2389,6 +2585,12 @@ export class DormScene extends Phaser.Scene {
     let vx = 0;
     let vy = 0;
 
+    if (this.cinematic) {
+      body.setVelocity(0, 0);
+      this.lighting.update(_time);
+      return;
+    }
+
     const left = this.cursors.left.isDown || this.keys["A"]!.isDown;
     const right = this.cursors.right.isDown || this.keys["D"]!.isDown;
     const up = this.cursors.up.isDown || this.keys["W"]!.isDown;
@@ -2440,7 +2642,7 @@ export class DormScene extends Phaser.Scene {
     const step = moving ? (Math.floor(this.walkTime / 150) % 2 === 0 ? 1 : 2) : 0;
     if (moving && step !== this.lastStep) sfx.footstep();
     this.lastStep = step;
-    const key = `char-${this.facing}-${step}`;
+    const key = `${this.charPrefix}-${this.facing}-${step}`;
     if (this.player.texture.key !== key) this.player.setTexture(key);
 
     if (!this.editMode) this.checkProximity();
