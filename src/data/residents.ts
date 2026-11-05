@@ -322,7 +322,8 @@ export const pickLine = (id: ResidentId, ctx: TalkContext, seenToday: readonly s
   const v = VOICES[id];
   const seen = new Set(seenToday);
   const aboutYou: Line[] = [];
-  if (ctx.doorNews) aboutYou.push({ id: `you-door`, text: v.door[ctx.doorNews] });
+  // door news is already "once per change" (doorSeen), so it skips the seen-today filter
+  if (ctx.doorNews) return { id: "you-door", text: v.door[ctx.doorNews] };
   if (ctx.dailyAnswer) aboutYou.push({ id: "you-daily", text: v.daily(ctx.dailyAnswer, ctx.dailyAnswer === ctx.theirDaily) });
   if (ctx.commonArtist) aboutYou.push({ id: "you-common", text: v.common(ctx.commonArtist, "artist") });
   else if (ctx.commonInterest) aboutYou.push({ id: "you-common", text: v.common(ctx.commonInterest, "interest") });
