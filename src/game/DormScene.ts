@@ -2096,8 +2096,20 @@ export class DormScene extends Phaser.Scene {
     return typeof src?.toDataURL === "function" ? src.toDataURL() : null;
   }
 
-  /** drifting music notes — reuses one shared texture */
-  private spawnSoundCue(x: number, y: number, tint: number) {
+  /** geometry mask clipping music notes to their room so they never drift onto hall signs */
+  private noteMask(key: string, r: ClipRect) {
+    let m = this.noteMasks.get(key);
+    if (!m) {
+      const g = this.add.graphics().setVisible(false);
+      g.fillStyle(0xffffff, 1).fillRect(r.x, r.y, r.w, r.h);
+      m = g.createGeometryMask();
+      this.noteMasks.set(key, m);
+    }
+    return m;
+  }
+
+  /** drifting music notes — reuses one shared texture; `clip` keeps them inside their room */
+  private spawnSoundCue(x: number, y: number, tint: number, clip?: { key: string; rect: ClipRect }) {
     const out: Phaser.GameObjects.Image[] = [];
     for (let i = 0; i < 3; i++) {
       const note = this.add
@@ -2106,6 +2118,7 @@ export class DormScene extends Phaser.Scene {
         .setDepth(7)
         .setScale(0.55)
         .setAlpha(0);
+      if (clip) note.setMask(this.noteMask(clip.key, clip.rect));
       // rise, drift sideways, fade out — a continuous loop, never a static icon
       this.tweens.add({
         targets: note,
@@ -2133,12 +2146,12 @@ export class DormScene extends Phaser.Scene {
     );
 
     // zone labels
-    // dorm-door signs in the hallway, just above each common room's doorway
+    // dorm-door plaques in the hallway, on the wall just above each common room's doorway
     for (const z of COMMON) {
       if (z.kind !== "common") continue;
       const door = DOORWAYS.filter(([dx, dy]) => dy === z.y - 1 && dx >= z.x && dx < z.x + z.w).map(([dx]) => dx);
       const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
-      this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
+      this.wallSign(cx, t(z.y - 1) + TILE / 2 - 2, [z.label], "cream", "center");
     }
     // wayfinding: a dark painted plaque on the hall's back-wall face
     this.wallSign(t(4), t(17), ["FLOOR 3"], "dark", "center");
