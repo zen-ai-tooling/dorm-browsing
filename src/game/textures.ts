@@ -1155,6 +1155,17 @@ export const buildTextures = (scene: Phaser.Scene) => {
     line(g, 9, 14, 8, 5);
   });
 
+  // editor paint button: tiny pixel palette 8x8
+  make(scene, "icon-palette", 8, 8, (g) => {
+    r(g, 1, 1, 6, 6, 0xefe4cf);
+    r(g, 0, 2, 1, 4, 0xefe4cf);
+    r(g, 7, 2, 1, 3, 0xefe4cf);
+    r(g, 2, 2, 1, 1, 0xc96f4a);
+    r(g, 4, 2, 1, 1, 0x4f9a9a);
+    r(g, 2, 4, 1, 1, 0xd6a73c);
+    r(g, 5, 5, 2, 2, 0x241c26); // thumb hole
+  });
+
   /* ------------- iteration 28: welcome mats, 2×1 tiles (32x16 art px) ------------- */
   const matBase = (g: G, c: number, edge: number) => {
     r(g, 0, 1, 32, 14, c);
