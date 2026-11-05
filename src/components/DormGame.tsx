@@ -323,112 +323,35 @@ const DormGame = () => {
   };
 
 
-  const hud = (
-    <>
-      <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
-          <IconChip>
-            <Coins className="size-3.5" aria-hidden />
-          </IconChip>
-          <span className="font-body text-sm font-bold text-panel-foreground">
-            <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
-          </span>
-        </GamePanel>
-      <PhaseChip />
-      {packageReady ? (
-        <GamePanel
-          className="relative flex items-center gap-1.5 px-2 py-1.5"
-          accent="#c99a5b"
-          title="A package is waiting in the mail cubby"
-        >
-          <IconChip>
-            <Mail className="size-3.5" aria-hidden />
-          </IconChip>
-          <span className="font-body text-xs font-bold text-panel-foreground max-sm:sr-only">Mail</span>
-          <span
-            aria-label="Unopened package"
-            className="absolute right-1 top-1 size-2.5 rounded-full border-2 border-ink bg-primary"
-          />
-        </GamePanel>
-      ) : null}
-      {currentStreak > 0 ? (
-        <GamePanel
-          className="flex items-center gap-2 px-2.5 py-1.5"
-          accent="#c8765c"
-          title={`${currentStreak}-day daily question streak`}
-        >
-          <IconChip>
-            <Flame className="size-3.5" aria-hidden />
-          </IconChip>
-          <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">{currentStreak}</span>
-        </GamePanel>
-      ) : null}
-      <button
-        type="button"
-        aria-label={muted ? "Unmute sound" : "Mute sound"}
-        aria-pressed={muted}
-        onClick={() => playerActions.toggleMute()}
-        className="rounded-[3px]"
-      >
-        <IconChip>
-          {muted ? <VolumeX className="size-3.5" aria-hidden /> : <Volume2 className="size-3.5" aria-hidden />}
-        </IconChip>
-      </button>
-      <div className="relative">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-          onClick={() => {
-            sfx.uiClick();
-            playerActions.markShopSeen();
-            setShopOpen(true);
-          }}
-        >
-          <IconChip>
-            <Store className="size-3.5" aria-hidden />
-          </IconChip>
-          {isPhone ? <span className="sr-only">Shop</span> : "Shop"}
-        </Button>
-        {hasNewFeatured ? (
-          <span
-            aria-label="New featured items in the shop"
-            className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
-          />
-        ) : null}
-      </div>
-      {inMyRoom && !editing ? (
-        <Button
-          size="sm"
-          variant="secondary"
-          className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-          onClick={() => {
-            sfx.uiClick();
-            toggleEdit(true);
-          }}
-        >
-          <IconChip>
-            <Pencil className="size-3.5" aria-hidden />
-          </IconChip>
-          {isPhone ? <span className="sr-only">Edit My Room</span> : "Edit My Room"}
-        </Button>
-      ) : null}
-      <Button
-        size="sm"
-        variant="secondary"
-        aria-label="Edit your avatar"
-        className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-        onClick={() => {
-          sfx.uiClick();
-          setAvatarOpen(true);
-        }}
-      >
-        <IconChip>
-          <UserRound className="size-3.5" aria-hidden />
-        </IconChip>
-        {isPhone ? <span className="sr-only">Me</span> : "Me"}
-      </Button>
-    </>
+  const phase = usePhase();
+
+  const openShop = () => {
+    sfx.uiClick();
+    playerActions.markShopSeen();
+    setShopOpen(true);
+  };
+  const openAvatar = () => {
+    sfx.uiClick();
+    setAvatarOpen(true);
+  };
+
+  const mailDot = (
+    <span
+      aria-label="Unopened package"
+      className="absolute right-1 top-1 size-2.5 rounded-full border-2 border-ink bg-primary"
+    />
   );
+  const shopDot = hasNewFeatured ? (
+    <span
+      aria-label="New featured items in the shop"
+      className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
+    />
+  ) : null;
+  const soundIcon = muted ? <VolumeX className="size-3.5" aria-hidden /> : <Volume2 className="size-3.5" aria-hidden />;
+
+  /** any popup/sheet/panel is up — the quest card collapses to its chip */
+  const overlayOpen =
+    (!!popup && (isTouch ? sheetOpen : true)) || shopOpen || avatarOpen || (editing && wallpaperOpen);
 
   const popupLayer = editing ? null : isTouch ? (
     popup ? (
