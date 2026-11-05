@@ -18,7 +18,9 @@ import {
   type ItemDef,
   type Rotation,
 } from "@/data/items";
-import { buildTextures } from "./textures";
+import { buildCharTextures, buildTextures } from "./textures";
+import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
+import type { MoodKey } from "@/data/dorm";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type Light, type LightSpec } from "./lighting";
@@ -275,6 +277,25 @@ export class DormScene extends Phaser.Scene {
   private boards: Array<{ residentId: string; text: Phaser.GameObjects.Text; sparkle: Phaser.GameObjects.Image | null }> = [];
   private mailPackage: Phaser.GameObjects.Image | null = null;
   private mailSparkle: Phaser.GameObjects.Image | null = null;
+  /** avatar (Iteration 25): drawn look, texture prefix of its 12 frames */
+  private getAvatar: () => AvatarLook = () => DEFAULT_LOOK;
+  private onAvatarTap: () => void = () => {};
+  private charPrefix = "char";
+  private charHash = lookHash(DEFAULT_LOOK);
+  /** Your Room's mood + display name, live from the player store */
+  private getMyMood: () => MoodKey = () => ROOMS[0]!.mood;
+  private getPlayerName: () => string = () => "";
+  private builtMood: MoodKey = ROOMS[0]!.mood;
+  private myFloorGfx: Phaser.GameObjects.Graphics | null = null;
+  private myRug: Phaser.GameObjects.Image | null = null;
+  private myGlow: Phaser.GameObjects.Image | null = null;
+  private myPlateObjs: Phaser.GameObjects.GameObject[] = [];
+  private myZone: Zone | null = null;
+  /** Move-In Day: input locked, camera scripted */
+  private cinematic = false;
+  private boxes: Phaser.GameObjects.Image[] = [];
+  private tourTimer: Phaser.Time.TimerEvent | null = null;
+  private tourDone: (() => void) | null = null;
 
 
   constructor() {
@@ -293,7 +314,15 @@ export class DormScene extends Phaser.Scene {
     getPhase?: () => Phase;
     getMyDailyAnswer?: () => string | null;
     isPackageReady?: () => boolean;
+    getAvatar?: () => AvatarLook;
+    onAvatarTap?: () => void;
+    getMyMood?: () => MoodKey;
+    getPlayerName?: () => string;
   }) {
+    if (data?.getAvatar) this.getAvatar = data.getAvatar;
+    if (data?.onAvatarTap) this.onAvatarTap = data.onAvatarTap;
+    if (data?.getMyMood) this.getMyMood = data.getMyMood;
+    if (data?.getPlayerName) this.getPlayerName = data.getPlayerName;
     if (data?.getPhase) this.getPhase = data.getPhase;
     if (data?.getMyDailyAnswer) this.getMyDailyAnswer = data.getMyDailyAnswer;
     if (data?.isPackageReady) this.isPackageReady = data.isPackageReady;
@@ -329,6 +358,9 @@ export class DormScene extends Phaser.Scene {
     this.setupEditorInput();
     this.applyWallpaper();
     this.refreshDaily();
+    this.applyAvatar();
+    this.scale.on("resize", this.onResize, this);
+    this.events.once("shutdown", () => this.scale.off("resize", this.onResize, this));
     this.onReady(this);
   }
 
@@ -338,8 +370,9 @@ export class DormScene extends Phaser.Scene {
   private myTrim = NEUTRAL_WALL;
 
   private buildZones(): Zone[] {
+    this.builtMood = this.getMyMood();
     const personal: Zone[] = ROOMS.map((room, i) => {
-      const mood = MOODS[room.mood];
+      const mood = MOODS[i === 0 ? this.builtMood : room.mood];
       const r = PERSONAL_RECTS[i]!;
       const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
       return {
@@ -353,6 +386,7 @@ export class DormScene extends Phaser.Scene {
       };
     });
     this.myTrim = personal[0]!.wall;
+    this.myZone = personal[0]!;
     return [HALL, ...personal, ...COMMON];
   }
 
@@ -1076,11 +1110,12 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
 
     // woven area rug, accent-tinted (opaque pixels, no soft blend)
-    this.add
+    const rug = this.add
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
       .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
       .setScale(0.85)
       .setDepth(1);
+    if (editable) this.myRug = rug;
 
     // the poster is a real catalog item now (see ITEM_CATALOG.poster_default) and
     // is drawn through room.layout like every other prop — no hardcoded rectangles.
@@ -1134,6 +1169,7 @@ export class DormScene extends Phaser.Scene {
       .setDepth(3)
       .setScale(0.9)
       .setAlpha(room.isActive ? 0.4 : 0.1);
+    if (editable) this.myGlow = glow;
     // pixel wall sconce on the face right of the frame
     const sconceX = openR + 12;
     this.add.rectangle(sconceX, faceTop + 18, 8, 6, 0x241c26, 1).setDepth(5);
@@ -1144,10 +1180,16 @@ export class DormScene extends Phaser.Scene {
 
     // nameplate mounted on the face; an away note becomes its second line
     const away = !room.isActive ? room.awayNote : undefined;
-    const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
-    if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
-    // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
-    this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
+    if (editable) {
+      // your plate shows "{name}'s Room" and is redrawn on rename, so the board sits past the widest plate
+      this.applyMyName();
+      this.buildDoorBoard(room, openR + 20 + MY_PLATE_MAX + 8);
+    } else {
+      const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
+      if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
+      // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
+      this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
+    }
 
     if (room.isActive) {
       this.tweens.add({
@@ -1235,6 +1277,7 @@ export class DormScene extends Phaser.Scene {
     lines: string[],
     style: "cream" | "dark",
     anchor: "left" | "center" = "left",
+    maxW = Infinity,
   ) {
     const ink = 0x241c26;
     const bg = style === "cream" ? 0xf3ead2 : 0x33292f;
@@ -1251,7 +1294,12 @@ export class DormScene extends Phaser.Scene {
         .setDepth(4.6),
     );
     const lineH = [12, 10];
-    const w = Math.ceil(Math.max(...texts.map((tx) => tx.width)) / 2) * 2 + 12;
+    // long names shrink to fit the plate instead of pushing into the next sign
+    for (const tx of texts) {
+      let size = parseInt(String(tx.style.fontSize), 10) || 11;
+      while (tx.width + 12 > maxW && size > 7) tx.setFontSize(--size);
+    }
+    const w = Math.min(maxW, Math.ceil(Math.max(...texts.map((tx) => tx.width)) / 2) * 2 + 12);
     const h = lines.reduce((a, _, i) => a + (lineH[i] ?? 10), 0) + 6;
     const x0 = Math.round(anchor === "left" ? left : left - w / 2);
     const y0 = Math.round(cy - h / 2);
@@ -1265,7 +1313,7 @@ export class DormScene extends Phaser.Scene {
       tx.setPosition(x0 + w / 2, yy + lh / 2);
       yy += lh;
     });
-    return { left: x0, right: x0 + w, top: y0, bottom: y0 + h };
+    return { left: x0, right: x0 + w, top: y0, bottom: y0 + h, objs: [g, ...texts] as Phaser.GameObjects.GameObject[] };
   }
 
   // ---------- layout rendering + room editor ----------
@@ -1366,7 +1414,7 @@ export class DormScene extends Phaser.Scene {
     const f = effectiveFootprint(item, rotation);
     const c = this.centerOf(gx, gy, f.w, f.h);
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
-    const tint = this.moodTint(ROOMS[0]!, item);
+    const tint = this.moodTint(this.myRoom(), item);
     if (tint) sprite.setTint(tint);
     if (item.scale) sprite.setScale(item.scale);
     if (rotation) sprite.setAngle(rotation);
@@ -1381,7 +1429,7 @@ export class DormScene extends Phaser.Scene {
       this.markTiles(gx, gy, f.w, f.h, true);
     }
 
-    const payload = this.payloadFor(ROOMS[0]!, item);
+    const payload = this.payloadFor(this.myRoom(), item);
     let ring: Phaser.GameObjects.Image | null = null;
     if (payload) {
       ring = this.add
@@ -1437,7 +1485,7 @@ export class DormScene extends Phaser.Scene {
     for (let y = rect.y; y < rect.y + rect.h; y++)
       for (let x = rect.x; x < rect.x + rect.w; x++)
         if (this.grid[y]![x] === BLOCKED) this.grid[y]![x] = FLOOR;
-    this.renderMyLayout(ROOMS[0]!, rect);
+    this.renderMyLayout(this.myRoom(), rect);
   }
 
   // ---------- per-item operations ----------
@@ -1525,7 +1573,7 @@ export class DormScene extends Phaser.Scene {
       if (!sprite.active) return;
       const entry = this.placed.find((p) => p.sprite === sprite);
       const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
-      const tint = def ? this.moodTint(ROOMS[0]!, def) : undefined;
+      const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
       sprite.clearTint();
       if (tint) sprite.setTint(tint);
       if (entry && this.placed.indexOf(entry) === this.selectedIdx) sprite.setTint(0xfff3b0);
@@ -1621,7 +1669,7 @@ export class DormScene extends Phaser.Scene {
       if (entry?.sprite.active) {
         entry.sprite.clearTint();
         const def = ITEM_CATALOG[entry.itemId];
-        const tint = def ? this.moodTint(ROOMS[0]!, def) : undefined;
+        const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
         if (tint) entry.sprite.setTint(tint);
       }
     }
@@ -1699,7 +1747,7 @@ export class DormScene extends Phaser.Scene {
     const item = ITEM_CATALOG[itemId]!;
     this.ghost?.destroy();
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
-    const ghostTint = this.moodTint(ROOMS[0]!, item);
+    const ghostTint = this.moodTint(this.myRoom(), item);
     if (ghostTint) this.ghost.setTint(ghostTint);
     if (item.scale) this.ghost.setScale(item.scale);
     this.ensureHighlight();
@@ -1910,7 +1958,7 @@ export class DormScene extends Phaser.Scene {
     // personal rooms (generic from data)
     const doorXs = [11, 32, 53];
     ROOMS.forEach((room, i) =>
-      this.buildPersonalRoom(room, PERSONAL_RECTS[i]!, doorXs[i]!, i === 0),
+      this.buildPersonalRoom(i === 0 ? this.myRoom() : room, PERSONAL_RECTS[i]!, doorXs[i]!, i === 0),
     );
 
     // zone labels
