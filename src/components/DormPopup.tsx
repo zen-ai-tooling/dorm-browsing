@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Pencil, Shuffle, X } from "lucide-react";
 import {
   BULLETIN_MAX_PINS,
@@ -45,6 +45,7 @@ import {
 import { ITEM_CATALOG } from "@/data/items";
 import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
+import { roomNameFor } from "@/data/avatar";
 import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
 import { PixelIcon } from "./PixelIcon";
@@ -62,7 +63,62 @@ const VARIANT_STRIP: Record<Variant, string> = {
   cork: "pixel-corkboard border-b-[3px] border-ink",
 };
 
-const Shell = ({
+/**
+ * Phones open popups as a bottom sheet (drag handle, swipe down to close) instead of the
+ * floating card; the content inside is identical.
+ */
+export const PopupSheetContext = createContext<{ sheet: boolean; onClose?: () => void }>({ sheet: false });
+
+const SheetFrame = ({ onClose, children }: { onClose?: (() => void) | undefined; children: ReactNode }) => {
+  const start = useRef<number | null>(null);
+  const [drag, setDrag] = useState(0);
+  return (
+    <div
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-40 max-h-[72%] overflow-y-auto pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-6 duration-200"
+      style={{ transform: drag ? `translateY(${drag}px)` : undefined }}
+      role="dialog"
+      aria-modal="false"
+    >
+      <div
+        className="flex touch-none justify-center bg-transparent pb-1 pt-2"
+        onPointerDown={(e) => {
+          start.current = e.clientY;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (start.current !== null) setDrag(Math.max(0, e.clientY - start.current));
+        }}
+        onPointerUp={() => {
+          const d = drag;
+          start.current = null;
+          setDrag(0);
+          if (d > 50) onClose?.();
+        }}
+        onPointerCancel={() => {
+          start.current = null;
+          setDrag(0);
+        }}
+      >
+        <button type="button" aria-label="Close" onClick={() => onClose?.()} className="px-6 py-1">
+          <span aria-hidden className="block h-1.5 w-12 border-2 border-ink bg-panel" />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+const Shell = (props: Parameters<typeof ShellCard>[0]) => {
+  const { sheet, onClose } = useContext(PopupSheetContext);
+  if (!sheet) return <ShellCard {...props} />;
+  return (
+    <SheetFrame onClose={onClose}>
+      <ShellCard {...props} sheet />
+    </SheetFrame>
+  );
+};
+
+const ShellCard = ({
   accent,
   title,
   subtitle,
@@ -72,7 +128,9 @@ const Shell = ({
   variant,
   badge,
   children,
+  sheet = false,
 }: {
+  sheet?: boolean;
   accent: string;
   title: string;
   subtitle?: string;
@@ -84,9 +142,13 @@ const Shell = ({
   children: ReactNode;
 }) => (
   <div
-    className={`absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
-      interactive ? "pointer-events-auto" : "pointer-events-none"
-    }`}
+    className={
+      sheet
+        ? "pointer-events-auto relative w-full"
+        : `absolute bottom-5 left-1/2 w-[min(92vw,420px)] -translate-x-1/2 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            interactive ? "pointer-events-auto" : "pointer-events-none"
+          }`
+    }
     role="status"
     aria-live="polite"
   >
@@ -1322,8 +1384,10 @@ export const DormPopup = ({
   /** tinted per-item thumbnails keyed by item id (mail finds) */
   itemThumbnails?: Record<string, { src: string }>;
 }) => {
-  const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone } = usePlayerState();
+  const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone, playerName } = usePlayerState();
   const [editing, setEditing] = useState(false);
+  /** "{name}'s Room" for yours (display only — the id still identifies it) */
+  const titleOf = (room: PersonRoom) => (room.id === MY_ROOM_ID ? roomNameFor(playerName) : room.name);
   const kind = payload?.kind ?? null;
 
   // leaving a prop (or switching props) always drops back to the display view
@@ -1362,7 +1426,7 @@ export const DormPopup = ({
     return (
       <Shell
         accent={room.accentColor}
-        title={`${room.name} — Top 5`}
+        title={`${titleOf(room)} — Top 5`}
         subtitle={MOODS[room.mood].label}
         interactive={mine}
         variant="crate"
@@ -1396,7 +1460,7 @@ export const DormPopup = ({
     return (
       <Shell
         accent={room.accentColor}
-        title={`${room.name} — Bulletin board`}
+        title={`${titleOf(room)} — Bulletin board`}
         interactive={mine}
         variant="cork"
         badge={<CommonChip count={common} accent={room.accentColor} />}
@@ -1427,7 +1491,7 @@ export const DormPopup = ({
     return (
       <Shell
         accent={room.accentColor}
-        title={`${room.name} — Now watching`}
+        title={`${titleOf(room)} — Now watching`}
         interactive={mine}
         variant="crt"
         badge={<CommonChip count={common} accent={room.accentColor} />}
@@ -1507,4 +1571,27 @@ export const DormPopup = ({
       </ul>
     </Shell>
   );
+};
+
+/** short label for the phone "Tap to open" pill */
+export const popupTitle = (p: PopupPayload, playerName: string): string => {
+  switch (p.kind) {
+    case "songs":
+    case "bulletin":
+    case "watching": {
+      const name = p.room.id === MY_ROOM_ID ? roomNameFor(playerName) : p.room.name;
+      return `${name} — ${p.kind === "songs" ? "Top 5" : p.kind === "bulletin" ? "Bulletin" : "Now watching"}`;
+    }
+    case "companion":
+      return p.room.companion.name;
+    case "corkboard":
+      return "Question of the day";
+    case "package":
+      return "Mail cubby";
+    case "whiteboard":
+      return p.residentId === MY_ROOM_ID ? "Your door board" : `${p.name}'s door board`;
+    case "art":
+    case "flavor":
+      return p.title;
+  }
 };
