@@ -5,16 +5,9 @@ import { Switch } from "@/components/ui/switch";
 import { devActions, useDevMode, usePlayerState } from "@/lib/playerStore";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
-import { setTimeOverride, useTimeOverride } from "@/lib/timeStore";
-import type { Phase } from "@/game/timeOfDay";
-
-const TIME_OPTIONS: Array<[Phase | null, string]> = [
-  [null, "Auto"],
-  ["morning", "Morning"],
-  ["day", "Day"],
-  ["golden", "Golden"],
-  ["night", "Night"],
-];
+import { currentHour, setHourOverride, useHourOverride, useTimeOverride } from "@/lib/timeStore";
+import { PHASE_LABEL, phaseForHour } from "@/game/timeOfDay";
+import { formatHour } from "@/data/residents";
 
 const DevButton = ({
   onClick,
@@ -37,7 +30,13 @@ const DevButton = ({
 );
 
 /** Dev-only test tools; rendered only when the dorm-vibes-dev key is set. */
-export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
+export const DevPanel = ({
+  onLayoutReset,
+  onTriggerVisit,
+}: {
+  onLayoutReset: () => void;
+  onTriggerVisit: () => boolean;
+}) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
   const timeOverride = useTimeOverride();
@@ -117,24 +116,33 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
         />
       </label>
       <div className="mb-2">
-        <span className="mb-1 block font-body text-xs font-bold text-panel-foreground">Time of day</span>
-        <div className="flex flex-wrap gap-1">
-          {TIME_OPTIONS.map(([value, label]) => {
-            const on = timeOverride === value;
-            return (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={on}
-                onClick={() => run(() => setTimeOverride(value), `Time: ${label}`)}
-                className={`rounded-[3px] border-2 border-ink px-1.5 py-0.5 font-body text-[11px] font-bold ${
-                  on ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        <div className="mb-1 flex items-baseline justify-between font-body text-xs font-bold text-panel-foreground">
+          <span>Clock</span>
+          <span className="tabular-nums text-panel-muted">
+            {hourOverride === null ? "Auto" : formatHour(hourOverride)} · {PHASE_LABEL[phaseForHour(shownHour)]}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={0}
+            max={23}
+            step={1}
+            aria-label="Clock hour"
+            value={shownHour}
+            onChange={(e) => setHourOverride(Number(e.target.value))}
+            className="h-2 min-w-0 flex-1 accent-[var(--color-ink)]"
+          />
+          <button
+            type="button"
+            aria-pressed={hourOverride === null && timeOverride === null}
+            onClick={() => run(() => setHourOverride(null), "Clock: Auto")}
+            className={`rounded-[3px] border-2 border-ink px-1.5 py-0.5 font-body text-[11px] font-bold ${
+              hourOverride === null && timeOverride === null ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+            }`}
+          >
+            Auto
+          </button>
         </div>
       </div>
       <div className="space-y-1.5">
@@ -164,6 +172,16 @@ export const DevPanel = ({ onLayoutReset }: { onLayoutReset: () => void }) => {
         </DevButton>
         <DevButton onClick={() => run(devActions.resetQuests, "Welcome quests reset")}>Reset quests</DevButton>
         <DevButton onClick={() => run(devActions.replayMoveIn, "Move-in starting")}>Replay move-in</DevButton>
+        <DevButton onClick={() => run(devActions.resetFriendship, "Friendship reset")}>Reset friendship</DevButton>
+        <DevButton
+          onClick={() => {
+            devActions.allowVisitAgain();
+            sfx.uiClick();
+            toast(onTriggerVisit() ? "Someone's heading to your door" : "Nobody's free to visit right now");
+          }}
+        >
+          Trigger door visit now
+        </DevButton>
         <DevButton danger onClick={resetEverything}>
           {confirmReset ? "Tap again to confirm" : "Reset everything"}
         </DevButton>
