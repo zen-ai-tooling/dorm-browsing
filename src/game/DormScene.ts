@@ -44,7 +44,7 @@ import {
 } from "@/data/residents";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
-import { Lighting, type Light, type LightSpec } from "./lighting";
+import { Lighting, type ClipRect, type Light, type LightSpec } from "./lighting";
 import {
   DARKNESS_ALPHA,
   DARKNESS_COLOR,
@@ -326,6 +326,12 @@ export class DormScene extends Phaser.Scene {
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
   private lighting!: Lighting;
+  /** zone clip rects (world px, face rows included) shared by light clipping + room ambient */
+  private zoneClips = new Map<string, ClipRect>();
+  /** decorative glow patches that only exist at night (alpha scales with darkness) */
+  private nightGated: Array<{ o: Phaser.GameObjects.Image | Phaser.GameObjects.Container; a: number }> = [];
+  /** geometry masks clipping music notes to their room, keyed by room id */
+  private noteMasks = new Map<string, Phaser.Display.Masks.GeometryMask>();
   private getPhase: () => Phase = () => phaseFor(new Date());
   private phase: Phase | null = null;
   private nextPhaseCheck = 0;
@@ -433,11 +439,15 @@ export class DormScene extends Phaser.Scene {
     this.paintFloor(zones);
     this.buildColliders();
     // lighting exists before decor so every prop can register its light where it's created
-    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE);
+    for (const z of zones)
+      this.zoneClips.set(z.id, { x: t(z.x), y: t(z.y - 1), w: t(z.w), h: t(z.h + 1) });
+    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE, [...this.zoneClips.values()]);
     this.decorate(zones);
     this.decorateExterior();
     this.spawnPlayer();
-    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -14, color: 0xffd9a0, radius: 28, cut: false, strength: 0.22 });
+    // player halo: a cut-out only (no pool), fading out inside another light's radius
+    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -6, color: 0xffd9a0, radius: 30, pool: false, fadeNearOthers: true });
+    this.updateAmbient();
     this.setupCamera();
     this.refreshPhase(true);
     this.setupInput();
