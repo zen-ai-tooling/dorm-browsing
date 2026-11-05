@@ -1,11 +1,11 @@
-# Roadmap — Iteration 25: Move-In Day
+# Roadmap — Iteration 26: Residents
 
-- [x] AvatarLook + playerName + onboarded + myMood in PlayerState (defaults, migration, tests)
-- [x] drawChar(look): skin/hair styles/tops/bottoms/accessories, 4 dirs × 3 steps
-- [x] Per-look player textures, swap + destroy old; tap own character opens creator
-- [x] AvatarCreator (preview ×6 rotating, tabs, randomize, outfits tab)
-- [x] "{name}'s Room" on nameplate/label (display only)
-- [x] Move-In Day 5-step onboarding (boxes, mood, stickers + song, glide); old saves toast
-- [x] Outfits shop tab + 6 outfit items with avatar thumbnails; outfit override test
-- [x] Phone: tap hint, bottom dock, zoom clamp, tap-to-open pill + bottom sheet, tap marker
-- [x] Dev panel: Replay move-in
+- [ ] Data: swap Sam/Jordan moods; dynamic away/active from schedule
+- [ ] Sam + Jordan rooms redecorated (+ new textures), seed layouts pass canPlaceIn (test)
+- [ ] "Sold at Floor 3 Supply" label on shop items in neighbor rooms → shop detail
+- [ ] residents.ts: looks, schedules, next-home, lines + priority picker, knock + visit lines (tests)
+- [ ] Scene: resident sprites, walking between anchors, away/return via courtyard, idle bob, emote bubbles, sleep frame
+- [ ] Door state: away note on nameplate, "asleep" on whiteboard, music cue when home
+- [ ] Resident popup: portrait, activity, one line, hearts; friendship +1/day; gifts at 3/6/10 via mail
+- [ ] Knock pill + knock sound + responses; daily door visit 18–22 about your room
+- [ ] Dev: hour slider + Auto (drives lighting), Reset friendship, Trigger door visit
