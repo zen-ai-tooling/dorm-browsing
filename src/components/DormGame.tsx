@@ -30,7 +30,9 @@ import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
-import { currentPhase, hydrateTimeOverride, useTimeOverride } from "@/lib/timeStore";
+import { currentHour, currentPhase, hydrateTimeOverride, useTimeVersion } from "@/lib/timeStore";
+import { roomRemark, RESIDENTS, type ResidentId } from "@/data/residents";
+import { roomInfoFor } from "@/lib/residentTalk";
 import { PhaseChip } from "./PhaseChip";
 
 const DormGame = () => {
@@ -114,10 +116,25 @@ const DormGame = () => {
   }, [popup]);
 
   // dev time override (panel or ?time=) applies right away, with the usual crossfade
-  const timeOverride = useTimeOverride();
+  const timeVersion = useTimeVersion();
   useEffect(() => {
     sceneRef.current?.refreshPhase();
-  }, [timeOverride]);
+    sceneRef.current?.refreshResidents();
+  }, [timeVersion]);
+
+  // residents: knock pill at their door, "Sold at Floor 3 Supply" hints in their rooms
+  const [knockSpot, setKnockSpot] = useState<ResidentId | null>(null);
+  const [soldHint, setSoldHint] = useState<{ itemId: string; x: number; y: number } | null>(null);
+  const hintTimer = useRef<number | undefined>(undefined);
+  const [shopFocus, setShopFocus] = useState<string | null>(null);
+  const showSoldHint = (h: { itemId: string; x: number; y: number } | null) => {
+    window.clearTimeout(hintTimer.current);
+    if (h) {
+      setSoldHint(h);
+      // touch: the hint lingers long enough to tap it; desktop hides on mouse-out (with a grace period)
+      hintTimer.current = window.setTimeout(() => setSoldHint(null), 4000);
+    } else hintTimer.current = window.setTimeout(() => setSoldHint(null), 700);
+  };
 
   useEffect(() => {
     let destroyed = false;
@@ -173,6 +190,18 @@ const DormGame = () => {
         },
         getMyMood: () => getPlayerState().myMood,
         getPlayerName: () => getPlayerState().playerName,
+        getHour: () => currentHour(),
+        onKnockSpot: setKnockSpot,
+        onSoldHint: showSoldHint,
+        getVisitLine: (id: ResidentId) => {
+          const st = getPlayerState();
+          if (st.lastVisitDate === todayKey()) return null;
+          return roomRemark(id, roomInfoFor(st));
+        },
+        onVisitLine: (id: ResidentId, line: string) => {
+          playerActions.markVisited();
+          toast(`${RESIDENTS[id].name} stopped by your door`, { description: `“${line}”`, duration: 7000 });
+        },
         onReady: (scene: DormScene) => {
           sceneRef.current = scene;
           setScene(scene);
@@ -514,6 +543,40 @@ const DormGame = () => {
 
       <WelcomeQuests hidden={editing || moveIn || !onboarded} docked={isPhone} />
 
+      {knockSpot && !editing && !moveIn ? (
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
+            isPhone ? "bottom-[calc(10.75rem+env(safe-area-inset-bottom))]" : "top-4"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => sceneRef.current?.knock(knockSpot)}
+            className="pointer-events-auto rounded-[3px] border-[3px] border-ink bg-[var(--crate-wood)] px-3 py-1.5 font-display text-xs font-bold text-[var(--tag-standard)] shadow-[0_3px_0_0_var(--color-ink)]"
+          >
+            Knock on {RESIDENTS[knockSpot].name}'s door
+          </button>
+        </div>
+      ) : null}
+
+      {soldHint && !editing ? (
+        <button
+          type="button"
+          onMouseEnter={() => window.clearTimeout(hintTimer.current)}
+          onMouseLeave={() => showSoldHint(null)}
+          onClick={() => {
+            sfx.uiClick();
+            setShopFocus(soldHint.itemId);
+            setShopOpen(true);
+            setSoldHint(null);
+          }}
+          className="absolute z-30 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[3px] border-2 border-ink bg-panel px-1.5 py-0.5 font-display text-[10px] font-bold text-panel-foreground shadow-[0_2px_0_0_var(--color-ink)]"
+          style={{ left: soldHint.x, top: soldHint.y - 4 }}
+        >
+          {ITEM_CATALOG[soldHint.itemId]?.name} · Sold at Floor 3 Supply →
+        </button>
+      ) : null}
+
       {moveIn && scene ? <MoveIn scene={scene} onDone={() => setHintOpen(null)} /> : null}
 
       {avatarOpen && !moveIn ? (
@@ -551,12 +614,19 @@ const DormGame = () => {
       ) : null}
 
       {devMode.enabled ? (
-        <DevPanel onLayoutReset={() => sceneRef.current?.reloadMyLayout()} />
+        <DevPanel
+          onLayoutReset={() => sceneRef.current?.reloadMyLayout()}
+          onTriggerVisit={() => sceneRef.current?.maybeVisit(true) ?? false}
+        />
       ) : null}
 
       <ShopPanel
         open={shopOpen}
-        onOpenChange={setShopOpen}
+        onOpenChange={(v) => {
+          setShopOpen(v);
+          if (!v) setShopFocus(null);
+        }}
+        focusItemId={shopFocus}
         thumbnails={shopThumbs}
         onPlaceNow={(itemId) => {
           // close the shop, enter edit mode, and go straight into tap-to-place

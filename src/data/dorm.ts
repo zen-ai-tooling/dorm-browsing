@@ -108,6 +108,10 @@ export interface PlacedItem {
   gy: number;
   /** 90° steps; absent means 0 (backward compatible with saved layouts) */
   rotation?: 0 | 90 | 180 | 270;
+  /** neighbor rooms only: decor with no popup (a second plant, the other speaker) */
+  ambient?: boolean;
+  /** neighbor rooms only: recolor this piece (terracotta rug) */
+  tint?: number;
 }
 
 
@@ -127,6 +131,7 @@ export interface PersonRoom {
   companion: { type: "plant" | "pet"; name: string; breed: string; blurb: string };
   /** what the room's owner is currently watching */
   nowWatching?: NowWatching;
+  /** fallback only — Sam's and Jordan's door state comes from their schedule (residents.ts) */
   /** furniture placement — data-driven, ready for a future editor */
   layout: PlacedItem[];
   /** reserved for catalog-driven wallpaper swap */
@@ -189,7 +194,7 @@ export const ROOMS: PersonRoom[] = [
     id: "room-2",
     name: "Sam's Room",
     accentColor: "#E07A5F",
-    mood: "energetic_dance",
+    mood: "cozy_soft",
     isActive: true,
     roomNumber: "302",
     songs: [
@@ -223,14 +228,24 @@ export const ROOMS: PersonRoom[] = [
       vibe: "comfort rewatch",
       upNext: ["Past Lives", "Aftersun", "Paterson"],
     },
+    // potter, reader, skater: terracotta textiles, lots of plants
     layout: [
-      { itemId: "poster_default", gx: 4, gy: 0 },
-      { itemId: "bed_basic", gx: 9, gy: 5 },
-      { itemId: "tv_basic", gx: 9, gy: 3 },
-      { itemId: "desk_basic", gx: 1, gy: 7 },
-      { itemId: "speaker_basic", gx: 1, gy: 2 },
-      { itemId: "board_basic", gx: 9, gy: 0 },
-      { itemId: "pet_cat_basic", gx: 1, gy: 4 },
+      { itemId: "board_basic", gx: 3, gy: 0 },
+      { itemId: "polaroid_frame", gx: 5, gy: 0 },
+      { itemId: "poster_abstract", gx: 6, gy: 0 },
+      { itemId: "skateboard_wall", gx: 11, gy: 0 },
+      { itemId: "shelf_books", gx: 0, gy: 1 },
+      { itemId: "plant_basic", gx: 3, gy: 1, ambient: true },
+      { itemId: "pottery_wheel", gx: 6, gy: 1 },
+      { itemId: "clay_shelf", gx: 8, gy: 1 },
+      { itemId: "plant_cactus", gx: 11, gy: 1 },
+      { itemId: "tv_crt", gx: 0, gy: 3 },
+      { itemId: "rug_shag", gx: 3, gy: 3, tint: 0xd98a6c },
+      { itemId: "speaker_vintage", gx: 8, gy: 3 },
+      { itemId: "plant_bonsai", gx: 10, gy: 3, ambient: true },
+      { itemId: "papasan_chair", gx: 0, gy: 5 },
+      { itemId: "pet_cat_basic", gx: 3, gy: 6 },
+      { itemId: "bed_basic", gx: 9, gy: 6 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",
@@ -240,7 +255,7 @@ export const ROOMS: PersonRoom[] = [
     id: "room-3",
     name: "Jordan's Room",
     accentColor: "#9B6BC7",
-    mood: "cozy_soft",
+    mood: "energetic_dance",
     isActive: false,
     roomNumber: "303",
     awayNote: "at the library",
@@ -275,14 +290,22 @@ export const ROOMS: PersonRoom[] = [
       vibe: "background noise",
       upNext: ["Shōgun", "Paris Is Burning"],
     },
+    // house-music DJ and runner: darker blues and neon
     layout: [
-      { itemId: "poster_default", gx: 4, gy: 0 },
-      { itemId: "bed_basic", gx: 9, gy: 5 },
-      { itemId: "tv_basic", gx: 9, gy: 3 },
-      { itemId: "desk_basic", gx: 1, gy: 7 },
-      { itemId: "speaker_basic", gx: 1, gy: 2 },
-      { itemId: "board_basic", gx: 9, gy: 0 },
-      { itemId: "plant_basic", gx: 1, gy: 4 },
+      { itemId: "board_basic", gx: 3, gy: 0 },
+      { itemId: "neon_sign", gx: 5, gy: 0 },
+      { itemId: "poster_gig", gx: 8, gy: 0 },
+      { itemId: "poster_pennant", gx: 9, gy: 0 },
+      { itemId: "plant_basic", gx: 0, gy: 1 },
+      { itemId: "speaker_tower", gx: 3, gy: 1 },
+      { itemId: "dj_decks", gx: 4, gy: 1 },
+      { itemId: "speaker_tower", gx: 6, gy: 1, ambient: true },
+      { itemId: "vinyl_crate", gx: 8, gy: 1 },
+      { itemId: "record_player", gx: 10, gy: 1 },
+      { itemId: "rug_woven", gx: 3, gy: 4, tint: 0x5f7fb8 },
+      { itemId: "tv_mounted", gx: 9, gy: 4 },
+      { itemId: "bed_basic", gx: 9, gy: 6 },
+      { itemId: "dumbbell_rack", gx: 0, gy: 7 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",
@@ -340,4 +363,5 @@ export type PopupPayload =
   | { kind: "package" }
   | { kind: "whiteboard"; residentId: string; name: string; accent: string }
   | { kind: "art"; title: string; textureKey: string; accent?: string }
-  | { kind: "flavor"; title: string; lines: string[]; accent?: string };
+  | { kind: "flavor"; title: string; lines: string[]; accent?: string }
+  | { kind: "resident"; residentId: "sam" | "jordan" };

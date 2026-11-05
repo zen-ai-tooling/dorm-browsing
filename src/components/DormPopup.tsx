@@ -46,7 +46,11 @@ import { ITEM_CATALOG } from "@/data/items";
 import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { roomNameFor } from "@/data/avatar";
-import { playerActions, usePlayerState } from "@/lib/playerStore";
+import { blockAt, MAX_HEARTS, pickLine, RESIDENTS, roomActiveAt, type ResidentId } from "@/data/residents";
+import { avatarDataUrl } from "@/lib/avatarCanvas";
+import { talkContextFor } from "@/lib/residentTalk";
+import { currentHour, useTimeVersion } from "@/lib/timeStore";
+import { getPlayerState, playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel, IconChip } from "./GamePanel";
 import { PixelIcon } from "./PixelIcon";
 import { sfx } from "@/game/sounds";
@@ -338,14 +342,14 @@ const SongsView = ({
             className="absolute left-[60px] top-1 size-[88px]"
             style={{
               ...pixelated,
-              animation: room.isActive ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
+              animation: roomActiveAt(room, currentHour()) ? "vinyl-spin 2.4s steps(8) infinite" : undefined,
             }}
           />
           <Cover song={hero} mood={room.mood} scale={6} className="absolute left-0 top-0" />
         </div>
         <div className="min-w-0 flex-1">
           <span className="font-display text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>
-            {room.isActive ? "now playing" : "on repeat"}
+            {roomActiveAt(room, currentHour()) ? "now playing" : "on repeat"}
           </span>
           <Marquee text={hero.title} />
           <span className="block truncate font-body text-xs text-panel-muted">{hero.artist}</span>
@@ -551,7 +555,7 @@ const WatchingView = ({
           <span aria-hidden className="crt-static pointer-events-none absolute inset-0" />
         </div>
         <div aria-hidden className="mt-1.5 flex items-center justify-end gap-1.5">
-          <span className="size-2 border border-ink" style={{ backgroundColor: room.isActive ? "#7cc46a" : "#8d8090" }} />
+          <span className="size-2 border border-ink" style={{ backgroundColor: roomActiveAt(room, currentHour()) ? "#7cc46a" : "#8d8090" }} />
           <span className="size-2.5 border-2 border-ink bg-panel-muted" />
           <span className="size-2.5 border-2 border-ink bg-panel-muted" />
         </div>
@@ -1244,6 +1248,26 @@ const RewardView = ({
         </p>
       </div>
     );
+  if (reward.kind === "gift") {
+    const item = ITEM_CATALOG[reward.itemId];
+    const src = itemThumbnails[reward.itemId]?.src;
+    return (
+      <div className="flex items-center gap-3">
+        {src ? <img src={src} alt={item?.name ?? ""} className="max-h-12 w-auto [image-rendering:pixelated]" /> : null}
+        <div>
+          <span className="inline-block border-2 border-ink bg-[var(--tag-nice)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+            From {reward.from} ♥
+          </span>
+          <p className="font-display text-sm font-bold text-panel-foreground">{item?.name}</p>
+          <p className="font-body text-[11px] text-panel-muted">
+            {reward.coins > 0
+              ? `You already had one — ${reward.from} slipped in +${reward.coins} coins instead.`
+              : "A friendship gift. It's in your editor tray."}
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (reward.kind === "item") {
     const item = ITEM_CATALOG[reward.itemId];
     const src = itemThumbnails[reward.itemId]?.src;
@@ -1323,6 +1347,62 @@ const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src
             <p className="font-body text-xs text-panel-foreground">Tap the box to open it.</p>
           </>
         )}
+      </div>
+    </Shell>
+  );
+};
+
+/* ---------------- residents ---------------- */
+
+const Hearts = ({ n }: { n: number }) => (
+  <span className="flex items-center gap-[2px]" aria-label={`${n} of ${MAX_HEARTS} hearts`}>
+    {Array.from({ length: MAX_HEARTS }, (_, i) => (
+      <svg key={i} viewBox="0 0 7 6" width={10} height={9} shapeRendering="crispEdges" aria-hidden>
+        <path
+          d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z"
+          fill={i < n ? "#c8574a" : "transparent"}
+          stroke="var(--color-ink)"
+          strokeWidth={0.6}
+        />
+      </svg>
+    ))}
+  </span>
+);
+
+const ResidentPopup = ({ residentId }: { residentId: ResidentId }) => {
+  useTimeVersion();
+  const { friendship } = usePlayerState();
+  const r = RESIDENTS[residentId];
+  const room = ROOMS.find((x) => x.id === r.roomId)!;
+  const hour = currentHour();
+  const block = blockAt(residentId, hour);
+  // one line per visit, chosen once (priority: about you → activity → filler; no repeats today)
+  const [line] = useState(() => {
+    const s = getPlayerState();
+    const seen = s.linesSeen.date === todayKey() ? s.linesSeen.ids[residentId] : [];
+    return pickLine(residentId, talkContextFor(residentId, s, hour), seen);
+  });
+  useEffect(() => {
+    playerActions.talk(residentId, line.id);
+  }, [residentId, line.id]);
+  const portrait = avatarDataUrl(r.look, "down", 0, 4);
+  return (
+    <Shell accent={room.accentColor} title={r.name} subtitle={block.activity}>
+      <div className="flex items-start gap-3">
+        <span className="shrink-0 border-[3px] border-ink bg-[var(--shop-floor)] p-1">
+          <img src={portrait} alt={`${r.name}`} width={64} height={84} style={pixelated} />
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="relative border-2 border-ink bg-panel px-2 py-1.5 font-body text-sm leading-snug text-panel-foreground">
+            “{line.text}”
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <Hearts n={friendship[residentId]} />
+            <span className="font-display text-[10px] font-bold uppercase tracking-wider text-panel-muted">
+              {friendship[residentId] >= MAX_HEARTS ? "best friends" : "friendship"}
+            </span>
+          </div>
+        </div>
       </div>
     </Shell>
   );
@@ -1415,6 +1495,7 @@ export const DormPopup = ({
   if (!payload) return null;
 
   if (payload.kind === "package") return <PackagePopup itemThumbnails={itemThumbnails} />;
+  if (payload.kind === "resident") return <ResidentPopup key={payload.residentId} residentId={payload.residentId} />;
   if (payload.kind === "whiteboard") return <WhiteboardPopup payload={payload} />;
 
   if (payload.kind === "songs") {
@@ -1593,5 +1674,7 @@ export const popupTitle = (p: PopupPayload, playerName: string): string => {
     case "art":
     case "flavor":
       return p.title;
+    case "resident":
+      return `Talk to ${RESIDENTS[p.residentId].name}`;
   }
 };

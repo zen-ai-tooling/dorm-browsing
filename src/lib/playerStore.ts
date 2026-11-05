@@ -25,6 +25,14 @@ import {
 import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
 import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
+import {
+  GIFT_DUPLICATE_COINS,
+  giftsUnlocked,
+  MAX_HEARTS,
+  RESIDENTS,
+  RESIDENT_IDS,
+  type ResidentId,
+} from "@/data/residents";
 
 const STORAGE_KEY = "dorm-vibes-player-state";
 const STARTING_COINS = 50;
@@ -83,7 +91,23 @@ export interface PlayerState {
   onboarded: boolean;
   /** older saves see a one-time "make your avatar" toast */
   avatarNewsSeen: boolean;
+  /** hearts with each resident (0–10, never decreases) — Iteration 26 */
+  friendship: Record<ResidentId, number>;
+  /** last date you talked to each resident (one heart per day) */
+  lastTalkDate: Record<ResidentId, string | null>;
+  /** lines already said today, so nobody repeats themselves */
+  linesSeen: { date: string; ids: Record<ResidentId, string[]> };
+  /** friendship gifts waiting for the next mail package */
+  pendingGifts: Array<{ from: ResidentId; itemId: string }>;
+  /** the evening door visit happened on this date */
+  lastVisitDate: string | null;
+  /** your newest purchase or newly placed item */
+  newestItemId: string | null;
 }
+
+const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
+const noTalks = (): Record<ResidentId, string | null> => ({ sam: null, jordan: null });
+const noLines = () => ({ date: "", ids: { sam: [] as string[], jordan: [] as string[] } });
 
 export interface LastPackage {
   date: string;
@@ -124,13 +148,51 @@ const defaultState = (): PlayerState => ({
   myMood: seed.mood,
   onboarded: false,
   avatarNewsSeen: true,
+  friendship: zeroHearts(),
+  lastTalkDate: noTalks(),
+  linesSeen: noLines(),
+  pendingGifts: [],
+  lastVisitDate: null,
+  newestItemId: null,
 });
+
+/** Iteration 26 fields, validated one by one (older saves start at zero hearts) */
+export const normalizeResidentsState = (parsed: Partial<PlayerState>) => {
+  const f = (parsed.friendship ?? {}) as Partial<Record<ResidentId, unknown>>;
+  const t = (parsed.lastTalkDate ?? {}) as Partial<Record<ResidentId, unknown>>;
+  const ls = parsed.linesSeen as { date?: unknown; ids?: Partial<Record<ResidentId, unknown>> } | undefined;
+  const friendship = zeroHearts();
+  const lastTalkDate = noTalks();
+  const linesSeen = noLines();
+  if (ls && typeof ls.date === "string") linesSeen.date = ls.date;
+  for (const id of RESIDENT_IDS) {
+    const n = f[id];
+    friendship[id] = typeof n === "number" && n >= 0 ? Math.min(MAX_HEARTS, Math.floor(n)) : 0;
+    lastTalkDate[id] = typeof t[id] === "string" ? (t[id] as string) : null;
+    const seen = ls?.ids?.[id];
+    linesSeen.ids[id] = Array.isArray(seen) ? seen.filter((x): x is string => typeof x === "string") : [];
+  }
+  return {
+    friendship,
+    lastTalkDate,
+    linesSeen,
+    pendingGifts: Array.isArray(parsed.pendingGifts)
+      ? parsed.pendingGifts.filter(
+          (g): g is { from: ResidentId; itemId: string } =>
+            !!g && RESIDENT_IDS.includes(g.from) && typeof g.itemId === "string" && !!ITEM_CATALOG[g.itemId],
+        )
+      : [],
+    lastVisitDate: typeof parsed.lastVisitDate === "string" ? parsed.lastVisitDate : null,
+    newestItemId:
+      typeof parsed.newestItemId === "string" && ITEM_CATALOG[parsed.newestItemId] ? parsed.newestItemId : null,
+  };
+};
 
 const normalizeLastPackage = (raw: unknown): LastPackage | null => {
   const p = raw as Partial<LastPackage> | null;
   if (!p || typeof p.date !== "string" || !p.reward || typeof p.reward !== "object") return null;
   const kind = (p.reward as { kind?: unknown }).kind;
-  if (!["coins", "postcard", "item", "allFound", "jackpot"].includes(kind as string)) return null;
+  if (!["coins", "postcard", "item", "allFound", "jackpot", "gift"].includes(kind as string)) return null;
   return { date: p.date, reward: p.reward as PackageReward, prevSince: typeof p.prevSince === "number" ? p.prevSince : 0 };
 };
 
@@ -224,6 +286,7 @@ const read = (): PlayerState => {
         : [],
       questsCelebrated: parsed.questsCelebrated === true,
       ...migrateMoveIn(parsed),
+      ...normalizeResidentsState(parsed),
     };
     // a worn outfit you no longer own (dev reset) falls back to your own pieces
     if (next.avatar.outfitItemId && !next.ownedItemIds.includes(next.avatar.outfitItemId))
@@ -389,8 +452,15 @@ export const devActions = {
       set({ lastPackageDate: null });
       return;
     }
-    const itemId = last.reward.kind === "item" ? last.reward.itemId : null;
+    const reward = last.reward;
+    const itemId = reward.kind === "item" || (reward.kind === "gift" && reward.coins === 0) ? reward.itemId : null;
+    // a friendship gift goes back in line for the next package
+    const pendingGifts =
+      reward.kind === "gift"
+        ? [{ from: (reward.from.toLowerCase() as ResidentId), itemId: reward.itemId }, ...state.pendingGifts]
+        : state.pendingGifts;
     set({
+      pendingGifts,
       coins: Math.max(0, state.coins - last.reward.coins),
       ownedItemIds: itemId ? state.ownedItemIds.filter((id) => id !== itemId) : state.ownedItemIds,
       roomLayout: itemId ? state.roomLayout.filter((p) => p.itemId !== itemId) : state.roomLayout,
@@ -407,6 +477,15 @@ export const devActions = {
   replayMoveIn() {
     if (!dev.enabled) return;
     set({ onboarded: false });
+  },
+  resetFriendship() {
+    if (!dev.enabled) return;
+    set({ friendship: zeroHearts(), lastTalkDate: noTalks(), linesSeen: noLines(), pendingGifts: [] });
+  },
+  /** lets the evening door visit happen again today */
+  allowVisitAgain() {
+    if (!dev.enabled) return;
+    set({ lastVisitDate: null });
   },
   resetStreak() {
     if (!dev.enabled) return;
@@ -512,6 +591,7 @@ export const playerActions = {
       coins: coins + finished.length * SET_REWARD,
       ownedItemIds,
       completedSets: [...state.completedSets, ...finished],
+      newestItemId: itemId,
     });
     lastCompletedSets = finished;
     sfx.purchase();
@@ -521,7 +601,12 @@ export const playerActions = {
   },
   /** the editor's commit path: every move, rotate, place or remove in Your Room */
   setRoomLayout(layout: PlacedItem[]) {
-    set({ roomLayout: layout.map((p) => ({ ...p })) });
+    const before = new Set(state.roomLayout.map((p) => p.itemId));
+    const added = layout.find((p) => !before.has(p.itemId));
+    set({
+      roomLayout: layout.map((p) => ({ ...p })),
+      ...(added ? { newestItemId: added.itemId } : {}),
+    });
     completeQuest("room");
   },
   answerDaily(answer: string) {
@@ -551,6 +636,27 @@ export const playerActions = {
     const today = todayKey();
     if (state.lastPackageDate === today && state.lastPackage?.date === today) return state.lastPackage.reward;
     const prevSince = state.packagesSinceExclusive;
+    // a waiting friendship gift replaces today's roll
+    const gift = state.pendingGifts[0];
+    if (gift) {
+      const have = state.ownedItemIds.includes(gift.itemId);
+      const reward: PackageReward = {
+        kind: "gift",
+        from: RESIDENTS[gift.from].name,
+        itemId: gift.itemId,
+        coins: have ? GIFT_DUPLICATE_COINS : 0,
+      };
+      set({
+        coins: state.coins + reward.coins,
+        ownedItemIds: have ? state.ownedItemIds : [...state.ownedItemIds, gift.itemId],
+        pendingGifts: state.pendingGifts.slice(1),
+        lastPackageDate: today,
+        lastPackage: { date: today, reward, prevSince },
+      });
+      sfx.coin();
+      completeQuest("mail");
+      return reward;
+    }
     const reward = rollPackage(today, prevSince, state.ownedItemIds);
     set({
       coins: state.coins + reward.coins,
@@ -565,6 +671,33 @@ export const playerActions = {
     sfx.coin();
     completeQuest("mail");
     return reward;
+  },
+  /**
+   * Talking to a resident: remembers the line (no repeats today) and, once per day, adds a heart.
+   * Crossing 3 / 6 / 10 hearts queues their gift for the next mail package.
+   */
+  talk(id: ResidentId, lineId: string) {
+    const today = todayKey();
+    const base = state.linesSeen.date === today ? state.linesSeen : noLines();
+    const seen = base.ids[id].includes(lineId) ? base.ids[id] : [...base.ids[id], lineId];
+    const linesSeen = { date: today, ids: { ...base.ids, [id]: seen } };
+    if (state.lastTalkDate[id] === today) {
+      set({ linesSeen });
+      return false;
+    }
+    const before = state.friendship[id];
+    const after = Math.min(MAX_HEARTS, before + 1);
+    const gifts = giftsUnlocked(id, before, after).map((itemId) => ({ from: id, itemId }));
+    set({
+      linesSeen,
+      friendship: { ...state.friendship, [id]: after },
+      lastTalkDate: { ...state.lastTalkDate, [id]: today },
+      pendingGifts: [...state.pendingGifts, ...gifts],
+    });
+    return true;
+  },
+  markVisited() {
+    set({ lastVisitDate: todayKey() });
   },
   /** quests completed from the UI (e.g. spotting something in common with Sam) */
   completeQuest(id: QuestId) {

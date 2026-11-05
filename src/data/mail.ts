@@ -12,7 +12,9 @@ export type PackageReward =
   | { kind: "postcard"; from: string; line: string; coins: number }
   | { kind: "item"; itemId: string; coins: 0 }
   | { kind: "allFound"; coins: number }
-  | { kind: "jackpot"; coins: number };
+  | { kind: "jackpot"; coins: number }
+  /** a resident's friendship gift — replaces that day's roll (coins only if you already own it) */
+  | { kind: "gift"; from: string; itemId: string; coins: number };
 
 export const POSTCARDS: Record<string, string[]> = {
   Sam: [
@@ -65,4 +67,4 @@ export const rollPackage = (
 
 /** pity counter after opening a package with this reward */
 export const nextSinceExclusive = (since: number, reward: PackageReward) =>
-  reward.kind === "item" || reward.kind === "allFound" ? 0 : since + 1;
+  reward.kind === "item" || reward.kind === "allFound" ? 0 : reward.kind === "gift" ? since : since + 1;

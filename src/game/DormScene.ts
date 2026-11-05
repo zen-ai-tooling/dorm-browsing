@@ -13,6 +13,7 @@ import {
   ITEM_CATALOG,
   displayTintFor,
   effectiveFootprint,
+  isShopItem,
   isWallItem,
   zoomTextureKey,
   type ItemDef,
@@ -21,6 +22,26 @@ import {
 import { buildCharTextures, buildTextures } from "./textures";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
+import {
+  blockAt,
+  blockKey,
+  EXIT_TILE,
+  isAsleep,
+  isAway,
+  isHome,
+  KNOCK_TILES,
+  knockResponse,
+  MY_DOOR_TILE,
+  RESIDENTS,
+  RESIDENT_IDS,
+  residentByRoom,
+  VISIT_FROM,
+  VISIT_TO,
+  visitorOrder,
+  type Block,
+  type ResidentDef,
+  type ResidentId,
+} from "@/data/residents";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type Light, type LightSpec } from "./lighting";
@@ -216,6 +237,41 @@ const isPhoneWidth = () => typeof window !== "undefined" && window.innerWidth <=
 const isTouch = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 
+interface ResidentRT {
+  def: ResidentDef;
+  prefix: string;
+  sprite: Phaser.GameObjects.Sprite;
+  ring: Phaser.GameObjects.Image;
+  block: Block;
+  key: string;
+  mode: "idle" | "walk" | "sleep" | "away";
+  path: Phaser.Math.Vector2[];
+  onArrive: (() => void) | null;
+  facing: string;
+  walkTime: number;
+  baseY: number;
+  nextEmote: number;
+  emote: Phaser.GameObjects.Image | null;
+}
+
+interface DoorState {
+  room: PersonRoom;
+  plateLeft: number;
+  plateObjs: Phaser.GameObjects.GameObject[];
+  awayIcon: Phaser.GameObjects.Image;
+  glow: Phaser.GameObjects.Image;
+  pulse: Phaser.Tweens.Tween;
+  notes: Phaser.GameObjects.Image[];
+  sconce: Phaser.GameObjects.Rectangle;
+  glowColor: number;
+  key: string;
+}
+
+/** residents walk a little slower than you */
+const RESIDENT_SPEED = 130;
+/** speech + emote bubbles stay readable at night, like editor UI */
+const BUBBLE_DEPTH = 4990;
+
 export class DormScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
@@ -230,6 +286,8 @@ export class DormScene extends Phaser.Scene {
     sprite: Phaser.GameObjects.Sprite;
     ring: Phaser.GameObjects.Image;
     payload: PopupPayload;
+    /** residents: only while awake and on the floor */
+    enabled?: () => boolean;
   }> = [];
   private activePayload: PopupPayload | null = null;
   private lastStep = 0;
@@ -298,6 +356,17 @@ export class DormScene extends Phaser.Scene {
   private myGlow: Phaser.GameObjects.Image | null = null;
   private myPlateObjs: Phaser.GameObjects.GameObject[] = [];
   private myZone: Zone | null = null;
+  /** Iteration 26: residents, their doors, knocking, the evening visit */
+  private getHour: () => number = () => new Date().getHours();
+  private onKnockSpot: (id: ResidentId | null) => void = () => {};
+  private onSoldHint: (h: { itemId: string; x: number; y: number } | null) => void = () => {};
+  private getVisitLine: (id: ResidentId) => string | null = () => null;
+  private onVisitLine: (id: ResidentId, line: string) => void = () => {};
+  private residents = new Map<ResidentId, ResidentRT>();
+  private doors = new Map<string, DoorState>();
+  private knockSpot: ResidentId | null = null;
+  private nextResidentCheck = 0;
+  private visiting: ResidentId | null = null;
   /** Move-In Day: input locked, camera scripted */
   private cinematic = false;
   private boxes: Phaser.GameObjects.Image[] = [];
@@ -325,7 +394,17 @@ export class DormScene extends Phaser.Scene {
     onAvatarTap?: () => void;
     getMyMood?: () => MoodKey;
     getPlayerName?: () => string;
+    getHour?: () => number;
+    onKnockSpot?: (id: ResidentId | null) => void;
+    onSoldHint?: (h: { itemId: string; x: number; y: number } | null) => void;
+    getVisitLine?: (id: ResidentId) => string | null;
+    onVisitLine?: (id: ResidentId, line: string) => void;
   }) {
+    if (data?.getHour) this.getHour = data.getHour;
+    if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
+    if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
+    if (data?.getVisitLine) this.getVisitLine = data.getVisitLine;
+    if (data?.onVisitLine) this.onVisitLine = data.onVisitLine;
     if (data?.getAvatar) this.getAvatar = data.getAvatar;
     if (data?.onAvatarTap) this.onAvatarTap = data.onAvatarTap;
     if (data?.getMyMood) this.getMyMood = data.getMyMood;
@@ -366,6 +445,9 @@ export class DormScene extends Phaser.Scene {
     this.applyWallpaper();
     this.refreshDaily();
     this.applyAvatar();
+    this.spawnResidents();
+    this.refreshDoors();
+    this.refreshDaily();
     this.scale.on("resize", this.onResize, this);
     this.events.once("shutdown", () => this.scale.off("resize", this.onResize, this));
     this.onReady(this);
@@ -1117,8 +1199,11 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
 
     // woven area rug, accent-tinted (opaque pixels, no soft blend)
+    // neighbors who own a rug item get theirs instead of the base rug
+    const ownRug = !editable && room.layout.some((p) => ITEM_CATALOG[p.itemId]?.textureKey === "rug");
     const rug = this.add
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
+      .setVisible(!ownRug)
       .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
       .setScale(0.85)
       .setDepth(1);
@@ -1180,36 +1265,74 @@ export class DormScene extends Phaser.Scene {
     // pixel wall sconce on the face right of the frame
     const sconceX = openR + 12;
     this.add.rectangle(sconceX, faceTop + 18, 8, 6, 0x241c26, 1).setDepth(5);
-    this.add
+    const sconce = this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
     this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
 
-    // nameplate mounted on the face; an away note becomes its second line
-    const away = !room.isActive ? room.awayNote : undefined;
+    const pulse = this.tweens.add({
+      targets: [glow],
+      alpha: { from: 0.55, to: 0.22 },
+      duration: mood.pulseMs,
+      yoyo: true,
+      repeat: -1,
+      ease: "Stepped",
+      easeParams: [3],
+    });
+    const notes = [
+      ...this.spawnSoundCue(dx, dy - 10, mood.glow),
+      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow),
+    ];
+
     if (editable) {
       // your plate shows "{name}'s Room" and is redrawn on rename, so the board sits past the widest plate
       this.applyMyName();
       this.buildDoorBoard(room, openR + 20 + MY_PLATE_MAX + 8);
-    } else {
-      const plate = this.wallSign(openR + 20, t(17), away ? [room.name, away] : [room.name], "cream");
-      if (away) this.add.image(plate.right + 4 + 22, t(17), "awaynote").setDepth(4.5);
-      // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
-      this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (away ? plate.right + 4 + 44 : plate.right) + 8);
+      return;
     }
+    // neighbors: plate, glow and music follow their schedule (refreshDoors); the board sits past
+    // the widest plate their away notes can make, so it never moves
+    const notesText = residentByRoom(room.id)?.schedule.map((b) => b.awayNote ?? "") ?? [room.awayNote ?? ""];
+    const longest = notesText.reduce((a, b) => (b.length > a.length ? b : a), "");
+    const probe = this.wallSign(openR + 20, t(17), longest ? [room.name, longest] : [room.name], "cream");
+    for (const o of probe.objs) o.destroy();
+    this.doors.set(room.id, {
+      room,
+      plateLeft: openR + 20,
+      plateObjs: [],
+      awayIcon: this.add.image(probe.right + 4 + 22, t(17), "awaynote").setDepth(4.5).setVisible(false),
+      glow,
+      pulse,
+      notes,
+      sconce,
+      glowColor: mood.glow,
+      key: "",
+    });
+    // whiteboard right of the nameplate (and away note); Sam's goes past the hall lamp
+    this.buildDoorBoard(room, doorX === 32 ? t(38.75) : (longest ? probe.right + 4 + 44 : probe.right) + 8);
+  }
 
-    if (room.isActive) {
-      this.tweens.add({
-        targets: [glow],
-        alpha: { from: 0.55, to: 0.22 },
-        duration: mood.pulseMs,
-        yoyo: true,
-        repeat: -1,
-        ease: "Stepped",
-        easeParams: [3],
-      });
-      this.spawnSoundCue(dx, dy - 10, mood.glow);
-      this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow);
+  /** neighbor doors: away note on the plate, glow + music while they're home and awake */
+  refreshDoors() {
+    const hour = this.getHour();
+    for (const d of this.doors.values()) {
+      const r = residentByRoom(d.room.id);
+      const block = r ? blockAt(r.id, hour) : null;
+      const away = block ? (isAway(block) ? block.awayNote ?? "away" : undefined) : d.room.isActive ? undefined : d.room.awayNote;
+      const active = block ? isHome(block) : d.room.isActive;
+      const key = `${away ?? ""}|${active}`;
+      if (key === d.key) continue;
+      d.key = key;
+      for (const o of d.plateObjs) o.destroy();
+      d.plateObjs = this.wallSign(d.plateLeft, t(17), away ? [d.room.name, away] : [d.room.name], "cream").objs;
+      d.awayIcon.setVisible(!!away);
+      if (active) d.pulse.resume();
+      else {
+        d.pulse.pause();
+        d.glow.setAlpha(0.1);
+      }
+      for (const n of d.notes) n.setVisible(active);
+      d.sconce.setFillStyle(active ? d.glowColor : 0x6b6270, 1);
     }
   }
 
@@ -1265,8 +1388,10 @@ export class DormScene extends Phaser.Scene {
     for (const b of this.boards) {
       const isMine = b.residentId === ROOMS[0]!.id;
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
-      b.text.setText(answer ? boardText(answer) : "?");
-      b.text.setFontSize(answer ? 8 : 14);
+      const res = residentByRoom(b.residentId);
+      const asleep = !!res && isAsleep(blockAt(res.id, this.getHour()));
+      b.text.setText(asleep ? "asleep" : answer ? boardText(answer) : "?");
+      b.text.setFontSize(asleep || answer ? 8 : 14);
       b.sparkle?.setVisible(isMine && !answer);
     }
     const ready = this.isPackageReady();
@@ -1359,14 +1484,14 @@ export class DormScene extends Phaser.Scene {
       if (!item) continue;
       const rotation = placed.rotation ?? 0;
       const f = effectiveFootprint(item, rotation);
-      const payload = this.payloadFor(room, item);
+      const payload = placed.ambient ? undefined : this.payloadFor(room, item);
       const def: PropDef = {
         key: item.textureKey,
         x: t(rect.x + placed.gx + f.w / 2),
         y: t(rect.y + placed.gy + f.h / 2),
         solid: item.solid,
       };
-      const tint = this.moodTint(room, item);
+      const tint = placed.tint ?? this.moodTint(room, item);
       if (tint) def.tint = tint;
       if (item.scale) def.scale = item.scale;
       if (payload) def.payload = payload;
@@ -1374,6 +1499,8 @@ export class DormScene extends Phaser.Scene {
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
       this.itemLight(placed.itemId, sprite);
+      // neighbor rooms advertise the shop: "Sold at Floor 3 Supply" on hover / tap-and-hold
+      if (isShopItem(item) && item.price > 0) this.soldHint(sprite, item.id);
     }
   }
 
@@ -1937,6 +2064,7 @@ export class DormScene extends Phaser.Scene {
 
   /** drifting music notes — reuses one shared texture */
   private spawnSoundCue(x: number, y: number, tint: number) {
+    const out: Phaser.GameObjects.Image[] = [];
     for (let i = 0; i < 3; i++) {
       const note = this.add
         .image(x, y, "note")
@@ -1957,7 +2085,9 @@ export class DormScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeOut",
       });
+      out.push(note);
     }
+    return out;
   }
 
 
@@ -2307,11 +2437,349 @@ export class DormScene extends Phaser.Scene {
     if (old !== "char" && old !== prefix)
       for (const dir of ["down", "up", "left", "right"])
         for (const step of [0, 1, 2]) this.textures.remove(`${old}-${dir}-${step}`);
+    if (old !== "char" && old !== prefix) this.textures.remove(`${old}-sleep`);
   }
 
   /** texture keys currently registered for avatars (verification helper) */
   avatarTextureCount() {
     return this.textures.getTextureKeys().filter((k) => k.startsWith("char-")).length;
+  }
+
+  // ---------- shop hints in neighbor rooms ----------
+
+  private soldHint(sprite: Phaser.GameObjects.Sprite, itemId: string) {
+    sprite.setInteractive();
+    const show = () => {
+      const cam = this.cameras.main;
+      const top = sprite.getTopCenter();
+      this.onSoldHint({
+        itemId,
+        x: (top.x - cam.worldView.x) * cam.zoom,
+        y: (top.y - cam.worldView.y) * cam.zoom,
+      });
+    };
+    let hold: Phaser.Time.TimerEvent | null = null;
+    sprite.on("pointerover", (p: Phaser.Input.Pointer) => {
+      if (!p.wasTouch && !isTouch()) show();
+    });
+    sprite.on("pointerout", () => {
+      hold?.remove(false);
+      if (!isTouch()) this.onSoldHint(null);
+    });
+    sprite.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      if (!(p.wasTouch || isTouch())) return;
+      hold?.remove(false);
+      hold = this.time.delayedCall(450, show);
+    });
+    sprite.on("pointerup", () => hold?.remove(false));
+  }
+
+  // ---------- residents ----------
+
+  /** nearest walkable tile to (tx, ty) — anchors may sit beside furniture */
+  private nearestFloor(tx: number, ty: number): [number, number] {
+    if (this.grid[ty]?.[tx] === FLOOR) return [tx, ty];
+    for (let r = 1; r < 8; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          if (this.grid[ty + dy]?.[tx + dx] === FLOOR) return [tx + dx, ty + dy];
+        }
+    return [tx, ty];
+  }
+
+  private tileCenter([x, y]: [number, number]) {
+    return new Phaser.Math.Vector2(t(x) + TILE / 2, t(y) + TILE / 2);
+  }
+
+  /** where a resident stands for a block (bed blocks: beside the bed) */
+  private anchorPoint(def: ResidentDef, b: Block) {
+    if (isAway(b)) return this.tileCenter([EXIT_TILE.x, EXIT_TILE.y]);
+    const a = def.anchors[b.place as Exclude<Block["place"], "away">];
+    return this.tileCenter(this.nearestFloor(a.x, a.y));
+  }
+
+  /** the middle of their bed, from their room's layout */
+  private bedPoint(def: ResidentDef) {
+    const i = ROOMS.findIndex((r) => r.id === def.roomId);
+    const room = ROOMS[i]!;
+    const rect = PERSONAL_RECTS[i]!;
+    const bed = room.layout.find((p) => ITEM_CATALOG[p.itemId]?.textureKey === "bed");
+    if (!bed) return this.tileCenter([def.anchors.bed.x, def.anchors.bed.y]);
+    return new Phaser.Math.Vector2(t(rect.x + bed.gx + 1.5), t(rect.y + bed.gy + 0.9));
+  }
+
+  private spawnResidents() {
+    const hour = this.getHour();
+    for (const id of RESIDENT_IDS) {
+      const def = RESIDENTS[id];
+      const prefix = `res-${id}`;
+      buildCharTextures(this, prefix, def.look);
+      const sprite = this.add.sprite(0, 0, `${prefix}-down-0`).setOrigin(0.5, 0.85).setScale(1.1);
+      const ring = this.add.image(0, 0, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
+      const block = blockAt(id, hour);
+      const rt: ResidentRT = {
+        def,
+        prefix,
+        sprite,
+        ring,
+        block,
+        key: blockKey(block),
+        mode: "idle",
+        path: [],
+        onArrive: null,
+        facing: "down",
+        walkTime: 0,
+        baseY: 0,
+        nextEmote: this.time.now + 4000 + (id === "sam" ? 0 : 9000),
+        emote: null,
+      };
+      this.residents.set(id, rt);
+      this.interactives.push({
+        sprite,
+        ring,
+        payload: { kind: "resident", residentId: id },
+        enabled: () => sprite.visible && rt.mode !== "sleep" && rt.mode !== "away",
+      });
+      this.settle(rt, true);
+    }
+  }
+
+  /** puts a resident straight at their block's anchor (load, offscreen, after arriving) */
+  private settle(rt: ResidentRT, teleport: boolean) {
+    const b = rt.block;
+    rt.path = [];
+    rt.onArrive = null;
+    rt.sprite.setAngle(0);
+    if (isAway(b)) {
+      rt.mode = "away";
+      rt.sprite.setVisible(false);
+      return;
+    }
+    rt.sprite.setVisible(true);
+    if (isAsleep(b)) {
+      const bed = this.bedPoint(rt.def);
+      rt.mode = "sleep";
+      rt.sprite.setPosition(bed.x, bed.y).setTexture(`${rt.prefix}-sleep`).setAngle(-90);
+      rt.baseY = bed.y;
+      rt.sprite.setDepth(bed.y + 6);
+      return;
+    }
+    if (teleport) {
+      const p = this.anchorPoint(rt.def, b);
+      rt.sprite.setPosition(p.x, p.y);
+    }
+    const a = rt.def.anchors[b.place as Exclude<Block["place"], "away">];
+    rt.mode = "idle";
+    rt.facing = a.facing;
+    rt.baseY = rt.sprite.y;
+    rt.sprite.setTexture(`${rt.prefix}-${rt.facing}-0`).setDepth(rt.sprite.y);
+  }
+
+  private onScreen(x: number, y: number) {
+    return this.cameras.main.worldView.contains(x, y);
+  }
+
+  /** walks along findPath(); no path = just appear there */
+  private walkTo(rt: ResidentRT, to: Phaser.Math.Vector2, onArrive: () => void) {
+    const from = this.nearestFloor(Math.floor(rt.sprite.x / TILE), Math.floor(rt.sprite.y / TILE));
+    const goal = [Math.floor(to.x / TILE), Math.floor(to.y / TILE)] as [number, number];
+    const path = this.findPath(from[0], from[1], goal[0], goal[1]);
+    if (!path.length) {
+      rt.sprite.setPosition(to.x, to.y);
+      onArrive();
+      return;
+    }
+    rt.sprite.setAngle(0).setVisible(true);
+    rt.path = path;
+    rt.mode = "walk";
+    rt.onArrive = onArrive;
+  }
+
+  /** re-reads the clock: anyone whose block changed walks (or teleports) to the new one */
+  refreshResidents() {
+    const hour = this.getHour();
+    for (const rt of this.residents.values()) {
+      const b = blockAt(rt.def.id, hour);
+      const key = blockKey(b);
+      if (key === rt.key) continue;
+      rt.key = key;
+      rt.block = b;
+      if (this.visiting === rt.def.id) continue; // finishes the visit first
+      this.goToBlock(rt);
+    }
+    this.refreshDoors();
+    this.refreshDaily();
+  }
+
+  private goToBlock(rt: ResidentRT) {
+    const b = rt.block;
+    const here = rt.sprite.visible && this.onScreen(rt.sprite.x, rt.sprite.y);
+    if (rt.mode === "sleep") {
+      // wake up beside the bed
+      const p = this.tileCenter(this.nearestFloor(Math.floor(rt.sprite.x / TILE), Math.floor(rt.sprite.y / TILE) + 1));
+      rt.sprite.setAngle(0).setPosition(p.x, p.y);
+    }
+    const exit = this.tileCenter([EXIT_TILE.x, EXIT_TILE.y]);
+    if (isAway(b)) {
+      if (here && rt.mode !== "away") this.walkTo(rt, exit, () => this.settle(rt, true));
+      else this.settle(rt, true);
+      return;
+    }
+    const dest = isAsleep(b) ? this.anchorPoint(rt.def, b) : this.anchorPoint(rt.def, b);
+    if (rt.mode === "away") {
+      // coming back in through the courtyard
+      if (this.onScreen(exit.x, exit.y) || this.onScreen(dest.x, dest.y)) {
+        rt.sprite.setPosition(exit.x, exit.y).setVisible(true);
+        this.walkTo(rt, dest, () => this.settle(rt, false));
+      } else this.settle(rt, true);
+      return;
+    }
+    if (here || this.onScreen(dest.x, dest.y)) this.walkTo(rt, dest, () => this.settle(rt, false));
+    else this.settle(rt, true);
+  }
+
+  private updateResidents(time: number, delta: number) {
+    for (const rt of this.residents.values()) {
+      const s = rt.sprite;
+      if (rt.mode === "walk") {
+        const target = rt.path[0];
+        if (!target) {
+          const done = rt.onArrive;
+          rt.onArrive = null;
+          rt.mode = "idle";
+          done?.();
+        } else {
+          const step = (RESIDENT_SPEED * delta) / 1000;
+          const dx = target.x - s.x;
+          const dy = target.y - s.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist <= step) {
+            s.setPosition(target.x, target.y);
+            rt.path.shift();
+          } else s.setPosition(s.x + (dx / dist) * step, s.y + (dy / dist) * step);
+          if (Math.abs(dx) > Math.abs(dy)) rt.facing = dx > 0 ? "right" : "left";
+          else if (dist > 0.5) rt.facing = dy > 0 ? "down" : "up";
+          rt.walkTime += delta;
+          const frame = Math.floor(rt.walkTime / 170) % 2 === 0 ? 1 : 2;
+          s.setTexture(`${rt.prefix}-${rt.facing}-${frame}`);
+          s.setDepth(s.y);
+        }
+      } else if (rt.mode === "idle") {
+        // small 2-frame bob
+        s.y = rt.baseY + (Math.floor(time / 650) % 2 === 0 ? 0 : -1);
+      }
+      rt.ring.setPosition(s.x, s.y + 6);
+      if (rt.emote) rt.emote.setPosition(s.x + 10, s.y - 44);
+
+      // emote bubble every ~20s (sleepers: "z z" more often) for 2s
+      if ((rt.mode === "idle" || rt.mode === "sleep") && time >= rt.nextEmote && !rt.emote) {
+        const asleep = rt.mode === "sleep";
+        rt.emote = this.add
+          .image(s.x + 10, s.y - 44, `emote-${asleep ? "zz" : rt.block.emote}`)
+          .setDepth(BUBBLE_DEPTH)
+          .setScale(0);
+        this.tweens.add({ targets: rt.emote, scale: 1, duration: 160, ease: "Stepped", easeParams: [3] });
+        const e = rt.emote;
+        this.time.delayedCall(2000, () => {
+          e.destroy();
+          if (rt.emote === e) rt.emote = null;
+        });
+        rt.nextEmote = time + (asleep ? 6000 : 18000 + Math.random() * 4000);
+      }
+    }
+  }
+
+  /** a pixel speech bubble with a line of text, gone after `ms` */
+  private speech(x: number, y: number, text: string, ms = 2600) {
+    const label = this.add
+      .text(0, 0, text, {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "9px",
+        color: "#2b2027",
+        fontStyle: "600",
+        align: "center",
+        wordWrap: { width: 150 },
+      })
+      .setOrigin(0.5, 1);
+    const w = Math.ceil(label.width) + 10;
+    const h = Math.ceil(label.height) + 6;
+    const g = this.add.graphics();
+    g.fillStyle(0x241c26, 1).fillRect(-w / 2 - 2, -h - 2, w + 4, h + 4);
+    g.fillStyle(0xfffdf5, 1).fillRect(-w / 2, -h, w, h);
+    g.fillStyle(0x241c26, 1).fillRect(-3, 2, 6, 2).fillRect(-1, 4, 2, 2);
+    g.fillStyle(0xfffdf5, 1).fillRect(-2, 0, 4, 2);
+    label.setPosition(0, -3);
+    const c = this.add.container(Math.round(x), Math.round(y), [g, label]).setDepth(BUBBLE_DEPTH + 1);
+    c.setScale(0.6);
+    this.tweens.add({ targets: c, scale: 1, duration: 140, ease: "Stepped", easeParams: [2] });
+    this.time.delayedCall(ms, () => c.destroy());
+    return c;
+  }
+
+  /** standing just outside Sam's or Jordan's door shows the Knock pill */
+  private checkKnockSpot() {
+    const tx = Math.floor(this.player.x / TILE);
+    const ty = Math.floor(this.player.y / TILE);
+    let spot: ResidentId | null = null;
+    for (const id of RESIDENT_IDS) if (KNOCK_TILES[id].some(([x, y]) => x === tx && y === ty)) spot = id;
+    if (spot !== this.knockSpot) {
+      this.knockSpot = spot;
+      this.onKnockSpot(spot);
+    }
+  }
+
+  knock(id: ResidentId) {
+    sfx.knock();
+    const res = knockResponse(id, this.getHour());
+    const [kx] = KNOCK_TILES[id][0]!;
+    const rt = this.residents.get(id);
+    this.time.delayedCall(450, () => {
+      if (res.kind === "in" && rt && rt.mode === "idle") {
+        rt.facing = "down";
+        rt.sprite.setTexture(`${rt.prefix}-down-0`);
+        this.speech(rt.sprite.x, rt.sprite.y - 40, res.text);
+      } else this.speech(t(kx) + TILE, t(16) + 6, res.text, 3200);
+    });
+    return res;
+  }
+
+  /** once a day, 18–22, while you're in Your Room: a resident comes to your door */
+  maybeVisit(force: boolean) {
+    if (this.visiting || this.cinematic) return false;
+    const hour = this.getHour();
+    if (!force && (!this.insideMyRoom || hour < VISIT_FROM || hour >= VISIT_TO)) return false;
+    const day = Math.floor(Date.now() / 86_400_000);
+    for (const id of visitorOrder(day)) {
+      const rt = this.residents.get(id);
+      if (!rt || rt.mode === "away" || rt.mode === "sleep") continue;
+      const line = this.getVisitLine(id);
+      if (!line) return false; // already visited today
+      this.visiting = id;
+      if (!rt.sprite.visible) rt.sprite.setVisible(true);
+      const door = this.tileCenter([MY_DOOR_TILE.x, MY_DOOR_TILE.y]);
+      if (!this.onScreen(rt.sprite.x, rt.sprite.y)) {
+        // start just down the hall so you see them arrive
+        const start = this.tileCenter(this.nearestFloor(MY_DOOR_TILE.x + 6, MY_DOOR_TILE.y + 1));
+        rt.sprite.setPosition(start.x, start.y);
+      }
+      this.walkTo(rt, door, () => {
+        rt.mode = "idle";
+        rt.facing = "up";
+        rt.baseY = rt.sprite.y;
+        rt.sprite.setTexture(`${rt.prefix}-up-0`);
+        this.speech(rt.sprite.x, rt.sprite.y - 40, line, 5200);
+        this.onVisitLine(id, line);
+        this.time.delayedCall(5400, () => {
+          this.visiting = null;
+          rt.block = blockAt(id, this.getHour());
+          rt.key = blockKey(rt.block);
+          this.goToBlock(rt);
+        });
+      });
+      return true;
+    }
+    return false;
   }
 
   // ---------- Move-In Day ----------
@@ -2585,6 +3053,7 @@ export class DormScene extends Phaser.Scene {
     let vx = 0;
     let vy = 0;
 
+    this.updateResidents(_time, delta);
     if (this.cinematic) {
       body.setVelocity(0, 0);
       this.lighting.update(_time);
@@ -2645,12 +3114,20 @@ export class DormScene extends Phaser.Scene {
     const key = `${this.charPrefix}-${this.facing}-${step}`;
     if (this.player.texture.key !== key) this.player.setTexture(key);
 
-    if (!this.editMode) this.checkProximity();
+    if (!this.editMode) {
+      this.checkProximity();
+      this.checkKnockSpot();
+    }
     if (this.editMode && this.selectedIdx >= 0) this.positionSelectionUi();
 
     if (_time >= this.nextPhaseCheck) {
       this.nextPhaseCheck = _time + 60_000;
       this.refreshPhase();
+      this.refreshResidents();
+    }
+    if (_time >= this.nextResidentCheck) {
+      this.nextResidentCheck = _time + 2000;
+      this.maybeVisit(false);
     }
     this.lighting.update(_time);
 
@@ -2674,6 +3151,10 @@ export class DormScene extends Phaser.Scene {
     const OPEN = 70;
     let best: { payload: PopupPayload; d: number } | null = null;
     for (const it of this.interactives) {
+      if (it.enabled && !it.enabled()) {
+        it.ring.setAlpha(0);
+        continue;
+      }
       const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.sprite.x, it.sprite.y + 8);
       const hovering = d < HOVER;
       const targetAlpha = hovering ? Phaser.Math.Clamp(1 - d / HOVER, 0.15, 0.7) : 0;
