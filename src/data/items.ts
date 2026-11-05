@@ -898,6 +898,23 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     bottom: { style: "jeans", color: 7 },
     accessory: "gradcap",
   }),
+
+  // ---- floors (Iteration 28): a surface you pick, like wallpaper ----
+  floor_checker: floorItem("floor_checker", "Checker Tile", "checker", 0, "The classic. Tinted by your mood."),
+  floor_oak: floorItem("floor_oak", "Oak Planks", "oak", 25, "Light wood. Creaks in a friendly way."),
+  floor_walnut: floorItem("floor_walnut", "Walnut Planks", "walnut", 35, "Dark wood for people with a reading lamp."),
+  floor_linoleum: floorItem("floor_linoleum", "Speckled Linoleum", "linoleum", 20, "Kitchenette chic. Mop-friendly."),
+  floor_cork: floorItem("floor_cork", "Cork", "cork", 30, "Warm, soft, slightly bouncy. Like a corkboard you live on."),
+  floor_shag: floorItem("floor_shag", "Shag Carpet", "shag", 45, "Wall-to-wall fuzz in your mood's colour."),
+  floor_concrete: floorItem("floor_concrete", "Polished Concrete", "concrete", 40, "Gallery energy. Cold feet."),
+
+  // ---- welcome mats (Iteration 28): outside your door ----
+  mat_plain: matItem("mat_plain", "Plain Mat", "plain", 0, "Wipe your feet. That's the whole message."),
+  mat_hello: matItem("mat_hello", "\"Hello\" Mat", "hello", 10, "Says hi so you don't have to."),
+  mat_goaway: matItem("mat_goaway", "\"Go Away (Nicely)\" Mat", "goaway", 15, "Boundaries, but make it cute."),
+  mat_vinyl: matItem("mat_vinyl", "Vinyl Record Mat", "vinyl", 15, "Spin twice before entering."),
+  mat_cat: matItem("mat_cat", "Pixel Cat Mat", "cat", 20, "Does not shed. Does judge."),
+  mat_pizza: matItem("mat_pizza", "Pizza Slice Mat", "pizza", 20, "Extra cheese, zero crumbs."),
 };
 
 /** every wearable outfit, in catalog order */
