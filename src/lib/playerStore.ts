@@ -12,7 +12,15 @@ import {
 } from "@/data/dorm";
 import { cleanName, DEFAULT_LOOK, normalizeAvatar, randomLook, type AvatarLook } from "@/data/avatar";
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
-import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
+import {
+  FLOOR_DEFAULT,
+  ITEM_CATALOG,
+  isPaletteColor,
+  newlyCompletedSets,
+  recolorCost,
+  SET_REWARD,
+} from "@/data/items";
+import { doorChange, normalizeDoor, DOOR_DEFAULT, type DoorChange, type DoorState } from "@/data/door";
 import { migrateMountLayout } from "@/data/placement";
 import {
   DAILY_COIN_REWARD,
@@ -103,6 +111,14 @@ export interface PlayerState {
   lastVisitDate: string | null;
   /** your newest purchase or newly placed item */
   newestItemId: string | null;
+  /** equipped floor catalog id (Iteration 28); older saves get the checker tile */
+  myFloorId: string;
+  /** your door in the hall (Iteration 28) */
+  door: DoorState;
+  /** bumps on every door change; residents mention it once each */
+  doorVersion: number;
+  doorLastChange: DoorChange | null;
+  doorSeen: Record<ResidentId, number>;
 }
 
 const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
@@ -154,7 +170,32 @@ const defaultState = (): PlayerState => ({
   pendingGifts: [],
   lastVisitDate: null,
   newestItemId: null,
+  myFloorId: FLOOR_DEFAULT,
+  door: { ...DOOR_DEFAULT, stickers: [] },
+  doorVersion: 0,
+  doorLastChange: null,
+  doorSeen: { sam: 0, jordan: 0 },
 });
+
+/** Iteration 28 fields: floor, door + who has noticed the latest door change */
+export const normalizeCustomize = (parsed: Partial<PlayerState>, ownedItemIds: readonly string[]) => {
+  const floor = typeof parsed.myFloorId === "string" ? parsed.myFloorId : FLOOR_DEFAULT;
+  const floorOk = ITEM_CATALOG[floor]?.category === "floor" && (floor === FLOOR_DEFAULT || ownedItemIds.includes(floor));
+  const version = typeof parsed.doorVersion === "number" && parsed.doorVersion >= 0 ? Math.floor(parsed.doorVersion) : 0;
+  const seen = (parsed.doorSeen ?? {}) as Partial<Record<ResidentId, unknown>>;
+  const doorSeen = { sam: 0, jordan: 0 } as Record<ResidentId, number>;
+  for (const id of RESIDENT_IDS) doorSeen[id] = typeof seen[id] === "number" ? Math.min(version, seen[id] as number) : version;
+  const change = parsed.doorLastChange;
+  return {
+    myFloorId: floorOk ? floor : FLOOR_DEFAULT,
+    door: normalizeDoor(parsed.door, ownedItemIds),
+    doorVersion: version,
+    doorLastChange: (["stickers", "neon", "plate", "frame", "board", "mat"] as const).includes(change as DoorChange)
+      ? (change as DoorChange)
+      : null,
+    doorSeen,
+  };
+};
 
 /** Iteration 26 fields, validated one by one (older saves start at zero hearts) */
 export const normalizeResidentsState = (parsed: Partial<PlayerState>) => {
@@ -288,6 +329,12 @@ const read = (): PlayerState => {
       ...migrateMoveIn(parsed),
       ...normalizeResidentsState(parsed),
     };
+    Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
+    // placed colours must be palette colours (Original = no tint)
+    next.roomLayout = next.roomLayout.map((p) => {
+      const { tint, ...rest } = p;
+      return isPaletteColor(tint) && ITEM_CATALOG[p.itemId]?.recolor ? { ...rest, tint } : rest;
+    });
     // a worn outfit you no longer own (dev reset) falls back to your own pieces
     if (next.avatar.outfitItemId && !next.ownedItemIds.includes(next.avatar.outfitItemId))
       delete next.avatar.outfitItemId;
@@ -435,6 +482,8 @@ export const devActions = {
       ownedItemIds: owned,
       roomLayout: state.roomLayout.filter((p) => keep.has(p.itemId)),
       myWallpaperId: keep.has(state.myWallpaperId) ? state.myWallpaperId : seed.wallpaperId,
+      myFloorId: keep.has(state.myFloorId) ? state.myFloorId : FLOOR_DEFAULT,
+      door: keep.has(state.door.matId) ? state.door : { ...state.door, matId: DOOR_DEFAULT.matId },
       avatar: dropOutfit(state.avatar),
     });
   },
@@ -724,6 +773,48 @@ export const playerActions = {
     if (state.myWallpaperId === itemId) return;
     set({ myWallpaperId: itemId });
     sfx.placeItem();
+  },
+  /**
+   * Recolor a placed piece in Your Room: a new palette colour costs RECOLOR_COST once,
+   * Original (null) is free. Returns false when it can't be paid for.
+   */
+  recolorPlaced(index: number, tint: number | null) {
+    const p = state.roomLayout[index];
+    const item = p ? ITEM_CATALOG[p.itemId] : undefined;
+    if (!p || !item?.recolor) return false;
+    if (tint !== null && !isPaletteColor(tint)) return false;
+    const cost = recolorCost(p.tint, tint);
+    if (cost === 0 && (p.tint ?? null) === tint) return true;
+    if (cost > 0 && !canAfford(cost)) return false;
+    const roomLayout = state.roomLayout.map((q, i) => {
+      if (i !== index) return q;
+      const { tint: _t, ...rest } = q;
+      void _t;
+      return tint === null ? rest : { ...rest, tint };
+    });
+    set({ roomLayout, coins: isUnlimited() ? state.coins : state.coins - cost });
+    if (cost > 0) sfx.coin();
+    return true;
+  },
+  setFloor(itemId: string) {
+    if (state.myFloorId === itemId || ITEM_CATALOG[itemId]?.category !== "floor") return false;
+    if (itemId !== FLOOR_DEFAULT && !state.ownedItemIds.includes(itemId)) return false;
+    set({ myFloorId: itemId });
+    sfx.placeItem();
+    return true;
+  },
+  /** live door edits; any visible change is news for the residents (once each) */
+  setDoor(patch: Partial<DoorState>) {
+    const next = normalizeDoor({ ...state.door, ...patch }, state.ownedItemIds);
+    const change = doorChange(state.door, next);
+    if (!change) return false;
+    set({ door: next, doorVersion: state.doorVersion + 1, doorLastChange: change });
+    return true;
+  },
+  /** a resident just said their door line */
+  markDoorSeen(id: ResidentId) {
+    if (state.doorSeen[id] >= state.doorVersion) return;
+    set({ doorSeen: { ...state.doorSeen, [id]: state.doorVersion } });
   },
   markControlsSeen() {
     if (state.seenControls) return;
