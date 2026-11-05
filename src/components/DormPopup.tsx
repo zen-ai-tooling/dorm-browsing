@@ -1231,6 +1231,89 @@ const CoinBurst = ({ count }: { count: number }) => (
   </span>
 );
 
+/** stepped sparkle squares flung out as the reward pops */
+const SparkleBurst = () => (
+  <span aria-hidden className="pointer-events-none absolute left-1/2 top-0">
+    {Array.from({ length: 8 }, (_, i) => {
+      const a = (i / 8) * Math.PI * 2 + 0.4;
+      return (
+        <span
+          key={i}
+          className="absolute size-1.5 bg-[var(--tag-premium)]"
+          style={{
+            animation: `sparkle-pop 500ms steps(4) ${i * 30}ms forwards`,
+            ["--dx" as string]: `${Math.round(Math.cos(a) * 34)}px`,
+            ["--dy" as string]: `${Math.round(Math.sin(a) * 26 - 8)}px`,
+          }}
+        />
+      );
+    })}
+  </span>
+);
+
+/** little pixel coin pile for coin rewards */
+const COIN_PILE = [
+  "............",
+  "............",
+  "............",
+  ".....XX.....",
+  "....XooX....",
+  "...XooooX...",
+  "..XXoaaXXX..",
+  ".XooXXXXooX.",
+  ".XoaaXXoaXX.",
+  "XooXoooXoXX.",
+  "XoaaaaoaaaX.",
+  "XXXXXXXXXXXX",
+];
+
+/** the thing that pops out of the box, before the text explains it */
+const RewardVisual = ({
+  reward,
+  itemThumbnails,
+}: {
+  reward: PackageReward;
+  itemThumbnails: Record<string, { src: string }>;
+}) => {
+  const { ownedItemIds } = usePlayerState();
+  if (reward.kind === "coins" || reward.kind === "allFound")
+    return <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={44} />;
+  if (reward.kind === "jackpot")
+    return (
+      <span className="relative">
+        <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={64} />
+        <span className="absolute -right-3 -top-2">
+          <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={28} />
+        </span>
+      </span>
+    );
+  if (reward.kind === "postcard")
+    return (
+      <div className="w-40 border-2 border-ink bg-[var(--polaroid)] p-2 [transform:rotate(-2deg)]">
+        <p className="font-body text-[11px] italic leading-snug text-ink">“{reward.line}”</p>
+        <p className="mt-1 text-right font-display text-[10px] font-bold text-ink">— {reward.from}</p>
+      </div>
+    );
+  const item = ITEM_CATALOG[reward.itemId];
+  const src = itemThumbnails[reward.itemId]?.src;
+  return (
+    <span className="relative inline-block">
+      {src ? (
+        <img src={src} alt={item?.name ?? ""} className="max-h-16 w-auto [image-rendering:pixelated]" />
+      ) : null}
+      {reward.kind === "item" ? (
+        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-ink bg-[var(--tag-premium)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+          Mail find · {MAIL_ITEM_IDS.filter((id) => ownedItemIds.includes(id)).length}/{MAIL_ITEM_IDS.length}
+        </span>
+      ) : (
+        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-ink bg-[var(--tag-nice)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+          From {reward.from} ♥
+        </span>
+      )}
+    </span>
+  );
+};
+
 const RewardView = ({
   reward,
   itemThumbnails,
