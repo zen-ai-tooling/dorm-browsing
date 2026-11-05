@@ -1,6 +1,15 @@
 import { useSyncExternalStore } from "react";
-import { MOODS, ROOMS, type Bulletin, type MoodKey, type NowWatching, type PlacedItem, type Pin, type Song } from "@/data/dorm";
-import { BULLETIN_MAX_PINS } from "@/data/dorm";
+import {
+  BULLETIN_MAX_PINS,
+  MOODS,
+  ROOMS,
+  type Bulletin,
+  type MoodKey,
+  type NowWatching,
+  type PlacedItem,
+  type Pin,
+  type Song,
+} from "@/data/dorm";
 import { cleanName, DEFAULT_LOOK, normalizeAvatar, randomLook, type AvatarLook } from "@/data/avatar";
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
 import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
