@@ -1168,19 +1168,6 @@ export class DormScene extends Phaser.Scene {
 
   // ---------- decor & interactives ----------
 
-  private label(x: number, y: number, text: string, color = "#33272c", size = 14) {
-    return this.add
-      .text(x, y, text, {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: `${size}px`,
-        color,
-        fontStyle: "600",
-      })
-      .setOrigin(0.5)
-      .setDepth(2)
-      .setAlpha(0.95);
-  }
-
   private prop(def: PropDef) {
     const s = this.add.sprite(def.x, def.y, def.key).setDepth(def.y + (def.depthBias ?? 0));
     this.collecting?.push(s);
