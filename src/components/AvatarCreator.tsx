@@ -157,6 +157,8 @@ export const AvatarCreator = ({
     setDirIdx((i) => (i + by + 4) % 4);
   };
   const bare = { ...drawn, accessory: "none" as const };
+  const { outfitItemId: _w, ...bareLook } = look;
+  void _w;
 
   return (
     <div className={`flex gap-3 ${compact ? "flex-col sm:flex-row" : "flex-col sm:flex-row"}`}>
@@ -333,7 +335,7 @@ export const AvatarCreator = ({
           {tab === "outfits" ? (
             <Row>
               <LookChip
-                look={{ ...look, outfitItemId: undefined } as AvatarLook}
+                look={bareLook}
                 label="None"
                 on={!wearing}
                 onClick={() => own({})}

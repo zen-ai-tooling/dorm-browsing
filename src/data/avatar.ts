@@ -125,8 +125,8 @@ const index = (v: unknown, n: number, fallback: number) =>
 export const normalizeAvatar = (raw: unknown, fallback: AvatarLook = DEFAULT_LOOK): AvatarLook => {
   if (!raw || typeof raw !== "object") return { ...fallback, top: { ...fallback.top }, bottom: { ...fallback.bottom } };
   const r = raw as Partial<Record<keyof AvatarLook, unknown>>;
-  const top = (r.top ?? {}) as Partial<Record<string, unknown>>;
-  const bottom = (r.bottom ?? {}) as Partial<Record<string, unknown>>;
+  const top = (r.top ?? {}) as { style?: unknown; color?: unknown };
+  const bottom = (r.bottom ?? {}) as { style?: unknown; color?: unknown };
   const out: AvatarLook = {
     skin: index(r.skin, SKIN_TONES.length, fallback.skin),
     hairStyle: (HAIR_STYLES as readonly string[]).includes(r.hairStyle as string)

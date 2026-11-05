@@ -14,7 +14,7 @@ const CATEGORY_LABEL: Record<Exclude<ItemDef["category"], "outfit">, string> = {
   poster: "Posters",
 };
 
-const CATEGORIES = Object.keys(CATEGORY_LABEL) as ItemDef["category"][];
+const CATEGORIES = Object.keys(CATEGORY_LABEL) as Array<keyof typeof CATEGORY_LABEL>;
 
 export const RoomEditorTray = ({
   onDone,
