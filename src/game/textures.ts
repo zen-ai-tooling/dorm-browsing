@@ -109,6 +109,8 @@ export const buildCharTextures = (scene: Phaser.Scene, prefix: string, look: Ava
   for (const dir of DIRS)
     for (const step of [0, 1, 2])
       make(scene, `${prefix}-${dir}-${step}`, CHAR_W, CHAR_H, (g) => drawChar(g, dir, step, look));
+  // eyes-closed front frame; the scene lays it down on a bed
+  make(scene, `${prefix}-sleep`, CHAR_W, CHAR_H, (g) => paintChar(g, look, "down", 0, P, { sleep: true }));
 };
 
 /** the pre-avatar hand-drawn sprite, kept for reference (no longer used) */
@@ -1519,6 +1521,186 @@ export const buildTextures = (scene: Phaser.Scene) => {
     r(g, 60, 41, 14, 2, 0xc8765c);
     r(g, 74, 12, 5, 8, ZM);
   }));
+
+  /* ------------- iteration 26: resident rooms, gifts, emotes ------------- */
+
+  // pottery wheel 16x16 — grey wheel head on a stand, terracotta bowl mid-throw
+  make(scene, "potterywheel", 16, 18, (g) => {
+    foot(g, 8, 16, 12);
+    panel(g, 3, 10, 10, 6, METAL, METAL_SH, METAL_HI);
+    r(g, 1, 7, 14, 3, 0x9a96a0);
+    line(g, 1, 7, 14, 3);
+    r(g, 2, 7, 12, 1, 0xc4c0ca);
+    // bowl
+    r(g, 4, 3, 8, 4, 0xc8765c);
+    r(g, 5, 2, 6, 1, 0xc8765c);
+    line(g, 4, 2, 8, 5);
+    r(g, 5, 3, 6, 1, 0x9c5a44);
+    r(g, 5, 5, 2, 1, 0xe39b80);
+  });
+
+  // clay shelf 32x18 — low plank shelf with little bowls and vases
+  make(scene, "clayshelf", 32, 20, (g) => {
+    foot(g, 16, 18, 26);
+    panel(g, 1, 9, 30, 9, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 1, 13, 30, 1, WOOD_SH);
+    const pots: Array<[number, number, number, number]> = [
+      [3, 4, 5, 0xc8765c],
+      [9, 2, 3, 0xe8dcc6],
+      [13, 5, 6, 0x9c5a44],
+      [20, 3, 4, 0x6f9a5f],
+      [25, 5, 5, 0xd9a842],
+    ];
+    for (const [x, top, w, c] of pots) {
+      r(g, x, top, w, 9 - top, c);
+      line(g, x, top, w, 9 - top);
+      r(g, x + 1, top + 1, 1, 9 - top - 2, 0xf6eedd);
+    }
+    r(g, 4, 14, 3, 2, 0xc8765c);
+    r(g, 22, 14, 4, 2, 0xe8dcc6);
+  });
+
+  // skateboard 12x24 — leaning deck, grip tape, wheels
+  make(scene, "skateboard", 12, 26, (g) => {
+    r(g, 3, 1, 6, 22, 0x2e3140);
+    line(g, 2, 0, 8, 24);
+    r(g, 3, 2, 6, 2, 0xd9a842);
+    r(g, 3, 18, 6, 2, 0xc8765c);
+    dither(g, 4, 5, 4, 12, 0x3d3a44);
+    for (const y of [3, 19]) {
+      r(g, 1, y, 2, 3, CREAM);
+      r(g, 9, y, 2, 3, CREAM);
+    }
+  });
+
+  // framed polaroid 16x18 — wood frame, cream polaroid, a little bowl photo
+  make(scene, "polaroidframe", 16, 18, (g) => {
+    panel(g, 0, 0, 16, 18, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 3, 3, 10, 12, 0xf6eedd);
+    line(g, 3, 3, 10, 12, 0x5a5350);
+    r(g, 4, 4, 8, 7, 0xe39b80);
+    r(g, 6, 7, 4, 3, 0xc8765c);
+    r(g, 5, 6, 6, 1, 0x9c5a44);
+  });
+
+  // Sam's clay bowl 16x12 — a lopsided bowl on a little wall bracket
+  make(scene, "claybowl", 16, 14, (g) => {
+    r(g, 1, 10, 14, 3, WOOD);
+    line(g, 1, 10, 14, 3);
+    r(g, 3, 4, 10, 6, 0xc8765c);
+    r(g, 2, 3, 12, 2, 0xc8765c);
+    line(g, 2, 3, 12, 7);
+    r(g, 3, 4, 10, 1, 0x9c5a44);
+    r(g, 4, 6, 3, 2, 0xe39b80);
+    r(g, 10, 7, 2, 2, 0x6f9a5f);
+  });
+
+  // DJ decks 34x20 — table, two turntables, a mixer with faders
+  make(scene, "djdecks", 34, 22, (g) => {
+    foot(g, 17, 20, 30);
+    panel(g, 1, 9, 32, 10, 0x2a2830, 0x1d1c22, 0x3d3a44);
+    r(g, 3, 18, 2, 2, INK);
+    r(g, 29, 18, 2, 2, INK);
+    for (const x of [2, 21]) {
+      r(g, x, 2, 11, 9, 0x3d3a44);
+      line(g, x, 2, 11, 9);
+      r(g, x + 2, 3, 7, 7, 0x1d1c22);
+      r(g, x + 4, 5, 3, 3, x === 2 ? 0xc8765c : 0x5f8fd8);
+      r(g, x + 5, 6, 1, 1, CREAM);
+      r(g, x + 9, 3, 1, 5, METAL_HI);
+    }
+    r(g, 14, 3, 6, 8, 0x58545f);
+    line(g, 14, 3, 6, 8);
+    r(g, 15, 5, 1, 4, 0x8fe3ff);
+    r(g, 18, 6, 1, 3, 0xff7ad9);
+    r(g, 15, 4, 4, 1, 0xf0c75e);
+  });
+
+  // dumbbell rack 32x16 — two-tier rack with paired weights
+  make(scene, "dumbbells", 32, 18, (g) => {
+    foot(g, 16, 16, 28);
+    r(g, 2, 4, 2, 12, METAL_SH);
+    r(g, 28, 4, 2, 12, METAL_SH);
+    line(g, 2, 4, 2, 12);
+    line(g, 28, 4, 2, 12);
+    r(g, 2, 7, 28, 2, METAL);
+    r(g, 2, 12, 28, 2, METAL);
+    for (const [x, y, c] of [
+      [6, 4, 0x5f8fd8],
+      [15, 4, 0x3d3a44],
+      [22, 4, 0x5f8fd8],
+      [8, 9, 0x3d3a44],
+      [18, 9, 0xc8574a],
+    ] as const) {
+      r(g, x, y + 1, 6, 1, METAL_HI);
+      r(g, x, y, 2, 3, c);
+      r(g, x + 4, y, 2, 3, c);
+      line(g, x, y, 2, 3);
+      line(g, x + 4, y, 2, 3);
+    }
+  });
+
+  // mixtape poster: a big cassette (greyscale field like every poster)
+  make(scene, "poster-mixtape", 44, 26, poster((g) => {
+    r(g, 8, 5, 28, 16, 0x3f3a38);
+    line(g, 8, 5, 28, 16, 0x2b2027);
+    r(g, 11, 7, 22, 5, 0xf2ece0);
+    r(g, 12, 9, 14, 1, 0x8b847e);
+    r(g, 14, 14, 4, 4, 0xf2ece0);
+    r(g, 26, 14, 4, 4, 0xf2ece0);
+    r(g, 15, 15, 2, 2, 0x3f3a38);
+    r(g, 27, 15, 2, 2, 0x3f3a38);
+    r(g, 18, 15, 8, 2, 0x8b847e);
+  }));
+  make(scene, "poster-mixtape-zoom", 90, 55, (g) => {
+    r(g, 0, 0, 90, 55, INK);
+    r(g, 2, 2, 86, 51, 0x1d2240);
+    dither(g, 4, 4, 82, 47, 0x252b52);
+    r(g, 14, 9, 62, 37, 0x2a2830);
+    line(g, 14, 9, 62, 37);
+    r(g, 18, 12, 54, 12, 0xf2ece0);
+    r(g, 20, 15, 30, 2, 0xff7ad9);
+    r(g, 20, 19, 22, 2, 0x8fe3ff);
+    r(g, 56, 15, 12, 6, 0xf0c75e);
+    for (const x of [24, 54]) {
+      r(g, x, 28, 12, 12, 0xf2ece0);
+      line(g, x, 28, 12, 12);
+      r(g, x + 4, 32, 4, 4, 0x2a2830);
+    }
+    r(g, 36, 31, 18, 6, 0x58545f);
+    r(g, 38, 33, 14, 2, 0x8b847e);
+    r(g, 22, 42, 46, 2, 0x58545f);
+  });
+
+  /* ---- emote bubbles: 16x15 pixel speech bubble + an 8x8 icon (never emoji) ---- */
+  const EMOTES: Record<string, { rows: string[]; pal: Record<string, number> }> = {
+    coffee: { rows: ["..o.o...", "...o.o..", "XXXXXX..", "XccccXXX", "XccccX.X", "XccccXXX", ".XccX...", "..XX...."], pal: { c: 0xc8765c, o: 0x8b847e } },
+    book: { rows: ["........", "XXXXXXXX", "XppXXqqX", "XppXXqqX", "XppXXqqX", "XppXXqqX", "XXXXXXXX", "........"], pal: { p: 0xf6eedd, q: 0xe8dcc6 } },
+    headphones: { rows: ["..XXXX..", ".X....X.", "X......X", "X......X", "XbX..XbX", "XbX..XbX", "XXX..XXX", "........"], pal: { b: 0x5f8fd8 } },
+    pencil: { rows: [".......X", "......Xy", ".....Xyy", "....Xyy.", "...Xyy..", "..Xyy...", ".Xpy....", "Xk......"], pal: { y: 0xd9a842, p: 0xe39b80, k: 0x241c26 } },
+    tv: { rows: ["..X..X..", "...XX...", "XXXXXXXX", "XssssssX", "XssssssX", "XssssssX", "XXXXXXXX", ".X....X."], pal: { s: 0x8fbfe0 } },
+    game: { rows: ["........", ".XXXXXX.", "XggggggX", "XgXggrgX", "XXXggggX", "XgXggbgX", ".XXXXXX.", "........"], pal: { g: 0x8b6b9c, r: 0xc8574a, b: 0x5f8fd8 } },
+    music: { rows: ["...XXXXX", "...X...X", "...XXXXX", "...X...X", ".XXX.XXX", "XmmXXmmX", "XmmXXmmX", ".XX..XX."], pal: { m: 0xff7ad9 } },
+    zz: { rows: ["....XXXX", ".......X", "......X.", ".....XXX", "XXX.....", "..X.....", ".X......", "XXX....."], pal: {} },
+    shake: { rows: ["..XXXX..", "..X..X..", ".XwwwwX.", ".XwwwwX.", ".XggggX.", ".XggggX.", ".XggggX.", ".XXXXXX."], pal: { w: 0xf6eedd, g: 0x8fb877 } },
+  };
+  for (const [name, { rows, pal }] of Object.entries(EMOTES)) {
+    make(scene, `emote-${name}`, 16, 15, (g) => {
+      r(g, 1, 0, 14, 12, INK);
+      r(g, 0, 1, 16, 10, INK);
+      r(g, 1, 1, 14, 10, 0xfffdf5);
+      r(g, 5, 12, 3, 1, INK);
+      r(g, 5, 13, 2, 1, INK);
+      r(g, 6, 11, 1, 1, 0xfffdf5);
+      rows.forEach((row, y) =>
+        Array.from(row).forEach((ch, x) => {
+          const c = ch === "X" ? INK : pal[ch];
+          if (c !== undefined) r(g, 4 + x, 2 + y, 1, 1, c);
+        }),
+      );
+    });
+  }
+
 };
 
 

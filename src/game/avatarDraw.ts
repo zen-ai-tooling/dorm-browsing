@@ -32,7 +32,7 @@ export interface Painter {
 const newBuf = (): Buf => Array.from({ length: CHAR_H }, () => Array<number | undefined>(CHAR_W).fill(undefined));
 
 /** one character frame as a pixel buffer (+ the flat contact shadow drawn under it) */
-export const charPixels = (look: AvatarLook, dir: Dir, step: number): Buf => {
+export const charPixels = (look: AvatarLook, dir: Dir, step: number, opts: { sleep?: boolean } = {}): Buf => {
   const buf = newBuf();
   // right is drawn as left, then mirrored — keeps both sides identical
   const d: Dir = dir === "right" ? "left" : dir;
@@ -296,8 +296,14 @@ export const charPixels = (look: AvatarLook, dir: Dir, step: number): Buf => {
   if (d !== "up") {
     const off = d === "left" ? -1 : 0;
     const ey = hy + 5;
-    fill(cx - 3 + off, ey, 1, 2, INK);
-    fill(cx + 2 + off, ey, 1, 2, INK);
+    if (opts.sleep) {
+      // closed eyes: short lids instead of the 1×2 pupils
+      fill(cx - 4 + off, ey + 1, 2, 1, INK);
+      fill(cx + 2 + off, ey + 1, 2, 1, INK);
+    } else {
+      fill(cx - 3 + off, ey, 1, 2, INK);
+      fill(cx + 2 + off, ey, 1, 2, INK);
+    }
     fill(cx - 4 + off, ey + 3, 2, 1, 0xd08a7c);
     fill(cx + 2 + off, ey + 3, 2, 1, 0xd08a7c);
     fill(cx - 1 + off, ey + 3, 2, 1, 0x9a6558);
@@ -365,13 +371,20 @@ export const charPixels = (look: AvatarLook, dir: Dir, step: number): Buf => {
 };
 
 /** flat 2-row contact shadow, then the sprite — `scale` = painter px per art px */
-export const paintChar = (p: Painter, look: AvatarLook, dir: Dir, step: number, scale = 2) => {
+export const paintChar = (
+  p: Painter,
+  look: AvatarLook,
+  dir: Dir,
+  step: number,
+  scale = 2,
+  opts: { sleep?: boolean } = {},
+) => {
   const s = scale;
   p.fillStyle(0x2b2431, 0.3);
   p.fillRect(4 * s, 19 * s, 8 * s, s);
   p.fillStyle(0x2b2431, 0.22);
   p.fillRect(5 * s, 20 * s, 6 * s, s);
-  const buf = charPixels(look, dir, step);
+  const buf = charPixels(look, dir, step, opts);
   for (let y = 0; y < CHAR_H; y++) {
     const row = buf[y]!;
     let x = 0;
