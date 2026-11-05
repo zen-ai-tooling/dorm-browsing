@@ -263,7 +263,7 @@ export class Lighting {
     const hh = (texH * pool.scaleY) / 2;
     const clip = this.clipFor(l);
     if (!clip) {
-      pool.clearCrop().setPosition(l.x, py);
+      pool.setCrop().setPosition(l.x, py);
       return;
     }
     const ix0 = Math.max(l.x - hw, clip.x);
@@ -382,7 +382,7 @@ export class Lighting {
         this.stamp.setCrop(ix0 - (l.x - b), iy0 - (l.y - b), ix1 - ix0, iy1 - iy0);
         cx = (ix0 + ix1) / 2;
         cy = (iy0 + iy1) / 2;
-      } else this.stamp.clearCrop();
+      } else this.stamp.setCrop();
       this.stamp.setPosition(cx, cy);
       rt.erase(this.stamp);
     }
