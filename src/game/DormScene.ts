@@ -2215,7 +2215,7 @@ export class DormScene extends Phaser.Scene {
     this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60, poolDy: 30 });
     // party-light flecks: slow drifting, fading spots of colored light across the rug (night only)
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
-    const fleckLayer = this.add.container(0, 0).setAlpha(0);
+    const fleckLayer = this.add.container(0, 0).setDepth(1.5).setAlpha(0);
     this.nightGated.push({ o: fleckLayer, a: 1 });
     for (let i = 0; i < 6; i++) {
       const f = this.add
@@ -2254,8 +2254,8 @@ export class DormScene extends Phaser.Scene {
     // right: the games corner
     this.prop({ key: "arcade", x: lx(11.22), y: ly(1.7), solid: true });
     this.prop({ key: "arcade", x: lx(12.85), y: ly(1.7), tint: 0xd7b8e8, solid: true });
-    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40 });
-    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40 });
+    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40, poolDy: 26 });
+    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40, poolDy: 26 });
     this.prop({ key: "foosball", x: lx(12.6), y: ly(4.8), solid: true });
     this.prop({ key: "papasan", x: lx(11.2), y: ly(7.9), solid: true });
     this.prop({ key: "beanbag", x: lx(13.6), y: ly(8.1), tint: 0x74a8ab });
@@ -2267,7 +2267,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "desk", x: t(S.x + 1.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "desk", x: t(S.x + 4.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "lamp", x: t(S.x + 13.3), y: t(S.y + 1.5) });
-    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60 });
+    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60, poolDy: 30 });
     this.prop({
       key: "shelf",
       x: t(S.x + 9.4),
@@ -2293,7 +2293,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
     // under-cabinet strip so the kitchenette isn't a black box at night
-    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44 });
+    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44, poolDy: 26 });
     this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
     // eating nook, centered in the open floor (door lane cols 5–6 stays clear)
