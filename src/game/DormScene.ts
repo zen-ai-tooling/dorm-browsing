@@ -1627,34 +1627,72 @@ export class DormScene extends Phaser.Scene {
         y: t(rect.y + placed.gy + f.h / 2),
         solid: item.solid,
       };
-      const tint = placed.tint ?? this.moodTint(room, item);
+      const tint = baseTintFor(item, room.mood, placed.tint);
       if (tint) def.tint = tint;
       if (item.scale) def.scale = item.scale;
       if (payload) def.payload = payload;
 
       const sprite = this.prop(def);
       if (rotation) sprite.setAngle(rotation);
-      this.itemLight(placed.itemId, sprite);
+      this.attachAccent(sprite, item, placed.tint);
+      this.itemLight(placed.itemId, sprite, placed.tint);
       // neighbor rooms advertise the shop: "Sold at Floor 3 Supply" on hover / tap-and-hold
       if (isShopItem(item) && item.price > 0) this.soldHint(sprite, item.id);
     }
   }
 
   /** placed items with ItemDef.light glow at night and follow their sprite (drag, move) */
-  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite) {
-    const l = ITEM_CATALOG[itemId]?.light;
-    if (!l) return null;
+  private itemLight(itemId: string, sprite: Phaser.GameObjects.Sprite, tint?: number) {
+    const item = ITEM_CATALOG[itemId];
+    const l = item?.light;
+    if (!item || !l) return null;
     const light = this.light({
       x: sprite.x,
       y: sprite.y,
       follow: sprite,
-      color: l.color,
+      // lamps follow their shade colour (40% mix)
+      color: lightColorFor(item, tint) ?? l.color,
       radius: l.radius,
       flicker: l.flicker === true,
       disco: itemId === "disco_ball",
     });
     this.placedLights.set(sprite, light);
     return light;
+  }
+
+  /** "accent" recolor: a tinted greyscale overlay riding on the base sprite (none for Original) */
+  private attachAccent(base: Phaser.GameObjects.Sprite, item: ItemDef, tint?: number) {
+    const key = accentTextureKey(item.textureKey);
+    const at = accentTintFor(item, tint);
+    if (at === undefined || !this.textures.exists(key)) return null;
+    const overlay = this.add
+      .sprite(base.x, base.y, key)
+      .setTint(at)
+      .setScale(base.scaleX, base.scaleY)
+      .setAngle(base.angle)
+      .setDepth(base.depth + 0.01);
+    this.collecting?.push(overlay);
+    this.accentPairs.push({ base, overlay });
+    return overlay;
+  }
+
+  /** keeps overlays glued to their base (drag, bob, rotate); drops pairs whose sprites are gone */
+  private syncAccents() {
+    if (!this.accentPairs.length) return;
+    this.accentPairs = this.accentPairs.filter(({ base, overlay }) => {
+      if (!base.active || !overlay.active) {
+        if (overlay.active) overlay.destroy();
+        return false;
+      }
+      overlay.setPosition(base.x, base.y).setAngle(base.angle).setDepth(base.depth + 0.01).setVisible(base.visible);
+      return true;
+    });
+  }
+
+  /** the base tint a placed piece of Your Room wears right now */
+  private placedTint(entry: { itemId: string; tint?: number }) {
+    const def = ITEM_CATALOG[entry.itemId];
+    return def ? baseTintFor(def, this.getMyMood(), entry.tint) : undefined;
   }
 
   private dropItemLight(sprite: Phaser.GameObjects.Sprite) {
@@ -1678,18 +1716,20 @@ export class DormScene extends Phaser.Scene {
   }
 
   /** creates exactly one sprite (+ collision zone / glow ring) and tracks it */
-  private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation): number {
+  private spawnPlaced(itemId: string, gx: number, gy: number, rotation: Rotation, placedTint?: number): number {
     const item = ITEM_CATALOG[itemId];
     if (!item) return -1;
     const f = effectiveFootprint(item, rotation);
     const c = this.centerOf(gx, gy, f.w, f.h);
     const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
-    const tint = this.moodTint(this.myRoom(), item);
+    const tint = baseTintFor(item, this.getMyMood(), placedTint);
     if (tint) sprite.setTint(tint);
     if (item.scale) sprite.setScale(item.scale);
     if (rotation) sprite.setAngle(rotation);
     this.myObjs.push(sprite);
-    this.itemLight(itemId, sprite);
+    const accent = this.attachAccent(sprite, item, placedTint);
+    if (accent) this.myObjs.push(accent);
+    this.itemLight(itemId, sprite, placedTint);
 
     let zone: Phaser.GameObjects.Zone | null = null;
     if (item.solid) {
@@ -1723,7 +1763,7 @@ export class DormScene extends Phaser.Scene {
       }
     }
 
-    this.placed.push({ sprite, zone, ring, itemId, gx, gy, rotation });
+    this.placed.push({ sprite, zone, ring, itemId, gx, gy, rotation, accent, ...(placedTint !== undefined ? { tint: placedTint } : {}) });
     return this.placed.length - 1;
   }
 
@@ -1731,7 +1771,7 @@ export class DormScene extends Phaser.Scene {
     this.myObjs = [];
     this.placed = [];
     for (const p of this.getMyLayout()) {
-      this.spawnPlaced(p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation);
+      this.spawnPlaced(p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation, typeof p.tint === "number" ? p.tint : undefined);
     }
     if (this.editMode) this.enableDragging();
   }
@@ -1826,7 +1866,8 @@ export class DormScene extends Phaser.Scene {
     this.clearSelection();
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     this.interactives = this.interactives.filter((i) => i.sprite !== entry.sprite);
-    const dead = [entry.sprite, entry.ring, entry.zone].filter(Boolean) as Phaser.GameObjects.GameObject[];
+    const dead = [entry.sprite, entry.ring, entry.zone, entry.accent].filter(Boolean) as Phaser.GameObjects.GameObject[];
+    entry.accent?.destroy();
     this.myObjs = this.myObjs.filter((o) => !dead.includes(o));
     if (entry.zone) this.walls.remove(entry.zone, true, true);
     entry.ring?.destroy();
@@ -1842,8 +1883,7 @@ export class DormScene extends Phaser.Scene {
     this.time.delayedCall(150, () => {
       if (!sprite.active) return;
       const entry = this.placed.find((p) => p.sprite === sprite);
-      const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
-      const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
+      const tint = entry ? this.placedTint(entry) : undefined;
       sprite.clearTint();
       if (tint) sprite.setTint(tint);
       if (entry && this.placed.indexOf(entry) === this.selectedIdx) sprite.setTint(0xfff3b0);
@@ -1883,7 +1923,13 @@ export class DormScene extends Phaser.Scene {
   }
 
   private currentLayout(): PlacedItem[] {
-    return this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy, rotation: p.rotation }));
+    return this.placed.map((p) => ({
+      itemId: p.itemId,
+      gx: p.gx,
+      gy: p.gy,
+      rotation: p.rotation,
+      ...(p.tint !== undefined ? { tint: p.tint } : {}),
+    }));
   }
 
   private commitLayout() {
@@ -1938,25 +1984,27 @@ export class DormScene extends Phaser.Scene {
       const entry = this.placed[this.selectedIdx];
       if (entry?.sprite.active) {
         entry.sprite.clearTint();
-        const def = ITEM_CATALOG[entry.itemId];
-        const tint = def ? this.moodTint(this.myRoom(), def) : undefined;
+        const tint = this.placedTint(entry);
         if (tint) entry.sprite.setTint(tint);
       }
     }
     this.selectedIdx = -1;
     this.selectionUi?.destroy();
     this.selectionUi = null;
+    this.swatchUi = null;
   }
 
   private iconButton(label: string, fill: number, onTap: () => void) {
     const bg = this.add.rectangle(0, 0, 22, 22, fill, 1).setStrokeStyle(2, 0x241c26);
-    const icon = this.add
-      .text(0, 0, label, {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: "13px",
-        color: "#fff6e8",
-      })
-      .setOrigin(0.5);
+    const icon = label.startsWith("tex:")
+      ? this.add.image(0, 0, label.slice(4))
+      : this.add
+          .text(0, 0, label, {
+            fontFamily: '"Pixelify Sans", sans-serif',
+            fontSize: "13px",
+            color: "#fff6e8",
+          })
+          .setOrigin(0.5);
     const c = this.add
       .container(0, 0, [bg, icon])
       .setSize(22, 22)
@@ -1981,12 +2029,139 @@ export class DormScene extends Phaser.Scene {
     if (def && !isWallItem(def)) {
       // wall items never rotate, so they get only the remove button
       const rotate = this.iconButton("\u21BB", 0x3f6f7a, () => this.rotatePlacedItem(this.selectedIdx));
-      remove.setPosition(14, 0);
-      rotate.setPosition(-14, 0);
       buttons.unshift(rotate);
     }
+    if (def?.recolor) {
+      const paint = this.iconButton("tex:icon-palette", 0xc9a227, () => this.toggleSwatches());
+      buttons.unshift(paint);
+    }
+    // centre the row: [paint] [rotate] [remove]
+    buttons.forEach((b, i) => b.setPosition((i - (buttons.length - 1) / 2) * 28, 0));
     this.selectionUi = this.add.container(p.sprite.x, 0, buttons).setDepth(5000);
     this.positionSelectionUi();
+  }
+
+  private swatchUi: Phaser.GameObjects.Container | null = null;
+
+  /** the 8-colour strip (+ Original) just above the selected item */
+  private toggleSwatches() {
+    if (this.swatchUi) {
+      this.swatchUi.destroy();
+      this.swatchUi = null;
+      sfx.uiClick();
+      return;
+    }
+    sfx.uiClick();
+    this.buildSwatches();
+  }
+
+  private buildSwatches() {
+    this.swatchUi?.destroy();
+    this.swatchUi = null;
+    const entry = this.placed[this.selectedIdx];
+    if (!entry || !this.selectionUi) return;
+    const current = entry.tint ?? null;
+    const affordable = this.canAffordCb(RECOLOR_COST);
+    const chips: Array<{ tint: number | null; color: number }> = [
+      { tint: null, color: 0xf3ead2 },
+      ...RECOLOR_PALETTE.map((p) => ({ tint: p.color as number | null, color: p.color })),
+    ];
+    const kids: Phaser.GameObjects.GameObject[] = [];
+    const STEP = 22;
+    const x0 = -((chips.length - 1) * STEP) / 2;
+    const backW = chips.length * STEP + 8;
+    const back = this.add.rectangle(0, 0, backW, 30, 0x241c26, 1);
+    kids.push(back);
+    chips.forEach((c, i) => {
+      const x = x0 + i * STEP;
+      const isCur = c.tint === current;
+      const locked = !affordable && recolorCost(current, c.tint) > 0;
+      if (isCur) kids.push(this.add.rectangle(x, 0, 24, 24, 0xfff3b0, 1));
+      const chip = this.add.rectangle(x, 0, 18, 18, c.color, 1).setStrokeStyle(2, 0x241c26).setAlpha(locked ? 0.35 : 1);
+      kids.push(chip);
+      if (c.tint === null) {
+        // Original: cream chip with a pixel slash
+        const g = this.add.graphics();
+        g.fillStyle(0xc96f4a, 1);
+        for (let k = 0; k < 7; k++) g.fillRect(x - 7 + k * 2, 5 - k * 2, 2, 2);
+        kids.push(g);
+      }
+      chip.setInteractive({ useHandCursor: !locked });
+      chip.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+        pointer.event.stopPropagation();
+        this.applyRecolor(c.tint, locked);
+      });
+    });
+    if (!affordable) {
+      kids.push(
+        this.add
+          .text(0, 22, "Need 5 coins", {
+            fontFamily: '"Pixelify Sans", sans-serif',
+            fontSize: "9px",
+            color: "#fff6e8",
+            backgroundColor: "#241c26",
+            padding: { x: 3, y: 1 },
+          })
+          .setOrigin(0.5),
+      );
+    }
+    this.swatchUi = this.add.container(0, -32, kids);
+    this.selectionUi.add(this.swatchUi);
+  }
+
+  private applyRecolor(tint: number | null, locked: boolean) {
+    const idx = this.selectedIdx;
+    const entry = this.placed[idx];
+    const def = entry ? ITEM_CATALOG[entry.itemId] : undefined;
+    if (!entry || !def) return;
+    if (locked) {
+      this.flashReject(entry.sprite);
+      return;
+    }
+    const cost = recolorCost(entry.tint, tint);
+    if (!this.onRecolor(idx, tint)) {
+      this.flashReject(entry.sprite);
+      return;
+    }
+    if (tint === null) delete entry.tint;
+    else entry.tint = tint;
+    // overlay + light follow the new colour
+    entry.accent?.destroy();
+    this.myObjs = this.myObjs.filter((o) => o !== entry.accent);
+    entry.accent = this.attachAccent(entry.sprite, def, entry.tint);
+    if (entry.accent) this.myObjs.push(entry.accent);
+    if (def.light) {
+      this.dropItemLight(entry.sprite);
+      this.itemLight(entry.itemId, entry.sprite, entry.tint);
+    }
+    entry.sprite.clearTint().setTint(0xfff3b0); // still selected
+    if (cost > 0) this.coinPop(entry.sprite.x, entry.sprite.y - 30, `-${cost}`);
+    else sfx.uiClick();
+    this.buildSwatches();
+  }
+
+  /** small stepped "-5" pop above a recolored item */
+  private coinPop(x: number, y: number, label: string) {
+    const txt = this.add
+      .text(x, y, label, {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "11px",
+        fontStyle: "700",
+        color: "#f2cf5c",
+        stroke: "#241c26",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(6200);
+    this.tweens.add({
+      targets: txt,
+      y: y - 18,
+      alpha: { from: 1, to: 0 },
+      duration: 700,
+      ease: "Stepped",
+      easeParams: [5],
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private positionSelectionUi() {
@@ -3352,6 +3527,7 @@ export class DormScene extends Phaser.Scene {
       this.nextResidentCheck = _time + 2000;
       this.maybeVisit(false);
     }
+    this.syncAccents();
     this.lighting.update(_time);
 
     this.trackMyRoom();
