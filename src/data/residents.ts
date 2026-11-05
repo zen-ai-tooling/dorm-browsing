@@ -1,3 +1,4 @@
+import type { DoorChange } from "./door";
 import { DEFAULT_LOOK, type AvatarLook } from "./avatar";
 
 /* ---------------------------------------------------------------
@@ -203,6 +204,8 @@ export interface TalkContext {
   newestItem: string | null;
   /** worn outfit (display name) */
   outfit: string | null;
+  /** your door changed since this resident last mentioned it (Iteration 28) */
+  doorNews?: DoorChange | null;
 }
 
 export interface Line {
@@ -215,6 +218,7 @@ type Voice = {
   common: (what: string, kind: "artist" | "interest") => string;
   item: (name: string) => string;
   outfit: (name: string) => string;
+  door: Record<DoorChange, string>;
   /** activity / time-of-day lines, tagged by schedule place */
   activity: Array<[Place, string]>;
   filler: string[];
@@ -227,6 +231,14 @@ const VOICES: Record<ResidentId, Voice> = {
       k === "artist" ? `Wait, you like ${w} too? Okay. You can borrow my headphones.` : `You're into ${w.toLowerCase()} too? That's rare on this floor.`,
     item: (n) => `Is that a ${n.toLowerCase()} I saw in your room? Tasteful. Annoyingly.`,
     outfit: (n) => `${n}, huh. It works on you. I'm as surprised as you are.`,
+    door: {
+      stickers: "New door stickers. The cat one's very you. Or whichever one. They're all very you.",
+      neon: "A neon nameplate. Bold. I can see it from my bed. I'm not complaining.",
+      plate: "You changed your nameplate. Feels official now.",
+      frame: "Your door frame's a new colour. The hall looks less like a hospital.",
+      board: "I read your whiteboard every time I walk by. Don't make it weird.",
+      mat: "New welcome mat. I wiped my feet out of respect.",
+    },
     activity: [
       ["kitchen", "Pour-over takes four minutes. It's the only four minutes I'm patient."],
       ["kitchen", "There's oat milk in the fridge. It's labeled. It's mine. You can have some."],
@@ -258,6 +270,14 @@ const VOICES: Record<ResidentId, Voice> = {
       k === "artist" ? `WAIT. You like ${w}?? Okay, you're coming to the next warehouse show.` : `${w}?! Finally someone on this floor gets it.`,
     item: (n) => `Yo, is that a ${n.toLowerCase()} in your room? That's a power move.`,
     outfit: (n) => `${n}?! Okay, fit check passed. Ten out of ten.`,
+    door: {
+      stickers: "Yo, new stickers on your door! Very curated. Very you.",
+      neon: "Neon nameplate?? Okay, DJ.",
+      plate: "New nameplate! Your door's got a whole brand now.",
+      frame: "Door frame glow-up. The hallway's catching up to you.",
+      board: "Saw your whiteboard message. Big main-character energy.",
+      mat: "That welcome mat?? I literally laughed out loud.",
+    },
     activity: [
       ["kitchen", "Protein shake number one. There will be a number two."],
       ["kitchen", "Banana, oats, peanut butter. It's basically a meal and a lifestyle."],
@@ -302,6 +322,7 @@ export const pickLine = (id: ResidentId, ctx: TalkContext, seenToday: readonly s
   const v = VOICES[id];
   const seen = new Set(seenToday);
   const aboutYou: Line[] = [];
+  if (ctx.doorNews) aboutYou.push({ id: `you-door`, text: v.door[ctx.doorNews] });
   if (ctx.dailyAnswer) aboutYou.push({ id: "you-daily", text: v.daily(ctx.dailyAnswer, ctx.dailyAnswer === ctx.theirDaily) });
   if (ctx.commonArtist) aboutYou.push({ id: "you-common", text: v.common(ctx.commonArtist, "artist") });
   else if (ctx.commonInterest) aboutYou.push({ id: "you-common", text: v.common(ctx.commonInterest, "interest") });
