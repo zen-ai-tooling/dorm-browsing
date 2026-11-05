@@ -1313,9 +1313,12 @@ export class DormScene extends Phaser.Scene {
       ease: "Stepped",
       easeParams: [3],
     });
+    // notes belong to the room: clipped to its rect (face included) so they never
+    // drift over the hall face onto the nameplates
+    const roomClip = { key: room.id, rect: this.zoneClips.get(room.id)! };
     const notes = [
-      ...this.spawnSoundCue(dx, dy - 10, mood.glow),
-      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow),
+      ...this.spawnSoundCue(dx, t(rect.y + rect.h) - 24, mood.glow, roomClip),
+      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow, roomClip),
     ];
 
     if (editable) {
@@ -2680,6 +2683,7 @@ export class DormScene extends Phaser.Scene {
     }
     this.refreshDoors();
     this.refreshDaily();
+    this.updateAmbient();
   }
 
   private goToBlock(rt: ResidentRT) {
@@ -3213,6 +3217,7 @@ export class DormScene extends Phaser.Scene {
     if (inside !== this.insideMyRoom) {
       this.insideMyRoom = inside;
       this.onInsideRoom(inside);
+      this.updateAmbient();
     }
   }
 
