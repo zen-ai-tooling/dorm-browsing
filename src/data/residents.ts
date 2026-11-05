@@ -73,7 +73,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       accessory: "earrings",
     },
     anchors: {
-      room: { x: 30, y: 13, facing: "left" },
+      room: { x: 32, y: 13, facing: "left" },
       bed: { x: 37, y: 14, facing: "down" },
       kitchen: { x: 51, y: 25, facing: "up" },
       study: { x: 29, y: 26, facing: "up" },
