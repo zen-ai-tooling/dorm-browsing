@@ -571,7 +571,10 @@ export const ShopPanel = ({
   onOpenChange,
   thumbnails = {},
   onPlaceNow,
+  focusItemId = null,
 }: {
+  /** open straight onto this item's detail (from a "Sold at Floor 3 Supply" hint) */
+  focusItemId?: string | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** tinted per-item thumbnails keyed by item id */
@@ -607,6 +610,14 @@ export const ShopPanel = ({
     setLine(pickLine("open"));
     setJustBought(null);
   }, [open]);
+
+  useEffect(() => {
+    const item = open && focusItemId ? ITEM_CATALOG[focusItemId] : undefined;
+    if (!item) return;
+    setTab(item.category);
+    setSelectedId(item.id);
+    setQuery("");
+  }, [open, focusItemId]);
 
   const say = (kind: LineKind) => setLine(pickLine(kind));
 
