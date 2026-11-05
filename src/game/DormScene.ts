@@ -250,6 +250,8 @@ interface ResidentRT {
   walkTime: number;
   baseY: number;
   nextEmote: number;
+  /** cooldown for the personal-space shuffle */
+  nextShuffle: number;
   emote: Phaser.GameObjects.Image | null;
 }
 
@@ -2605,6 +2607,7 @@ export class DormScene extends Phaser.Scene {
         walkTime: 0,
         baseY: 0,
         nextEmote: this.time.now + 4000 + (id === "sam" ? 0 : 9000),
+        nextShuffle: 0,
         emote: null,
       };
       this.residents.set(id, rt);
@@ -2742,6 +2745,55 @@ export class DormScene extends Phaser.Scene {
       } else if (rt.mode === "idle") {
         // small 2-frame bob
         s.y = rt.baseY + (Math.floor(time / 650) % 2 === 0 ? 0 : -1);
+        // personal space: when you crowd an idle resident, they turn to face you
+        // and shuffle one free tile aside (a short 2-step walk)
+        const d = Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y);
+        if (d < 20 && time >= rt.nextShuffle && !this.editMode && !this.cinematic) {
+          rt.nextShuffle = time + 4000;
+          rt.facing =
+            Math.abs(this.player.x - s.x) > Math.abs(this.player.y - s.y)
+              ? this.player.x > s.x
+                ? "right"
+                : "left"
+              : this.player.y > s.y
+                ? "down"
+                : "up";
+          s.setTexture(`${rt.prefix}-${rt.facing}-0`);
+          const tx = Math.floor(s.x / TILE);
+          const ty = Math.floor(s.y / TILE);
+          const options: Array<[number, number]> = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
+          // prefer the free tile that steps away from the player
+          options.sort(
+            (a, b) =>
+              Math.hypot(tx + b[0] + 0.5 - this.player.x / TILE, ty + b[1] + 0.5 - this.player.y / TILE) -
+              Math.hypot(tx + a[0] + 0.5 - this.player.x / TILE, ty + a[1] + 0.5 - this.player.y / TILE),
+          );
+          for (const [ox, oy] of options) {
+            const nx = tx + ox;
+            const ny = ty + oy;
+            if (this.grid[ny]?.[nx] !== FLOOR) continue;
+            const occupied = [...this.residents.values()].some(
+              (o) =>
+                o !== rt &&
+                o.sprite.visible &&
+                Math.floor(o.sprite.x / TILE) === nx &&
+                Math.floor(o.sprite.y / TILE) === ny,
+            );
+            if (occupied) continue;
+            rt.path = [this.tileCenter([nx, ny])];
+            rt.mode = "walk";
+            rt.onArrive = () => {
+              rt.mode = "idle";
+              rt.baseY = s.y;
+            };
+            break;
+          }
+        }
       }
       rt.ring.setPosition(s.x, s.y + 6);
       if (rt.emote) rt.emote.setPosition(s.x + 10, s.y - 44);
