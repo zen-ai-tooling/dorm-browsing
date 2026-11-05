@@ -1103,6 +1103,133 @@ export const buildTextures = (scene: Phaser.Scene) => {
     cushion(4, 18, 0xe6e0d6);
   });
 
+  /* ------------- iteration 28: recolor accent overlays ------------- */
+  // greyscale, drawn as a second tinted sprite over the baked base; only the recolorable part
+
+  // bed bedding: same blanket rect + folds as "bed", greyscale
+  const bedding = (key: string, w: number, h: number, x: number, y: number, bw: number, bh: number) =>
+    make(scene, key, w, h, (g) => {
+      r(g, x, y, bw, bh, 0xc9c3ba);
+      r(g, x, y + bh - 3, bw, 3, 0x8f8981);
+      r(g, x, y, bw, 2, 0xe6e0d6);
+      line(g, x, y, bw, bh);
+      for (const fy of [6, 12, 17]) if (fy < bh - 4) r(g, x + 1, y + fy, bw - 2, 1, 0x8f8981);
+      dither(g, x + 1, y + bh - 5, bw - 2, 2, 0x8f8981);
+    });
+  bedding("bed-accent", 48, 36, 21, 6, 24, 23);
+
+  // canopy bed: fabric canopy across the top rail + the blanket band
+  make(scene, "canopybed-accent", 52, 44, (g) => {
+    r(g, 2, 2, 48, 3, 0xd8d2c9);
+    line(g, 2, 2, 48, 3);
+    for (let i = 0; i < 8; i++) r(g, 4 + i * 6, 5, 4, 2, i % 2 ? 0xb5afa6 : 0xc9c3ba); // scalloped valance
+    r(g, 9, 16, 34, 7, 0xc9c3ba);
+    r(g, 9, 21, 34, 2, 0x8f8981);
+    line(g, 9, 16, 34, 7);
+    r(g, 12, 17, 12, 4, 0xece6dc); // pillow sits on top of the bedding
+    line(g, 12, 17, 12, 4);
+  });
+
+  // lava lamp glass (the "shade"): base colour + lighter blobs
+  make(scene, "lavalamp-accent", 16, 34, (g) => {
+    r(g, 5, 6, 6, 21, 0xb5afa6);
+    r(g, 5, 6, 2, 21, 0xd8d2c9);
+    line(g, 5, 6, 6, 21);
+    for (const [by, bh] of [[10, 3], [16, 2], [21, 3]] as const) r(g, 6, by, 4, bh, 0xf2ede4);
+  });
+
+  // papasan cushion
+  make(scene, "papasan-accent", 36, 28, (g) => {
+    const cush: Array<[number, number]> = [[11, 14], [8, 20], [7, 22], [7, 22], [8, 20], [10, 16]];
+    cush.forEach(([x, w], i) => r(g, x, 6 + i, w, 1, i === 0 ? 0xa39d94 : i > 3 ? 0x8f8981 : 0xc4beb5));
+    r(g, 12, 7, 5, 1, 0xe6e0d6);
+  });
+
+  // hammock fabric bowl
+  make(scene, "hammock-accent", 34, 40, (g) => {
+    r(g, 5, 11, 24, 15, 0xd2ccc3);
+    r(g, 5, 22, 24, 4, 0xa39d94);
+    line(g, 5, 11, 24, 15);
+    dither(g, 7, 13, 20, 10, 0xbcb6ad);
+    r(g, 9, 14, 8, 5, 0xf2ede4);
+    line(g, 9, 14, 8, 5);
+  });
+
+  /* ------------- iteration 28: welcome mats, 2×1 tiles (32x16 art px) ------------- */
+  const matBase = (g: G, c: number, edge: number) => {
+    r(g, 0, 1, 32, 14, c);
+    line(g, 0, 1, 32, 14, edge);
+    for (let i = 1; i < 31; i += 2) {
+      r(g, i, 0, 1, 1, edge);
+      r(g, i, 15, 1, 1, edge);
+    }
+  };
+  make(scene, "mat-plain", 32, 16, (g) => {
+    matBase(g, 0xa9a093, 0x4a3b36);
+    r(g, 3, 4, 26, 8, 0xbfb6a6);
+    dither(g, 3, 4, 26, 8, 0xa9a093);
+  });
+  // tiny 3x5 pixel font for mat lettering
+  const GLYPH: Record<string, string[]> = {
+    H: ["X.X", "X.X", "XXX", "X.X", "X.X"],
+    E: ["XXX", "X..", "XX.", "X..", "XXX"],
+    L: ["X..", "X..", "X..", "X..", "XXX"],
+    O: ["XXX", "X.X", "X.X", "X.X", "XXX"],
+    G: ["XXX", "X..", "X.X", "X.X", "XXX"],
+    A: ["XXX", "X.X", "XXX", "X.X", "X.X"],
+    W: ["X.X", "X.X", "X.X", "XXX", "X.X"],
+    Y: ["X.X", "X.X", ".X.", ".X.", ".X."],
+    " ": ["...", "...", "...", "...", "..."],
+  };
+  const word = (g: G, text: string, x: number, y: number, c: number) => {
+    let cx = x;
+    for (const ch of text) {
+      const gl = GLYPH[ch] ?? GLYPH[" "]!;
+      gl.forEach((row, yy) => [...row].forEach((v, xx) => v === "X" && r(g, cx + xx, y + yy, 1, 1, c)));
+      cx += ch === " " ? 2 : 4;
+    }
+  };
+  make(scene, "mat-hello", 32, 16, (g) => {
+    matBase(g, 0xc9a26a, 0x5a3f2a);
+    word(g, "HELLO", 6, 5, 0x3a2a20);
+  });
+  make(scene, "mat-goaway", 32, 16, (g) => {
+    matBase(g, 0x8fae86, 0x3d5236);
+    word(g, "GO AWAY", 3, 3, 0x26331f);
+    r(g, 13, 10, 6, 1, 0x26331f); // "(nicely)" smile
+    r(g, 12, 9, 1, 1, 0x26331f);
+    r(g, 19, 9, 1, 1, 0x26331f);
+  });
+  make(scene, "mat-vinyl", 32, 16, (g) => {
+    matBase(g, 0xd8c8ad, 0x4a3b36);
+    r(g, 10, 2, 12, 12, 0x241c26);
+    r(g, 8, 4, 16, 8, 0x241c26);
+    r(g, 9, 3, 14, 10, 0x241c26);
+    r(g, 11, 4, 2, 1, 0x5a5060);
+    r(g, 14, 6, 4, 4, 0xd88a9a);
+    r(g, 15, 7, 2, 2, 0x241c26);
+  });
+  make(scene, "mat-cat", 32, 16, (g) => {
+    matBase(g, 0xa58cc8, 0x4a3560);
+    const C = 0x2f2438;
+    r(g, 11, 5, 10, 7, C); // head
+    r(g, 11, 3, 2, 2, C);
+    r(g, 19, 3, 2, 2, C); // ears
+    r(g, 13, 7, 2, 2, 0xf2d79a);
+    r(g, 17, 7, 2, 2, 0xf2d79a); // eyes
+    r(g, 15, 10, 2, 1, 0xd88a9a);
+    r(g, 22, 9, 5, 1, C);
+    r(g, 26, 6, 1, 3, C); // tail
+  });
+  make(scene, "mat-pizza", 32, 16, (g) => {
+    matBase(g, 0x4f9a9a, 0x24494a);
+    r(g, 9, 3, 14, 2, 0xc98a4a); // crust
+    for (let i = 0; i < 8; i++) r(g, 10 + i, 5 + i, Math.max(1, 12 - i * 2 + 1), 1, 0xf2cf5c);
+    r(g, 12, 6, 2, 2, 0xc96f4a);
+    r(g, 17, 6, 2, 2, 0xc96f4a);
+    r(g, 15, 9, 2, 2, 0xc96f4a);
+  });
+
   // hamster + wheel 26x24
   make(scene, "hamster", 26, 24, (g) => {
     foot(g, 13, 22, 18);
