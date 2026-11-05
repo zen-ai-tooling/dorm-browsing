@@ -3526,14 +3526,13 @@ export class DormScene extends Phaser.Scene {
     const h = t(r.h + 2);
     const visH = Math.max(120, cam.height - bottomInsetPx - 12);
     const zoom = Math.min(cam.width / w, visH / h) * 0.96;
-    cam.stopFollow();
-    cam.removeBounds();
-    cam.setZoom(zoom);
     // shift the center down so the room sits in the visible band above the tray
-    cam.centerOn(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom));
+    this.glideCamera(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom), zoom, 400);
   }
 
   restoreCamera() {
+    this.camTween?.stop();
+    this.camTween = null;
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GRID_W * TILE, GRID_H * TILE);
     cam.setZoom(this.baseZoom());
