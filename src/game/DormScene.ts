@@ -2178,14 +2178,24 @@ export class DormScene extends Phaser.Scene {
         }
         prev = { x: sx, y: by };
         this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
-        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.22 });
+        // tiny per-bulb cut-out, no pool — one long faint strip along the wire instead
+        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 8, twinkle: i * 233, pool: false });
       }
+      this.light({
+        x: lx(L.w / 2),
+        y: ly(0.9),
+        color: 0xffe3a6,
+        radius: 16,
+        cut: false,
+        strip: { w: lx(L.w - 0.7) - lx(0.4), h: 30 },
+        strength: 0.8,
+      });
     }
 
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
-    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true });
+    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true, poolDy: 30 });
     // console on the floor in front of the TV's right side — clear of the TV and the door plant
     this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
@@ -2202,13 +2212,16 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
     this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
     this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
-    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60 });
-    // party-light flecks: slow drifting, fading spots of colored light across the rug
+    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60, poolDy: 30 });
+    // party-light flecks: slow drifting, fading spots of colored light across the rug (night only)
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
+    const fleckLayer = this.add.container(0, 0).setAlpha(0);
+    this.nightGated.push({ o: fleckLayer, a: 1 });
     for (let i = 0; i < 6; i++) {
       const f = this.add
         .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 6, 6, fleckColors[i % 4]!, 0)
         .setDepth(1.5);
+      fleckLayer.add(f);
       const drift = () => {
         const ox = lx(1.4 + Math.random() * 3.8);
         const oy = ly(4.6 + Math.random() * 1.6);
