@@ -1,4 +1,6 @@
 import * as Phaser from "phaser";
+import { DOOR_DEFAULT, doorStickerSlots, type DoorState as MyDoor, type PlateStyle } from "@/data/door";
+import { stickerFor } from "@/data/stickers";
 import { sfx, unlockAudio } from "./sounds";
 import {
   COMMUNITY_CORKBOARD,
@@ -12,6 +14,16 @@ import {
 import {
   ITEM_CATALOG,
   displayTintFor,
+  accentTextureKey,
+  accentTintFor,
+  baseTintFor,
+  floorStyleFor,
+  FLOOR_ITEM_IDS,
+  lightColorFor,
+  RECOLOR_COST,
+  RECOLOR_PALETTE,
+  recolorCost,
+  type FloorStyle,
   effectiveFootprint,
   isShopItem,
   isWallItem,
@@ -75,8 +87,25 @@ interface Zone extends Rect {
   floor: number;
   wall: number;
   kind: "hall" | "personal" | "common" | "outdoor";
-  floorStyle?: "planks" | "linoleum";
+  floorStyle?: "planks" | FloorStyle;
 }
+
+/** neutral floor materials — never the wall colour (checker + shag take the room's mood instead) */
+const FLOOR_BASE: Record<Exclude<FloorStyle, "checker" | "shag">, number> = {
+  oak: 0xc9a06c,
+  walnut: 0x7a5238,
+  linoleum: 0xdcc9a0,
+  cork: 0xc39a6b,
+  concrete: 0xa9aba8,
+};
+/** neighbors' floors (Iteration 28): reinforce their rooms' identities */
+const NEIGHBOR_FLOOR: Record<string, FloorStyle> = { "room-2": "cork", "room-3": "concrete" };
+const personalFloorColor = (style: FloorStyle, mood: (typeof MOODS)[MoodKey]) =>
+  style === "checker"
+    ? mix(mood.wallpaper, 0xb59774, 0.18)
+    : style === "shag"
+      ? mix(mood.posterAccent, 0xd8cfc2, 0.45)
+      : FLOOR_BASE[style];
 
 const mix = (a: number, b: number, t: number) =>
   Phaser.Display.Color.ObjectToColor(
@@ -306,6 +335,8 @@ export class DormScene extends Phaser.Scene {
     gx: number;
     gy: number;
     rotation: Rotation;
+    tint?: number;
+    accent: Phaser.GameObjects.Sprite | null;
   }> = [];
   private selectedIdx = -1;
   private selectionUi: Phaser.GameObjects.Container | null = null;
@@ -358,6 +389,18 @@ export class DormScene extends Phaser.Scene {
   private getMyMood: () => MoodKey = () => ROOMS[0]!.mood;
   private getPlayerName: () => string = () => "";
   private builtMood: MoodKey = ROOMS[0]!.mood;
+  private builtFloor: FloorStyle = "checker";
+  private getMyFloorId: () => string = () => "floor_checker";
+  private getDoor: () => MyDoor = () => DOOR_DEFAULT;
+  private onRecolor: (index: number, tint: number | null) => boolean = () => false;
+  private canAffordCb: (price: number) => boolean = () => true;
+  /** recolor overlays riding on their base sprite (position, angle, depth, bob) */
+  private accentPairs: Array<{ base: Phaser.GameObjects.Sprite; overlay: Phaser.GameObjects.Sprite }> = [];
+  private myDoorObjs: Phaser.GameObjects.GameObject[] = [];
+  private myDoorLight: ReturnType<Lighting["add"]> | null = null;
+  private myBoardText: Phaser.GameObjects.Text | null = null;
+  private floorSweep: Phaser.Time.TimerEvent | null = null;
+  private camTween: Phaser.Tweens.Tween | null = null;
   private myFloorGfx: Phaser.GameObjects.Graphics | null = null;
   private myRug: Phaser.GameObjects.Image | null = null;
   private myGlow: Phaser.GameObjects.Image | null = null;
@@ -406,7 +449,15 @@ export class DormScene extends Phaser.Scene {
     onSoldHint?: (h: { itemId: string; x: number; y: number } | null) => void;
     getVisitLine?: (id: ResidentId) => string | null;
     onVisitLine?: (id: ResidentId, line: string) => void;
+    getMyFloorId?: () => string;
+    getDoor?: () => MyDoor;
+    onRecolor?: (index: number, tint: number | null) => boolean;
+    canAfford?: (price: number) => boolean;
   }) {
+    if (data?.getMyFloorId) this.getMyFloorId = data.getMyFloorId;
+    if (data?.getDoor) this.getDoor = data.getDoor;
+    if (data?.onRecolor) this.onRecolor = data.onRecolor;
+    if (data?.canAfford) this.canAffordCb = data.canAfford;
     if (data?.getHour) this.getHour = data.getHour;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
     if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
@@ -471,15 +522,18 @@ export class DormScene extends Phaser.Scene {
 
   private buildZones(): Zone[] {
     this.builtMood = this.getMyMood();
+    this.builtFloor = floorStyleFor(this.getMyFloorId());
     const personal: Zone[] = ROOMS.map((room, i) => {
       const mood = MOODS[i === 0 ? this.builtMood : room.mood];
       const r = PERSONAL_RECTS[i]!;
       const accent = Phaser.Display.Color.HexStringToColor(room.accentColor).color;
+      const style: FloorStyle = i === 0 ? this.builtFloor : NEIGHBOR_FLOOR[room.id] ?? "checker";
       return {
         ...r,
         id: room.id,
         label: room.name,
-        floor: mix(mood.wallpaper, 0xb59774, 0.18),
+        floor: personalFloorColor(style, mood),
+        floorStyle: style,
         // personal rooms get accent-tinted wall trim
         wall: mix(accent, 0x7a6250, 0.22),
         kind: "personal" as const,
@@ -523,6 +577,41 @@ export class DormScene extends Phaser.Scene {
     }
   }
 
+  /** wood planks: staggered joints + seeded per-tile grain variation (common rooms, oak, walnut) */
+  private paintPlanks(
+    px: (x: number, y: number, w: number, h: number, c: number) => void,
+    floor: number,
+    tx: number,
+    ty: number,
+    ox: number,
+    oy: number,
+    U: number,
+  ) {
+    const dark = mix(floor, 0x3d3128, 0.22);
+    const darker = mix(floor, 0x3d3128, 0.34);
+    const light = mix(floor, 0xf6ead6, 0.3);
+    const z = { floor };
+    const stagger = ty % 2 === 0 ? 0 : U / 2;
+    const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
+    const worn = seed % 15 === 0;
+    if (ty % 2 === 0) px(ox, oy, U, U, mix(z.floor, 0xf6ead6, 0.12));
+    if (worn) {
+      // scattered worn plank: off-value tile + a small scuff scratch
+      px(ox, oy, U, U, mix(z.floor, seed % 2 === 0 ? 0x3d3128 : 0xf6ead6, 0.16));
+      const sx = 3 + (seed % 6);
+      const sy = 6 + ((seed >> 3) % 5);
+      px(ox + sx, oy + sy, 4, 1, darker);
+      px(ox + sx + 2, oy + sy + 1, 3, 1, darker);
+    }
+    px(ox, oy, U, 1, darker); // plank seam
+    px(ox, oy + 1, U, 1, light);
+    const skip = seed % 4;
+    const gj = (seed >> 5) % 3; // grain jitter
+    if (skip !== 0) px(ox + 2, oy + 4 + gj + (tx % 2) * 2, U - 6, 1, dark);
+    if (skip !== 1) px(ox + 3 + gj, oy + 11 - (ty % 2) * 2, U - 8, 1, dark);
+    px(ox + ((stagger + 4) % U), oy + 2, 1, U - 2, darker); // joint
+  }
+
   /** per-tile pixel texture: plank grain, woven tile, grass tufts — hard edges only */
   private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
     const PX = 2; // art-pixel size, matches the sprite tileset
@@ -545,7 +634,47 @@ export class DormScene extends Phaser.Scene {
         const oy = ty * U;
         const alt = (tx + ty) % 2 === 0;
 
-        if (z.kind === "personal") {
+        const seedT = Math.abs((tx * 73856093) ^ (ty * 19349663));
+        const pstyle = z.kind === "personal" ? z.floorStyle ?? "checker" : null;
+        if (pstyle === "cork") {
+          // warm tan, dithered speckle, faint 2-tile seams
+          for (let i = 0; i < 14; i++) {
+            const sx = (seedT >> (i % 13)) % U;
+            const sy = ((seedT >> ((i * 3) % 11)) * (i + 1)) % U;
+            px(ox + sx, oy + sy, 1, 1, i % 3 === 0 ? light : i % 3 === 1 ? dark : darker);
+          }
+          if (tx % 2 === 0) px(ox, oy, 1, U, mix(z.floor, 0x3d3128, 0.12));
+          if (ty % 2 === 0) px(ox, oy, U, 1, mix(z.floor, 0x3d3128, 0.12));
+        } else if (pstyle === "shag") {
+          // greyscale-ish tufts: short 1×2 strands on a staggered grid, light tips
+          for (let yy = 1; yy < U; yy += 3)
+            for (let xx = (yy % 2) + 1; xx < U; xx += 3) {
+              const jig = (seedT >> ((xx + yy) % 9)) & 1;
+              px(ox + xx, oy + yy + jig, 1, 2, dark);
+              px(ox + xx, oy + yy + jig, 1, 1, light);
+            }
+        } else if (pstyle === "concrete") {
+          // cool grey slab: faint aggregate dots, a seam every 3 tiles
+          for (let i = 0; i < 6; i++) {
+            const sx = ((seedT >> (i * 2)) * (i + 7)) % U;
+            const sy = ((seedT >> (i + 3)) * (i + 2)) % U;
+            px(ox + sx, oy + sy, 1, 1, i % 2 ? mix(z.floor, 0xffffff, 0.25) : mix(z.floor, 0x2a2c30, 0.18));
+          }
+          if (tx % 3 === 0) px(ox, oy, 1, U, mix(z.floor, 0x2a2c30, 0.14));
+          if (ty % 3 === 0) px(ox, oy, U, 1, mix(z.floor, 0x2a2c30, 0.14));
+        } else if (pstyle === "oak" || pstyle === "walnut") {
+          this.paintPlanks(px, z.floor, tx, ty, ox, oy, U);
+        } else if (pstyle === "linoleum" || (z.kind === "common" && z.floorStyle === "linoleum")) {
+          // two-tone 16px checker (8 art px) with 1px grout — the kitchenette pattern
+          const half = U / 2;
+          for (let cy = 0; cy < 2; cy++)
+            for (let cx = 0; cx < 2; cx++) {
+              const c = (cx + cy) % 2 === 0 ? z.floor : mix(z.floor, 0x3d3128, 0.12);
+              px(ox + cx * half, oy + cy * half, half, half, c);
+              px(ox + cx * half, oy + cy * half, half, 1, darker);
+              px(ox + cx * half, oy + cy * half, 1, half, darker);
+            }
+        } else if (z.kind === "personal") {
           // woven square tile: 1px grout + dithered weave, alternating phase
           if (alt) px(ox, oy, U, U, mix(z.floor, 0x3d3128, 0.1));
           for (let yy = 2; yy < U - 1; yy += 2)
@@ -587,26 +716,7 @@ export class DormScene extends Phaser.Scene {
               px(ox + cx * half, oy + cy * half, 1, half, darker);
             }
         } else {
-          // wood planks: staggered joints + seeded per-tile grain variation
-          const stagger = ty % 2 === 0 ? 0 : U / 2;
-          const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
-          const worn = seed % 15 === 0;
-          if (ty % 2 === 0) px(ox, oy, U, U, mix(z.floor, 0xf6ead6, 0.12));
-          if (worn) {
-            // scattered worn plank: off-value tile + a small scuff scratch
-            px(ox, oy, U, U, mix(z.floor, seed % 2 === 0 ? 0x3d3128 : 0xf6ead6, 0.16));
-            const sx = 3 + (seed % 6);
-            const sy = 6 + ((seed >> 3) % 5);
-            px(ox + sx, oy + sy, 4, 1, darker);
-            px(ox + sx + 2, oy + sy + 1, 3, 1, darker);
-          }
-          px(ox, oy, U, 1, darker); // plank seam
-          px(ox, oy + 1, U, 1, light);
-          const skip = seed % 4;
-          const gj = (seed >> 5) % 3; // grain jitter
-          if (skip !== 0) px(ox + 2, oy + 4 + gj + (tx % 2) * 2, U - 6, 1, dark);
-          if (skip !== 1) px(ox + 3 + gj, oy + 11 - (ty % 2) * 2, U - 8, 1, dark);
-          px(ox + ((stagger + 4) % U), oy + 2, 1, U - 2, darker); // joint
+          this.paintPlanks(px, z.floor, tx, ty, ox, oy, U);
         }
       }
     }
