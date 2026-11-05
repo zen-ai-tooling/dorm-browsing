@@ -92,6 +92,15 @@ export const sfx = {
       { freq: 1175, at: 0.13, dur: 0.12, gain: 0.28 },
     ]);
   },
+  /** bright ascending chime for finding an item (mail finds, gifts) */
+  chime() {
+    play([
+      { freq: 523, dur: 0.09, gain: 0.3, type: "triangle" },
+      { freq: 659, at: 0.08, dur: 0.09, gain: 0.3, type: "triangle" },
+      { freq: 880, at: 0.16, dur: 0.1, gain: 0.3, type: "triangle" },
+      { freq: 1319, at: 0.24, dur: 0.16, gain: 0.26, type: "triangle" },
+    ]);
+  },
   purchase() {
     play([
       { freq: 392, dur: 0.1, gain: 0.34, type: "sawtooth" },

@@ -61,7 +61,8 @@ const MOON = [
   "............",
 ];
 
-const GLYPHS: Record<Phase, PixelGlyph> = {
+/** exported so the phone dock can fold a mini phase icon into the coin chip */
+export const PHASE_GLYPHS: Record<Phase, PixelGlyph> = {
   morning: { icon: RISE, color: "#f6d48a", color2: "#e8a86b" },
   day: { icon: SUN, color: "#f6d06b", color2: "#e8a24f" },
   golden: { icon: SET, color: "#f39a5a", color2: "#c8765c" },
