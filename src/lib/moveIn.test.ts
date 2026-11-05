@@ -100,7 +100,7 @@ describe("outfits", () => {
   test("a worn outfit overrides top, bottom and accessory but keeps skin and hair", () => {
     const mine: AvatarLook = { ...DEFAULT_LOOK, skin: 4, hairStyle: "curly", accessory: "glasses" };
     const worn = effectiveLook({ ...mine, outfitItemId: "outfit_band_tee" }, ITEM_CATALOG);
-    const o = ITEM_CATALOG.outfit_band_tee!.outfit!;
+    const o = ITEM_CATALOG["outfit_band_tee"]!.outfit!;
     expect(worn.top).toEqual(o.top);
     expect(worn.bottom).toEqual(o.bottom);
     expect(worn.accessory).toBe("beanie");
