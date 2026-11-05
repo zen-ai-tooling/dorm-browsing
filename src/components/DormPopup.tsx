@@ -42,7 +42,7 @@ import {
   residentPick,
   todayKey,
 } from "@/data/prompts";
-import { ITEM_CATALOG } from "@/data/items";
+import { ITEM_CATALOG, MAIL_ITEM_IDS } from "@/data/items";
 import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { roomNameFor } from "@/data/avatar";
@@ -1385,8 +1385,12 @@ const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src
   const today = todayKey();
   const openedToday = lastPackageDate === today && lastPackage?.date === today;
   const [frame, setFrame] = useState<number | null>(null);
-  const [burst, setBurst] = useState(false);
+  /** reward visual is popping out of the box */
+  const [pop, setPop] = useState(openedToday);
+  /** text underneath appears a beat after the pop */
+  const [showText, setShowText] = useState(openedToday);
 
+  // 3 stepped box frames, then the reward pops
   useEffect(() => {
     if (frame === null || frame >= 2) return;
     const t = window.setTimeout(() => setFrame(frame + 1), 170);
@@ -1397,21 +1401,54 @@ const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src
     if (frame !== 2 || openedToday) return;
     const t = window.setTimeout(() => {
       playerActions.openPackage();
-      setBurst(true);
+      setPop(true);
     }, 170);
     return () => window.clearTimeout(t);
   }, [frame, openedToday]);
 
   const reward = openedToday ? lastPackage!.reward : null;
 
+  // the pop's sound + the delayed text, once the reward exists
+  const rewardKind = reward?.kind ?? null;
+  useEffect(() => {
+    if (!rewardKind || showText) return;
+    if (rewardKind === "item" || rewardKind === "gift") sfx.chime();
+    else sfx.coin();
+    const t = window.setTimeout(() => setShowText(true), 600);
+    return () => window.clearTimeout(t);
+  }, [rewardKind, showText]);
+
   return (
     <Shell accent="#c99a5b" title="Mail cubby" subtitle={reward ? "opened today" : "a package for you"} interactive>
       <div className="relative flex flex-col items-center gap-2">
-        {reward ? (
+        {reward && pop ? (
           <>
-            {burst ? <CoinBurst count={reward.kind === "jackpot" ? 14 : reward.coins > 0 ? 6 : 0} /> : null}
-            <RewardView reward={reward} itemThumbnails={itemThumbnails} />
-            <p className="font-body text-[11px] text-panel-muted">Next delivery tomorrow.</p>
+            <div className="relative flex flex-col items-center">
+              {/* the reward pops out of the open box at x4, with a stepped sparkle burst */}
+              <div className="relative z-10" style={{ animation: "mail-pop 450ms steps(4) both" }}>
+                <RewardVisual reward={reward} itemThumbnails={itemThumbnails} />
+              </div>
+              <SparkleBurst />
+              {reward.kind === "jackpot" ? (
+                <>
+                  <CoinBurst count={8} />
+                  <span style={{ animationDelay: "250ms" }}>
+                    <CoinBurst count={8} />
+                  </span>
+                </>
+              ) : reward.coins > 0 ? (
+                <CoinBurst count={6} />
+              ) : null}
+              <div className="-mt-1">
+                <PackageBox frame={2} size={56} />
+              </div>
+            </div>
+            {showText ? (
+              <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+                <RewardView reward={reward} itemThumbnails={itemThumbnails} />
+              </div>
+            ) : null}
+            {showText ? <p className="font-body text-[11px] text-panel-muted">Next delivery tomorrow.</p> : null}
           </>
         ) : (
           <>
