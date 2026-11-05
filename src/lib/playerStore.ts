@@ -328,8 +328,13 @@ const read = (): PlayerState => {
       questsCelebrated: parsed.questsCelebrated === true,
       ...migrateMoveIn(parsed),
       ...normalizeResidentsState(parsed),
-      ...base,
-    } as PlayerState;
+      // Iteration 28 fields, filled in by normalizeCustomize just below
+      myFloorId: base.myFloorId,
+      door: base.door,
+      doorVersion: 0,
+      doorLastChange: null,
+      doorSeen: base.doorSeen,
+    };
     Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
     // placed colours must be palette colours (Original = no tint)
     next.roomLayout = next.roomLayout.map((p) => {
