@@ -1119,7 +1119,15 @@ export class DormScene extends Phaser.Scene {
       // stand on the grass just south of the path, clear of the building wall
       const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
       this.add.sprite(t(x), y, "lamppost").setDepth(y);
-      this.light({ x: t(x), y: y - 36, color: 0xffd9a0, radius: 80 });
+      // outdoor: clipped to below the building so the brick never glows
+      this.light({
+        x: t(x),
+        y: y - 36,
+        color: 0xffd9a0,
+        radius: 80,
+        poolDy: 36,
+        clip: { x: 0, y: t(34), w: GRID_W * TILE, h: GRID_H * TILE - t(34) },
+      });
     }
   }
 
@@ -2148,7 +2156,7 @@ export class DormScene extends Phaser.Scene {
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
     this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
     this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
-    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60 });
+    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60, poolDy: 52 });
     // string lights along the top face row, skipping the doorway span — small bulbs on a sagging wire
     {
       const wire = this.add.graphics().setDepth(4);
