@@ -13,6 +13,7 @@ import {
   MAIL_ITEM_IDS,
   ITEM_SETS,
   rarityFor,
+  RECOLOR_PALETTE,
   SET_BY_ID,
   SET_REWARD,
   setProgress,
@@ -39,10 +40,19 @@ const pixelated: CSSProperties = { imageRendering: "pixelated" };
 const CATEGORY_LABEL: Record<ItemDef["category"], string> = {
   furniture: "Furniture",
   companion: "Companions",
-  wallpaper: "Wallpaper",
+  wallpaper: "Walls & Floors",
   poster: "Posters",
   outfit: "Outfits",
+  floor: "Floors",
+  mat: "Door",
 };
+/** floors + mats live inside the Walls & Floors tab, so the tab bar doesn't grow */
+const tabFor = (c: ItemDef["category"]): ItemDef["category"] => (c === "floor" || c === "mat" ? "wallpaper" : c);
+const SURFACE_SECTIONS: Array<{ category: ItemDef["category"]; title: string }> = [
+  { category: "wallpaper", title: "Wallpaper" },
+  { category: "floor", title: "Floors" },
+  { category: "mat", title: "Door · welcome mats" },
+];
 
 /* ---------------- pixel glyphs ---------------- */
 
@@ -66,6 +76,8 @@ const TAB_ICON: Record<ItemDef["category"], PixelGlyph> = {
     ],
   },
   companion: STICKER_BY_ID["plant_care"]!,
+  floor: STICKER_BY_ID["board_games"]!,
+  mat: STICKER_BY_ID["board_games"]!,
   wallpaper: {
     color: "#e98d70",
     color2: "#f0c75e",
@@ -198,6 +210,8 @@ const INTERACTIVE_LINE: Record<NonNullable<ItemDef["interactive"]>, string> = {
 
 const footprintLine = (item: ItemDef) => {
   if (item.category === "wallpaper") return "covers your back wall";
+  if (item.category === "floor") return "covers your whole floor";
+  if (item.category === "mat") return "2×1 · outside your door";
   if (item.category === "outfit") return "wearable · shown on your avatar";
   const f = effectiveFootprint(item);
   return `${f.w}×${f.h} · ${item.mount === "wall" ? "hangs on wall" : "floor"}`;
@@ -389,7 +403,9 @@ const Detail = ({
   onPlaceNow,
   justBought,
   hop,
+  getThumb,
 }: {
+  getThumb?: ((itemId: string, tint?: number) => ItemThumb | null) | undefined;
   item: ItemDef;
   thumb?: ItemThumb | undefined;
   onClose: () => void;
@@ -398,7 +414,13 @@ const Detail = ({
   justBought: boolean;
   hop: boolean;
 }) => {
-  const { coins, ownedItemIds, roomLayout, myWallpaperId, myMood, avatar } = usePlayerState();
+  const { coins, ownedItemIds, roomLayout, myWallpaperId, myMood, avatar, myFloorId, door } = usePlayerState();
+  // recolor preview only — buying is unchanged
+  const [previewTint, setPreviewTint] = useState<number | null>(null);
+  useEffect(() => setPreviewTint(null), [item.id]);
+  const previewThumb = previewTint !== null ? getThumb?.(item.id, previewTint) : null;
+  const isFloor = item.category === "floor";
+  const isMat = item.category === "mat";
   const owned = ownedItemIds.includes(item.id);
   const affordable = canAfford(item.price);
   const tier = rarityFor(item.price);
@@ -412,7 +434,7 @@ const Detail = ({
   const prog = item.set ? setProgress(item.set, ownedItemIds) : null;
 
   // preview swatch: your current wall for wall items, your floor tile for floor items
-  const swatch: CSSProperties = isPaper
+  const swatch: CSSProperties = isPaper || isFloor
     ? thumb
       ? { backgroundImage: `url(${thumb.src})`, backgroundSize: `${thumb.w * 2}px ${thumb.h * 2}px`, ...pixelated }
       : { backgroundColor: hex(item.wallColor ?? mood.wall) }
@@ -444,6 +466,35 @@ const Detail = ({
         Need {item.price - coins} more
       </button>
     );
+  } else if (isFloor) {
+    action =
+      myFloorId === item.id ? (
+        <button type="button" disabled className={`${btn} bg-panel text-panel-muted`}>
+          On your floor
+        </button>
+      ) : (
+        <button type="button" className={`${btn} bg-ink text-panel hover:opacity-90`} onClick={() => playerActions.setFloor(item.id)}>
+          Lay it down
+        </button>
+      );
+  } else if (isMat) {
+    action =
+      door.matId === item.id ? (
+        <button type="button" disabled className={`${btn} bg-panel text-panel-muted`}>
+          At your door
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`${btn} bg-ink text-panel hover:opacity-90`}
+          onClick={() => {
+            sfx.placeItem();
+            playerActions.setDoor({ matId: item.id });
+          }}
+        >
+          Put it out
+        </button>
+      );
   } else if (isPaper) {
     action =
       myWallpaperId === item.id ? (
@@ -518,7 +569,9 @@ const Detail = ({
         className="relative flex h-[188px] items-end justify-center overflow-hidden border-[3px] border-ink pb-4"
         style={swatch}
       >
-        {isPaper ? null : <Sprite thumb={thumb} item={item} max={{ w: 248, h: 160 }} big hop={hop} />}
+        {isPaper || isFloor ? null : (
+          <Sprite thumb={previewThumb ?? thumb} item={item} max={{ w: 248, h: 160 }} big hop={hop} />
+        )}
         <span className="absolute right-2 top-2">
           <PriceTag item={item} owned={owned} affordable={affordable} />
         </span>
@@ -527,7 +580,33 @@ const Detail = ({
       <ul className="space-y-0.5 font-body text-xs text-panel-muted">
         <li>{footprintLine(item)}</li>
         {item.interactive ? <li>{INTERACTIVE_LINE[item.interactive]}</li> : null}
+        {item.recolor ? <li>Recolorable · {RECOLOR_PALETTE.length} colors</li> : null}
       </ul>
+      {item.recolor ? (
+        <div className="flex flex-wrap items-center gap-1.5" aria-label="Preview colors">
+          <button
+            type="button"
+            onClick={() => setPreviewTint(null)}
+            className={`h-5 rounded-[2px] border-2 border-ink px-1 font-display text-[9px] font-bold ${
+              previewTint === null ? "bg-ink text-panel" : "bg-panel text-panel-foreground"
+            }`}
+          >
+            Original
+          </button>
+          {RECOLOR_PALETTE.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              title={p.name}
+              aria-label={`Preview ${p.name}`}
+              aria-pressed={previewTint === p.color}
+              onClick={() => setPreviewTint(p.color)}
+              className={`size-5 border-2 border-ink ${previewTint === p.color ? "outline outline-2 outline-offset-1 outline-ink" : ""}`}
+              style={{ backgroundColor: hex(p.color) }}
+            />
+          ))}
+        </div>
+      ) : null}
       {prog && item.set ? (
         <div>
           <div className="flex items-baseline justify-between font-display text-[11px] font-bold">
@@ -572,7 +651,10 @@ export const ShopPanel = ({
   thumbnails = {},
   onPlaceNow,
   focusItemId = null,
+  getThumb,
 }: {
+  /** a single item thumbnail with a preview tint (recolor swatches) */
+  getThumb?: (itemId: string, tint?: number) => ItemThumb | null;
   /** open straight onto this item's detail (from a "Sold at Floor 3 Supply" hint) */
   focusItemId?: string | null;
   open: boolean;
@@ -614,7 +696,7 @@ export const ShopPanel = ({
   useEffect(() => {
     const item = open && focusItemId ? ITEM_CATALOG[focusItemId] : undefined;
     if (!item) return;
-    setTab(item.category);
+    setTab(tabFor(item.category));
     setSelectedId(item.id);
     setQuery("");
   }, [open, focusItemId]);
@@ -664,8 +746,8 @@ export const ShopPanel = ({
           ? b.price - a.price
           : Number(featured.has(b.id)) - Number(featured.has(a.id)),
     );
-  const categories = (Object.keys(CATEGORY_LABEL) as ItemDef["category"][]).filter((c) =>
-    all.some((i) => i.category === c),
+  const categories = (Object.keys(CATEGORY_LABEL) as ItemDef["category"][]).filter(
+    (c) => tabFor(c) === c && all.some((i) => i.category === c),
   );
 
   const selected = selectedId ? ITEM_CATALOG[selectedId] : undefined;
@@ -828,10 +910,27 @@ export const ShopPanel = ({
                   </button>
                 </div>
                 {categories.map((c) => {
-                  const items = sorted(all.filter((i) => i.category === c && matches(i)));
+                  const items = sorted(all.filter((i) => tabFor(i.category) === c && matches(i)));
                   return (
                     <TabsContent key={c} value={c} className="mt-0">
                       {items.length === 0 ? (
+                        <p className="py-8 text-center font-body text-sm text-panel-muted">
+                          Nothing matches "{query}".
+                        </p>
+                      ) : c === "wallpaper" && !bySet ? (
+                        <div className="space-y-5">
+                          {SURFACE_SECTIONS.map((sec) => {
+                            const inSec = items.filter((i) => i.category === sec.category);
+                            if (!inSec.length) return null;
+                            return (
+                              <section key={sec.category}>
+                                <h4 className="mb-1 font-display text-xs font-bold text-panel-foreground">{sec.title}</h4>
+                                <Shelf items={inSec} render={renderShelfItem} />
+                              </section>
+                            );
+                          })}
+                        </div>
+                      ) : items.length === 0 ? (
                         <p className="py-8 text-center font-body text-sm text-panel-muted">
                           Nothing matches "{query}".
                         </p>
@@ -879,6 +978,7 @@ export const ShopPanel = ({
                 <Detail
                   item={selected}
                   thumb={thumbnails[selected.id]}
+                  getThumb={getThumb}
                   justBought={justBought === selected.id}
                   hop={hopId === selected.id}
                   onClose={() => setSelectedId(null)}
