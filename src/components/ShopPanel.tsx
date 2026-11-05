@@ -790,7 +790,7 @@ export const ShopPanel = ({
                 FLOOR 3 SUPPLY
               </DialogTitle>
               <DialogDescription className="sr-only">
-                Buy furniture, companions, wallpaper, posters and outfits. Today's drop rotates daily.
+                Buy furniture, companions, walls &amp; floors, posters and outfits. Today's drop rotates daily.
               </DialogDescription>
               <div className="flex items-center gap-2 font-body text-xs font-bold text-panel-foreground">
                 <span ref={coinRef} className="flex items-center gap-1 border-2 border-ink bg-panel px-1.5 py-0.5">
