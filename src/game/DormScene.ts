@@ -46,7 +46,6 @@ import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
 import { Lighting, type ClipRect, type Light, type LightSpec } from "./lighting";
 import {
-  DARKNESS_ALPHA,
   DARKNESS_COLOR,
   PHASE_FADE_MS,
   PHASE_LOOK,
