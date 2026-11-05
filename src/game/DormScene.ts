@@ -505,6 +505,7 @@ export class DormScene extends Phaser.Scene {
     this.setupInput();
     this.setupEditorInput();
     this.applyWallpaper();
+    this.buildFloorSwatches();
     this.refreshDaily();
     this.applyAvatar();
     this.spawnResidents();
