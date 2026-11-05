@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
+import { CircleHelp, Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
 import type { PopupPayload } from "@/data/dorm";
 import { buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
@@ -30,10 +30,12 @@ import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
-import { currentHour, currentPhase, hydrateTimeOverride, useTimeVersion } from "@/lib/timeStore";
+import { currentHour, currentPhase, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
 import { roomRemark, RESIDENTS, type ResidentId } from "@/data/residents";
 import { roomInfoFor } from "@/lib/residentTalk";
-import { PhaseChip } from "./PhaseChip";
+import { PHASE_LABEL } from "@/game/timeOfDay";
+import { PhaseChip, PHASE_GLYPHS } from "./PhaseChip";
+import { PixelIcon } from "./PixelIcon";
 
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -309,7 +311,6 @@ const DormGame = () => {
       return;
     }
     titleTapsRef.current = taps;
-    setHintOpen(!showHint);
   };
 
   /** shop thumbnails: room items as tinted in your room, outfits on your own avatar */
@@ -406,35 +407,208 @@ const DormGame = () => {
       {moveIn ? null : isPhone ? (
         editing ? null : (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="game-panel pointer-events-auto flex items-center justify-between gap-1 overflow-x-auto px-1.5 py-1.5 [&>*]:shrink-0 [&_button]:px-2">
-              {hud}
+            <div className="game-panel pointer-events-auto flex items-stretch gap-1 px-1.5 py-1.5">
+              {/* coin count is the dock's only text; the phase glyph rides its corner */}
+              <div className="relative flex flex-[1.4] items-center justify-center gap-1">
+                <Coins className="size-3.5 text-panel-foreground" aria-hidden />
+                <span className="font-body text-sm font-bold text-panel-foreground">
+                  <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
+                </span>
+                {phase ? (
+                  <span className="absolute -top-2 right-0" title={PHASE_LABEL[phase]}>
+                    <PixelIcon def={PHASE_GLYPHS[phase]} size={12} />
+                  </span>
+                ) : null}
+              </div>
+              {packageReady ? (
+                <div
+                  className="relative flex flex-1 items-center justify-center"
+                  title="A package is waiting in the mail cubby"
+                >
+                  <IconChip>
+                    <Mail className="size-3.5" aria-hidden />
+                  </IconChip>
+                  {mailDot}
+                </div>
+              ) : null}
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  aria-label="Shop"
+                  onClick={openShop}
+                  className="flex w-full items-center justify-center rounded-[3px] py-0.5"
+                >
+                  <IconChip>
+                    <Store className="size-3.5" aria-hidden />
+                  </IconChip>
+                </button>
+                {shopDot}
+              </div>
+              {inMyRoom && !editing ? (
+                <button
+                  type="button"
+                  aria-label="Edit My Room"
+                  onClick={() => {
+                    sfx.uiClick();
+                    toggleEdit(true);
+                  }}
+                  className="flex flex-1 items-center justify-center rounded-[3px] py-0.5"
+                >
+                  <IconChip>
+                    <Pencil className="size-3.5" aria-hidden />
+                  </IconChip>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Edit your avatar"
+                onClick={openAvatar}
+                className="flex flex-1 items-center justify-center rounded-[3px] py-0.5"
+              >
+                <IconChip>
+                  <UserRound className="size-3.5" aria-hidden />
+                </IconChip>
+              </button>
+              <button
+                type="button"
+                aria-label={muted ? "Unmute sound" : "Mute sound"}
+                aria-pressed={muted}
+                onClick={() => playerActions.toggleMute()}
+                className="flex flex-1 items-center justify-center rounded-[3px] py-0.5"
+              >
+                <IconChip>{soundIcon}</IconChip>
+              </button>
             </div>
           </div>
         )
       ) : (
-        <div className="pointer-events-none absolute left-4 top-4 space-y-2">
-          <GamePanel accent="#7f9c86" className="pointer-events-auto px-3 py-2">
-            <button
-              type="button"
-              aria-expanded={showHint}
-              onClick={onTitleTap}
-              className="block text-left font-display text-sm font-bold tracking-wide text-panel-foreground"
-            >
-              Dorm Vibes · Floor 3
-            </button>
-            {showHint ? (
-              <>
-                <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-                  {isTouch ? "Tap anywhere to walk" : "WASD / arrows or click a tile to walk"}
-                </p>
-                <p className="font-body text-[11px] leading-relaxed text-panel-muted">
-                  {isTouch ? "Walk up to things, then tap to open" : "Wander up to things — they open on their own"}
-                </p>
-              </>
-            ) : null}
-          </GamePanel>
-          <div className="pointer-events-auto flex flex-wrap items-center gap-2">{hud}</div>
-        </div>
+        <>
+          {/* one slim top bar: logo, coins, phase, mail, streak, help — Shop / Edit / Me / sound */}
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 [&>*]:pointer-events-auto">
+              <GamePanel accent="#7f9c86" className="px-2.5 py-1.5">
+                <button
+                  type="button"
+                  onClick={onTitleTap}
+                  className="block font-display text-xs font-bold tracking-wide text-panel-foreground"
+                >
+                  Floor 3
+                </button>
+              </GamePanel>
+              <GamePanel className="flex items-center gap-2 px-2.5 py-1.5">
+                <IconChip>
+                  <Coins className="size-3.5" aria-hidden />
+                </IconChip>
+                <span className="font-body text-sm font-bold text-panel-foreground">
+                  <CoinAmount value={coins} unlimited={devMode.enabled && devMode.unlimited} />
+                </span>
+              </GamePanel>
+              <PhaseChip />
+              {packageReady ? (
+                <GamePanel
+                  className="relative flex items-center gap-1.5 px-2 py-1.5"
+                  accent="#c99a5b"
+                  title="A package is waiting in the mail cubby"
+                >
+                  <IconChip>
+                    <Mail className="size-3.5" aria-hidden />
+                  </IconChip>
+                  <span className="font-body text-xs font-bold text-panel-foreground">Mail</span>
+                  {mailDot}
+                </GamePanel>
+              ) : null}
+              {currentStreak > 0 ? (
+                <GamePanel
+                  className="flex items-center gap-2 px-2.5 py-1.5"
+                  accent="#c8765c"
+                  title={`${currentStreak}-day daily question streak`}
+                >
+                  <IconChip>
+                    <Flame className="size-3.5" aria-hidden />
+                  </IconChip>
+                  <span className="font-body text-sm font-bold tabular-nums text-panel-foreground">{currentStreak}</span>
+                </GamePanel>
+              ) : null}
+              <button
+                type="button"
+                aria-label="Controls help"
+                aria-expanded={showHint}
+                onClick={() => {
+                  sfx.uiClick();
+                  setHintOpen(!showHint);
+                }}
+                className="rounded-[3px]"
+              >
+                <IconChip>
+                  <CircleHelp className="size-3.5" aria-hidden />
+                </IconChip>
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 [&>*]:pointer-events-auto">
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                  onClick={openShop}
+                >
+                  <IconChip>
+                    <Store className="size-3.5" aria-hidden />
+                  </IconChip>
+                  Shop
+                </Button>
+                {shopDot}
+              </div>
+              {inMyRoom && !editing ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                  onClick={() => {
+                    sfx.uiClick();
+                    toggleEdit(true);
+                  }}
+                >
+                  <IconChip>
+                    <Pencil className="size-3.5" aria-hidden />
+                  </IconChip>
+                  Edit My Room
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label="Edit your avatar"
+                className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                onClick={openAvatar}
+              >
+                <IconChip>
+                  <UserRound className="size-3.5" aria-hidden />
+                </IconChip>
+                Me
+              </Button>
+              <button
+                type="button"
+                aria-label={muted ? "Unmute sound" : "Mute sound"}
+                aria-pressed={muted}
+                onClick={() => playerActions.toggleMute()}
+                className="rounded-[3px]"
+              >
+                <IconChip>{soundIcon}</IconChip>
+              </button>
+            </div>
+          </div>
+          {showHint ? (
+            <GamePanel className="absolute left-3 top-14 z-30 max-w-60 px-3 py-2">
+              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                {isTouch ? "Tap anywhere to walk" : "WASD / arrows or click a tile to walk"}
+              </p>
+              <p className="font-body text-[11px] leading-relaxed text-panel-muted">
+                {isTouch ? "Walk up to things, then tap to open" : "Wander up to things — they open on their own"}
+              </p>
+            </GamePanel>
+          ) : null}
+        </>
       )}
 
       {editing && wallpaperOpen ? (
@@ -464,12 +638,12 @@ const DormGame = () => {
         popupLayer
       )}
 
-      <WelcomeQuests hidden={editing || moveIn || !onboarded} docked={isPhone} />
+      <WelcomeQuests hidden={editing || moveIn || !onboarded} docked={isPhone} collapsed={overlayOpen} />
 
       {knockSpot && !editing && !moveIn ? (
         <div
           className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
-            isPhone ? "bottom-[calc(10.75rem+env(safe-area-inset-bottom))]" : "top-4"
+            isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"
           }`}
         >
           <button
