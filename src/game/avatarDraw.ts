@@ -276,12 +276,12 @@ export const charPixels = (look: AvatarLook, dir: Dir, step: number): Buf => {
       H(X0, hy, 10, 3);
       H(X0, hy + 3, 1, 2);
       const len = hs === "bob" ? 6 : 10;
-      H(cx + 1, hy + 3, 5, len);
+      H(cx + 2, hy + 3, 4, len);
     } else if (hs === "curly") {
       H(X0 - 1, hy - 1, 12, 4);
       H(X0 + 1, hy - 2, 2, 1);
       H(X0 + 5, hy - 2, 2, 1);
-      H(cx + 1, hy + 3, 5, 4);
+      H(cx + 2, hy + 3, 4, 4);
       curlTex(X0, hy - 1, 11, 7);
     } else {
       H(X0, hy, 10, 3);

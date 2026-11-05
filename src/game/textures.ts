@@ -1,4 +1,6 @@
 import * as Phaser from "phaser";
+import { DEFAULT_LOOK, type AvatarLook } from "@/data/avatar";
+import { CHAR_H, CHAR_W, DIRS, paintChar, type Dir } from "./avatarDraw";
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -96,10 +98,21 @@ const PLUM = 0x8b6b9c;
 const CREAM = 0xf0e4cd;
 
 /**
- * True pixel sprite: 16x21 art pixels (32x42 canvas px at P=2).
- * Blocky readable silhouette, 1px ink outline, 2-3 tone shading, ~9 colours.
+ * Player sprite for a look: 16x21 art pixels (32x42 canvas px at P=2), drawn by the
+ * pure avatar painter so the creator preview and shop thumbnails match it exactly.
  */
-const drawChar = (g: G, dir: string, step: number) => {
+export const drawChar = (g: G, dir: Dir, step: number, look: AvatarLook = DEFAULT_LOOK) =>
+  paintChar(g, look, dir, step, P);
+
+/** the 12 frames (4 dirs × 3 steps) of a look under `${prefix}-${dir}-${step}` */
+export const buildCharTextures = (scene: Phaser.Scene, prefix: string, look: AvatarLook) => {
+  for (const dir of DIRS)
+    for (const step of [0, 1, 2])
+      make(scene, `${prefix}-${dir}-${step}`, CHAR_W, CHAR_H, (g) => drawChar(g, dir, step, look));
+};
+
+/** the pre-avatar hand-drawn sprite, kept for reference (no longer used) */
+export const drawLegacyChar = (g: G, dir: string, step: number) => {
   const bob = step === 1 ? -1 : 0;
   const sw = step === 1 ? 1 : step === 2 ? -1 : 0;
   const cx = 8;
@@ -156,9 +169,21 @@ const drawChar = (g: G, dir: string, step: number) => {
 };
 
 export const buildTextures = (scene: Phaser.Scene) => {
-  for (const dir of ["down", "up", "left", "right"])
-    for (const step of [0, 1, 2])
-      make(scene, `char-${dir}-${step}`, 16, 21, (g) => drawChar(g, dir, step));
+  // `char-*` stays the default look so every existing key keeps working
+  buildCharTextures(scene, "char", DEFAULT_LOOK);
+
+  // tap-to-walk marker: a small pixel diamond, faded out by the scene
+  make(scene, "tapmark", 12, 8, (g) => {
+    r(g, 4, 0, 4, 1, INK);
+    r(g, 2, 1, 8, 1, INK);
+    r(g, 0, 2, 12, 4, INK);
+    r(g, 2, 6, 8, 1, INK);
+    r(g, 4, 7, 4, 1, INK);
+    r(g, 4, 1, 4, 1, 0xfff6e6);
+    r(g, 2, 2, 8, 4, 0xfff6e6);
+    r(g, 4, 6, 4, 1, 0xfff6e6);
+    r(g, 4, 3, 4, 2, 0xf0c75e);
+  });
 
   /* ---- hard-edged dithered halo (replaces the old blur glow) ---- */
   make(scene, "glow", 32, 32, (g) => {
