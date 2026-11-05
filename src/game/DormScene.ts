@@ -1070,15 +1070,32 @@ export class DormScene extends Phaser.Scene {
       }
     }
     for (const b of this.beams) b.g.setAlpha(0.2 * look.w[b.phase]);
-    // backdrop beyond the map edge: ground colour under the same tint + darkness
+    // decorative light patches exist only at night
+    for (const n of this.nightGated) n.o.setAlpha(n.a * look.night);
+    // backdrop beyond the map edge: ground colour under the same tint + the same
+    // multiply darkness the lighting layer applies (multiply, not lerp)
     const mulCh = (s: number) => {
       const c = (EXT_GROUND >> s) & 255;
       const tc = (look.tint >> s) & 255;
-      return Math.round(c * (1 - look.tintAlpha + (look.tintAlpha * tc) / 255));
+      const tinted = c * (1 - look.tintAlpha + (look.tintAlpha * tc) / 255);
+      const dc = (DARKNESS_COLOR >> s) & 255;
+      return Math.round(tinted * (1 - look.night + (look.night * dc) / 255));
     };
-    const tinted = (mulCh(16) << 16) | (mulCh(8) << 8) | mulCh(0);
-    const bg = lerpColor(tinted, DARKNESS_COLOR, DARKNESS_ALPHA * look.night);
+    const bg = (mulCh(16) << 16) | (mulCh(8) << 8) | mulCh(0);
     this.cameras.main.setBackgroundColor(bg);
+  }
+
+  /** rooms with someone home and awake (or common rooms 18:00–01:00) glow dimly at night */
+  private updateAmbient() {
+    const hour = this.getHour();
+    const clip = (id: string) => this.zoneClips.get(id) ?? null;
+    this.lighting.setAmbient(ROOMS[0]!.id, this.insideMyRoom ? clip(ROOMS[0]!.id) : null);
+    for (const id of RESIDENT_IDS) {
+      const roomId = RESIDENTS[id].roomId;
+      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour)) ? clip(roomId) : null);
+    }
+    const commonsLit = hour >= 18 || hour < 1;
+    for (const zid of ["lounge", "study", "kitchen"]) this.lighting.setAmbient(zid, commonsLit ? clip(zid) : null);
   }
 
   /** register a night light; follow keeps it on a moving sprite */
