@@ -358,7 +358,7 @@ const DormGame = () => {
           <IconChip>
             <Store className="size-3.5" aria-hidden />
           </IconChip>
-          Shop
+          {isPhone ? <span className="sr-only">Shop</span> : "Shop"}
         </Button>
         {hasNewFeatured ? (
           <span
@@ -380,7 +380,7 @@ const DormGame = () => {
           <IconChip>
             <Pencil className="size-3.5" aria-hidden />
           </IconChip>
-          {isPhone ? "Edit" : "Edit My Room"}
+          {isPhone ? <span className="sr-only">Edit My Room</span> : "Edit My Room"}
         </Button>
       ) : null}
       <Button
@@ -396,7 +396,7 @@ const DormGame = () => {
         <IconChip>
           <UserRound className="size-3.5" aria-hidden />
         </IconChip>
-        Me
+        {isPhone ? <span className="sr-only">Me</span> : "Me"}
       </Button>
     </>
   );
@@ -410,7 +410,7 @@ const DormGame = () => {
       ) : (
         <div
           className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center ${
-            isPhone ? "bottom-[calc(4.25rem+env(safe-area-inset-bottom))]" : "bottom-5"
+            isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"
           }`}
         >
           <button
@@ -454,7 +454,7 @@ const DormGame = () => {
       {moveIn ? null : isPhone ? (
         editing ? null : (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="game-panel pointer-events-auto flex items-center justify-center gap-1.5 overflow-x-auto px-2 py-1.5 [&>*]:shrink-0">
+            <div className="game-panel pointer-events-auto flex items-center justify-between gap-1 overflow-x-auto px-1.5 py-1.5 [&>*]:shrink-0 [&_button]:px-2">
               {hud}
             </div>
           </div>
