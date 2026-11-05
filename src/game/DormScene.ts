@@ -1246,6 +1246,7 @@ export class DormScene extends Phaser.Scene {
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
   private layDoormats() {
     DOORWAYS.forEach(([x, y], i) => {
+      if (i < 2) return; // your mat is part of your door (applyMyDoor)
       const personal = i < 6 ? ROOMS[Math.floor(i / 2)] : undefined;
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
@@ -1361,7 +1362,8 @@ export class DormScene extends Phaser.Scene {
     const faceH = TILE * 2;
     const openL = t(doorX);
     const openR = t(doorX + 2);
-    {
+    // Your door (frame, stickers, plate, mat) is drawn from your save by applyMyDoor
+    if (!editable) {
       const fr = this.add.graphics().setDepth(4);
       const jamb = (x: number) => {
         fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
@@ -1377,7 +1379,7 @@ export class DormScene extends Phaser.Scene {
     }
 
     // door stickers on the face left of the frame, staggered
-    room.doorStickers.slice(0, 3).forEach((st, i) => {
+    if (!editable) room.doorStickers.slice(0, 3).forEach((st, i) => {
       const key = `sticker-${st}`;
       if (!this.textures.exists(key)) return;
       this.add
@@ -1422,8 +1424,8 @@ export class DormScene extends Phaser.Scene {
 
     if (editable) {
       // your plate shows "{name}'s Room" and is redrawn on rename, so the board sits past the widest plate
-      this.applyMyName();
       this.buildDoorBoard(room, openR + 20 + MY_PLATE_MAX + 8);
+      this.applyMyDoor();
       return;
     }
     // neighbors: plate, glow and music follow their schedule (refreshDoors); the board sits past
@@ -1489,7 +1491,7 @@ export class DormScene extends Phaser.Scene {
         accent: room.accentColor,
       },
     });
-    const text = this.add
+    const text: Phaser.GameObjects.Text = this.add
       .text(cx, cy - 5, "", {
         fontFamily: '"Pixelify Sans", sans-serif',
         fontSize: "8px",
@@ -1515,6 +1517,7 @@ export class DormScene extends Phaser.Scene {
       });
     }
     this.boards.push({ residentId: room.id, text, sparkle });
+    if (room.id === ROOMS[0]!.id) this.myBoardText = text;
   }
 
   /** re-reads today's answers + package state (after answering, opening, or at a new day) */
@@ -1523,6 +1526,13 @@ export class DormScene extends Phaser.Scene {
     const mine = this.getMyDailyAnswer();
     for (const b of this.boards) {
       const isMine = b.residentId === ROOMS[0]!.id;
+      const door = isMine ? this.getDoor() : null;
+      // a custom message replaces today's answer on your board (same tiny handwriting)
+      if (door && door.boardMode === "custom") {
+        b.text.setText(door.boardText ?? "").setFontSize(8);
+        b.sparkle?.setVisible(false);
+        continue;
+      }
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
       const res = residentByRoom(b.residentId);
       const asleep = !!res && isAsleep(blockAt(res.id, this.getHour()));
@@ -1543,20 +1553,23 @@ export class DormScene extends Phaser.Scene {
     left: number,
     cy: number,
     lines: string[],
-    style: "cream" | "dark",
+    style: PlateStyle,
     anchor: "left" | "center" = "left",
     maxW = Infinity,
   ) {
     const ink = 0x241c26;
-    const bg = style === "cream" ? 0xf3ead2 : 0x33292f;
-    const fg = style === "cream" ? "#2b2027" : "#f3ead2";
+    const bg = style === "cream" ? 0xf3ead2 : style === "wood" ? 0xb07a4a : style === "neon" ? 0x231d2c : 0x33292f;
+    const fg = style === "cream" ? "#2b2027" : style === "wood" ? "#2e1c12" : style === "neon" ? "#ffc2e2" : "#f3ead2";
+    const light = style === "cream" || style === "wood";
     const texts = lines.map((s, i) =>
       this.add
         .text(0, 0, s, {
           fontFamily: '"Pixelify Sans", sans-serif',
           fontSize: i === 0 ? "11px" : "9px",
-          color: i === 0 ? fg : style === "cream" ? "#6b5c50" : "#cdbfa8",
+          color: i === 0 ? fg : light ? "#6b5c50" : "#cdbfa8",
           fontStyle: i === 0 ? "700" : "500",
+          // neon: a pink tube outline around the letters
+          ...(style === "neon" ? { stroke: "#f07ab8", strokeThickness: 2 } : {}),
         })
         .setOrigin(0.5, 0.5)
         .setDepth(4.6),
@@ -1574,6 +1587,13 @@ export class DormScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(4.5);
     g.fillStyle(ink, 1).fillRect(x0, y0, w, h);
     g.fillStyle(bg, 1).fillRect(x0 + 2, y0 + 2, w - 4, h - 4);
+    if (style === "wood") {
+      // wood grain: two staggered darker lines + a highlight
+      g.fillStyle(0x8a5a34, 1).fillRect(x0 + 4, y0 + 5, Math.round((w - 8) * 0.6), 2);
+      g.fillStyle(0x8a5a34, 1).fillRect(x0 + Math.round(w * 0.35), y0 + h - 8, Math.round((w - 8) * 0.55), 2);
+      g.fillStyle(0xcf9a66, 1).fillRect(x0 + 2, y0 + 2, w - 4, 2);
+    }
+    if (style === "neon") g.lineStyle(2, 0xf07ab8, 1).strokeRect(x0 + 3, y0 + 3, w - 6, h - 6);
     g.fillStyle(ink, 0.25).fillRect(x0 + 2, y0 + h - 4, w - 4, 2); // bottom lip shade
     let yy = y0 + 3;
     texts.forEach((tx, i) => {
@@ -2741,10 +2761,200 @@ export class DormScene extends Phaser.Scene {
   /** redraws your door plate as "{name}'s Room" */
   applyMyName() {
     for (const o of this.myPlateObjs) o.destroy();
+    this.lighting.remove(this.myDoorLight);
+    this.myDoorLight = null;
+    const door = this.getDoor();
     const openR = t(13);
-    const label = roomNameFor(this.getPlayerName());
-    const plate = this.wallSign(openR + 20, t(17), [label], "cream", "left", MY_PLATE_MAX);
+    const label = door.plateText ?? roomNameFor(this.getPlayerName());
+    const plate = this.wallSign(openR + 20, t(17), [label], door.plateStyle, "left", MY_PLATE_MAX);
     this.myPlateObjs = plate.objs;
+    if (door.plateStyle === "neon") {
+      // a small pink night light, clipped to the hall so it never bleeds into your room
+      this.myDoorLight = this.light({
+        x: (plate.left + plate.right) / 2,
+        y: t(17),
+        color: 0xff5fa8,
+        radius: 30,
+        poolDy: 26,
+        strength: 0.7,
+        clip: this.zoneClips.get(HALL.id) ?? null,
+      });
+    }
+  }
+
+  /** your whole door from the save: frame colour, stickers (2×2 slots), plate, board, mat */
+  applyMyDoor() {
+    for (const o of this.myDoorObjs) o.destroy();
+    this.myDoorObjs = [];
+    const door = this.getDoor();
+    const room = ROOMS[0]!;
+    const doorX = 11;
+    const faceTop = t(16);
+    const faceH = TILE * 2;
+    const openL = t(doorX);
+    const openR = t(doorX + 2);
+    const accent = door.frameColor ?? Phaser.Display.Color.HexStringToColor(room.accentColor).color;
+    const fr = this.add.graphics().setDepth(4);
+    const jamb = (x: number) => {
+      fr.fillStyle(0x241c26, 1).fillRect(x - 2, faceTop, 8, faceH);
+      fr.fillStyle(accent, 1).fillRect(x, faceTop, 4, faceH);
+      fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(x, faceTop, 2, faceH);
+    };
+    jamb(openL - 4);
+    jamb(openR);
+    fr.fillStyle(0x241c26, 1).fillRect(openL - 6, faceTop, openR - openL + 12, 8);
+    fr.fillStyle(accent, 1).fillRect(openL - 4, faceTop, openR - openL + 8, 6);
+    fr.fillStyle(mix(accent, 0xfaf0e0, 0.35), 1).fillRect(openL - 4, faceTop, openR - openL + 8, 2);
+    this.myDoorObjs.push(fr);
+
+    // stickers: fixed 2×2 slots on the face left of the frame, ×1 scale
+    const slots = doorStickerSlots(t(doorX - 1), openL - 6, faceTop);
+    door.stickers.forEach((id, i) => {
+      const slot = slots[i];
+      if (!slot) return;
+      const key = this.doorStickerTexture(id);
+      this.myDoorObjs.push(
+        this.add.image(slot.x, slot.y, key).setOrigin(0, 0).setDepth(6),
+      );
+    });
+
+    // welcome mat on the first hall floor row outside your door
+    const matDef = ITEM_CATALOG[door.matId];
+    const style = matDef?.matStyle ?? "plain";
+    const my = HALL.y + 1;
+    if (style === "plain") {
+      const tint = mix(Phaser.Display.Color.HexStringToColor(room.accentColor).color, 0xd8c8ad, 0.45);
+      for (const x of [doorX, doorX + 1])
+        this.myDoorObjs.push(this.add.image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat").setTint(tint).setDepth(1.2));
+    } else {
+      this.myDoorObjs.push(this.add.image(t(doorX + 1), t(my) + TILE / 2, `mat-${style}`).setDepth(1.2));
+    }
+    this.applyMyName();
+    this.refreshDaily();
+  }
+
+  /** 12×12 texture for a sticker-sheet bitmap (stickers.ts), drawn once per id */
+  private doorStickerTexture(id: string) {
+    const key = `dsticker-${id}`;
+    if (this.textures.exists(key)) return key;
+    const def = stickerFor(id);
+    const tex = this.textures.createCanvas(key, 12, 12);
+    const ctx = tex?.getContext();
+    if (tex && ctx) {
+      const col: Record<string, string> = { X: "#241c26", o: def.color, a: def.color2, "+": "#fff6e6" };
+      def.icon.forEach((row, y) =>
+        [...row].forEach((ch, x) => {
+          const c = col[ch];
+          if (!c) return;
+          ctx.fillStyle = c;
+          ctx.fillRect(x, y, 1, 1);
+        }),
+      );
+      tex.refresh();
+    }
+    return key;
+  }
+
+  /** the camera in the editor's Door tab: frame your door from the hall */
+  frameMyDoor(bottomInsetPx: number) {
+    const cam = this.cameras.main;
+    const x0 = t(9);
+    const x1 = t(19.5);
+    const y0 = t(15.2);
+    const y1 = t(19.4);
+    const visH = Math.max(120, cam.height - bottomInsetPx - 12);
+    const zoom = Math.min(cam.width / (x1 - x0), visH / (y1 - y0)) * 0.92;
+    this.glideCamera((x0 + x1) / 2, (y0 + y1) / 2 + bottomInsetPx / (2 * zoom), Math.min(zoom, 4), 400);
+  }
+
+  /** stepped camera glide (pixel-art feel), used between the room and the door */
+  private glideCamera(cx: number, cy: number, zoom: number, ms: number) {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.removeBounds();
+    this.camTween?.stop();
+    const from = { x: cam.midPoint.x, y: cam.midPoint.y, z: cam.zoom };
+    this.camTween = this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: ms,
+      ease: "Stepped",
+      easeParams: [8],
+      onUpdate: (tw) => {
+        const k = tw.getValue() ?? 1;
+        cam.setZoom(from.z + (zoom - from.z) * k);
+        cam.centerOn(from.x + (cx - from.x) * k, from.y + (cy - from.y) * k);
+      },
+    });
+  }
+
+  /** Your Room's floor: repaints when the floor or mood changes; `sweep` steps it in row by row (~300ms) */
+  applyMyFloor(sweep = false) {
+    const z = this.myZone;
+    if (!z) return;
+    this.buildFloorSwatches();
+    const style = floorStyleFor(this.getMyFloorId());
+    const moodKey = this.getMyMood();
+    const zone: Zone = { ...z, floorStyle: style, floor: personalFloorColor(style, MOODS[moodKey]) };
+    const baked = style === this.builtFloor && moodKey === this.builtMood;
+    this.floorSweep?.remove(false);
+    this.floorSweep = null;
+    const rows = z.h - 1; // interior rows only (row 0 is the wall face)
+    if (!sweep) {
+      this.myFloorGfx?.destroy();
+      this.myFloorGfx = null;
+      if (baked) return;
+      const g = this.add.graphics().setDepth(0.3);
+      this.paintZoneFloor(g, { ...zone, y: z.y + 1, h: rows });
+      this.myFloorGfx = g;
+      return;
+    }
+    const old = this.myFloorGfx;
+    const g = this.add.graphics().setDepth(0.31);
+    let row = 0;
+    this.floorSweep = this.time.addEvent({
+      delay: Math.round(300 / rows),
+      repeat: rows - 1,
+      callback: () => {
+        this.paintZoneFloor(g, { ...zone, y: z.y + 1 + row, h: 1 });
+        row++;
+        if (row >= rows) {
+          old?.destroy();
+          g.setDepth(0.3);
+          if (baked) {
+            g.destroy();
+            this.myFloorGfx = null;
+          } else this.myFloorGfx = g;
+          this.floorSweep = null;
+        }
+      },
+    });
+    this.myFloorGfx = old;
+  }
+
+  /** shop/tray thumbnails for floors: a 2×2-tile sample painted by the same floor painter */
+  buildFloorSwatches() {
+    const mood = MOODS[this.getMyMood()];
+    for (const id of FLOOR_ITEM_IDS) {
+      const style = ITEM_CATALOG[id]!.floorStyle!;
+      const key = `floorswatch-${style}`;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      this.paintZoneFloor(g, {
+        id: "swatch",
+        label: "",
+        x: 0,
+        y: 0,
+        w: 2,
+        h: 2,
+        floor: personalFloorColor(style, mood),
+        wall: 0,
+        kind: "personal",
+        floorStyle: style,
+      });
+      g.generateTexture(key, t(2), t(2));
+      g.destroy();
+    }
   }
 
   /** recolours Your Room for the current mood without rebuilding the world */
@@ -2752,14 +2962,10 @@ export class DormScene extends Phaser.Scene {
     const moodKey = this.getMyMood();
     const mood = MOODS[moodKey];
     const z = this.myZone;
-    this.myFloorGfx?.destroy();
-    this.myFloorGfx = null;
-    if (z && moodKey !== this.builtMood) {
-      // floor overlay over the baked floormap, interior rows only (row 0 is the wall face)
-      const g = this.add.graphics().setDepth(0.3);
-      this.paintZoneFloor(g, { ...z, y: z.y + 1, h: z.h - 1, floor: mix(mood.wallpaper, 0xb59774, 0.18) });
-      this.myFloorGfx = g;
-    }
+    void z;
+    void moodKey;
+    // floor overlay over the baked floormap (checker + shag follow the mood)
+    this.applyMyFloor(false);
     this.myRug?.setTint(mix(mood.posterAccent, 0xbca584, 0.18));
     this.myGlow?.setTint(mood.glow);
     if (!this.editMode) this.rebuildMyRoom();
