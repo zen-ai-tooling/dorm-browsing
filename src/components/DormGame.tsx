@@ -551,10 +551,7 @@ const DormGame = () => {
         >
           <button
             type="button"
-            onClick={() => {
-              const res = sceneRef.current?.knock(knockSpot);
-              if (res?.kind === "away") toast(res.text);
-            }}
+            onClick={() => sceneRef.current?.knock(knockSpot)}
             className="pointer-events-auto rounded-[3px] border-[3px] border-ink bg-[var(--crate-wood)] px-3 py-1.5 font-display text-xs font-bold text-[var(--tag-standard)] shadow-[0_3px_0_0_var(--color-ink)]"
           >
             Knock on {RESIDENTS[knockSpot].name}'s door

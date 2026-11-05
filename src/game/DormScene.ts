@@ -1199,8 +1199,11 @@ export class DormScene extends Phaser.Scene {
       .setDepth(1);
 
     // woven area rug, accent-tinted (opaque pixels, no soft blend)
+    // neighbors who own a rug item get theirs instead of the base rug
+    const ownRug = !editable && room.layout.some((p) => ITEM_CATALOG[p.itemId]?.textureKey === "rug");
     const rug = this.add
       .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
+      .setVisible(!ownRug)
       .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
       .setScale(0.85)
       .setDepth(1);
