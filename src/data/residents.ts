@@ -75,7 +75,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
     anchors: {
       room: { x: 32, y: 13, facing: "left" },
       bed: { x: 37, y: 14, facing: "down" },
-      kitchen: { x: 51, y: 25, facing: "up" },
+      kitchen: { x: 52, y: 27, facing: "up" },
       study: { x: 29, y: 26, facing: "up" },
       lounge: { x: 9, y: 28, facing: "up" },
       courtyard: { x: 80, y: 14, facing: "up" },
@@ -108,7 +108,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
     anchors: {
       room: { x: 52, y: 9, facing: "up" },
       bed: { x: 58, y: 14, facing: "down" },
-      kitchen: { x: 49, y: 26, facing: "up" },
+      kitchen: { x: 50, y: 27, facing: "up" },
       study: { x: 32, y: 26, facing: "up" },
       lounge: { x: 17, y: 26, facing: "up" },
       courtyard: { x: 78, y: 20, facing: "left" },

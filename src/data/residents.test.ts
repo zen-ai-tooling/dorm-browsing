@@ -81,6 +81,17 @@ describe("schedules", () => {
     expect(nextBackHour("jordan", 15)).toBe(17);
   });
 
+  test("no two residents share an anchor tile in the same hour", () => {
+    for (let h = 0; h < 24; h++) {
+      const a = blockAt("sam", h);
+      const b = blockAt("jordan", h);
+      if (a.place === "away" || b.place === "away" || a.place !== b.place) continue;
+      const ta = RESIDENTS.sam.anchors[a.place as keyof typeof RESIDENTS.sam.anchors];
+      const tb = RESIDENTS.jordan.anchors[b.place as keyof typeof RESIDENTS.jordan.anchors];
+      expect({ hour: h, same: ta.x === tb.x && ta.y === tb.y }).toEqual({ hour: h, same: false });
+    }
+  });
+
   test("knocking: home, asleep and away give three different answers", () => {
     expect(knockResponse("sam", 23).kind).toBe("in");
     expect(knockResponse("sam", 3).kind).toBe("asleep");

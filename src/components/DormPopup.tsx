@@ -42,7 +42,7 @@ import {
   residentPick,
   todayKey,
 } from "@/data/prompts";
-import { ITEM_CATALOG } from "@/data/items";
+import { ITEM_CATALOG, MAIL_ITEM_IDS } from "@/data/items";
 import type { PackageReward } from "@/data/mail";
 import { coverFor, discFor, hashString } from "@/lib/coverArt";
 import { roomNameFor } from "@/data/avatar";
@@ -1231,6 +1231,89 @@ const CoinBurst = ({ count }: { count: number }) => (
   </span>
 );
 
+/** stepped sparkle squares flung out as the reward pops */
+const SparkleBurst = () => (
+  <span aria-hidden className="pointer-events-none absolute left-1/2 top-0">
+    {Array.from({ length: 8 }, (_, i) => {
+      const a = (i / 8) * Math.PI * 2 + 0.4;
+      return (
+        <span
+          key={i}
+          className="absolute size-1.5 bg-[var(--tag-premium)]"
+          style={{
+            animation: `sparkle-pop 500ms steps(4) ${i * 30}ms forwards`,
+            ["--dx" as string]: `${Math.round(Math.cos(a) * 34)}px`,
+            ["--dy" as string]: `${Math.round(Math.sin(a) * 26 - 8)}px`,
+          }}
+        />
+      );
+    })}
+  </span>
+);
+
+/** little pixel coin pile for coin rewards */
+const COIN_PILE = [
+  "............",
+  "............",
+  "............",
+  ".....XX.....",
+  "....XooX....",
+  "...XooooX...",
+  "..XXoaaXXX..",
+  ".XooXXXXooX.",
+  ".XoaaXXoaXX.",
+  "XooXoooXoXX.",
+  "XoaaaaoaaaX.",
+  "XXXXXXXXXXXX",
+];
+
+/** the thing that pops out of the box, before the text explains it */
+const RewardVisual = ({
+  reward,
+  itemThumbnails,
+}: {
+  reward: PackageReward;
+  itemThumbnails: Record<string, { src: string }>;
+}) => {
+  const { ownedItemIds } = usePlayerState();
+  if (reward.kind === "coins" || reward.kind === "allFound")
+    return <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={44} />;
+  if (reward.kind === "jackpot")
+    return (
+      <span className="relative">
+        <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={64} />
+        <span className="absolute -right-3 -top-2">
+          <PixelIcon def={{ icon: COIN_PILE, color: "#f2cf5c", color2: "#c9962e" }} size={28} />
+        </span>
+      </span>
+    );
+  if (reward.kind === "postcard")
+    return (
+      <div className="w-40 border-2 border-ink bg-[var(--polaroid)] p-2 [transform:rotate(-2deg)]">
+        <p className="font-body text-[11px] italic leading-snug text-ink">“{reward.line}”</p>
+        <p className="mt-1 text-right font-display text-[10px] font-bold text-ink">— {reward.from}</p>
+      </div>
+    );
+  const item = ITEM_CATALOG[reward.itemId];
+  const src = itemThumbnails[reward.itemId]?.src;
+  return (
+    <span className="relative inline-block">
+      {src ? (
+        <img src={src} alt={item?.name ?? ""} className="max-h-16 w-auto [image-rendering:pixelated]" />
+      ) : null}
+      {reward.kind === "item" ? (
+        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-ink bg-[var(--tag-premium)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+          Mail find · {MAIL_ITEM_IDS.filter((id) => ownedItemIds.includes(id)).length}/{MAIL_ITEM_IDS.length}
+        </span>
+      ) : (
+        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-ink bg-[var(--tag-nice)] px-1 font-display text-[9px] font-bold uppercase tracking-wider text-ink">
+          From {reward.from} ♥
+        </span>
+      )}
+    </span>
+  );
+};
+
 const RewardView = ({
   reward,
   itemThumbnails,
@@ -1302,8 +1385,12 @@ const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src
   const today = todayKey();
   const openedToday = lastPackageDate === today && lastPackage?.date === today;
   const [frame, setFrame] = useState<number | null>(null);
-  const [burst, setBurst] = useState(false);
+  /** reward visual is popping out of the box */
+  const [pop, setPop] = useState(openedToday);
+  /** text underneath appears a beat after the pop */
+  const [showText, setShowText] = useState(openedToday);
 
+  // 3 stepped box frames, then the reward pops
   useEffect(() => {
     if (frame === null || frame >= 2) return;
     const t = window.setTimeout(() => setFrame(frame + 1), 170);
@@ -1314,21 +1401,54 @@ const PackagePopup = ({ itemThumbnails }: { itemThumbnails: Record<string, { src
     if (frame !== 2 || openedToday) return;
     const t = window.setTimeout(() => {
       playerActions.openPackage();
-      setBurst(true);
+      setPop(true);
     }, 170);
     return () => window.clearTimeout(t);
   }, [frame, openedToday]);
 
   const reward = openedToday ? lastPackage!.reward : null;
 
+  // the pop's sound + the delayed text, once the reward exists
+  const rewardKind = reward?.kind ?? null;
+  useEffect(() => {
+    if (!rewardKind || showText) return;
+    if (rewardKind === "item" || rewardKind === "gift") sfx.chime();
+    else sfx.coin();
+    const t = window.setTimeout(() => setShowText(true), 600);
+    return () => window.clearTimeout(t);
+  }, [rewardKind, showText]);
+
   return (
     <Shell accent="#c99a5b" title="Mail cubby" subtitle={reward ? "opened today" : "a package for you"} interactive>
       <div className="relative flex flex-col items-center gap-2">
-        {reward ? (
+        {reward && pop ? (
           <>
-            {burst ? <CoinBurst count={reward.kind === "jackpot" ? 14 : reward.coins > 0 ? 6 : 0} /> : null}
-            <RewardView reward={reward} itemThumbnails={itemThumbnails} />
-            <p className="font-body text-[11px] text-panel-muted">Next delivery tomorrow.</p>
+            <div className="relative flex flex-col items-center">
+              {/* the reward pops out of the open box at x4, with a stepped sparkle burst */}
+              <div className="relative z-10" style={{ animation: "mail-pop 450ms steps(4) both" }}>
+                <RewardVisual reward={reward} itemThumbnails={itemThumbnails} />
+              </div>
+              <SparkleBurst />
+              {reward.kind === "jackpot" ? (
+                <>
+                  <CoinBurst count={8} />
+                  <span style={{ animationDelay: "250ms" }}>
+                    <CoinBurst count={8} />
+                  </span>
+                </>
+              ) : reward.coins > 0 ? (
+                <CoinBurst count={6} />
+              ) : null}
+              <div className="-mt-1">
+                <PackageBox frame={2} size={56} />
+              </div>
+            </div>
+            {showText ? (
+              <div className="animate-in fade-in slide-in-from-bottom-1 duration-200">
+                <RewardView reward={reward} itemThumbnails={itemThumbnails} />
+              </div>
+            ) : null}
+            {showText ? <p className="font-body text-[11px] text-panel-muted">Next delivery tomorrow.</p> : null}
           </>
         ) : (
           <>

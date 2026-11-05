@@ -61,7 +61,8 @@ const MOON = [
   "............",
 ];
 
-const GLYPHS: Record<Phase, PixelGlyph> = {
+/** exported so the phone dock can fold a mini phase icon into the coin chip */
+export const PHASE_GLYPHS: Record<Phase, PixelGlyph> = {
   morning: { icon: RISE, color: "#f6d48a", color2: "#e8a86b" },
   day: { icon: SUN, color: "#f6d06b", color2: "#e8a24f" },
   golden: { icon: SET, color: "#f39a5a", color2: "#c8765c" },
@@ -83,7 +84,7 @@ export const PhaseChip = () => {
       className="rounded-[3px]"
     >
       <GamePanel className="flex items-center gap-1.5 px-2 py-1.5">
-        <PixelIcon def={GLYPHS[phase]} size={18} />
+        <PixelIcon def={PHASE_GLYPHS[phase]} size={18} />
         {showName ? (
           <span className="font-body text-xs font-bold text-panel-foreground">{label}</span>
         ) : null}

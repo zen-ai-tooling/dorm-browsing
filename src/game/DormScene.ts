@@ -44,9 +44,8 @@ import {
 } from "@/data/residents";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
 import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
-import { Lighting, type Light, type LightSpec } from "./lighting";
+import { Lighting, type ClipRect, type Light, type LightSpec } from "./lighting";
 import {
-  DARKNESS_ALPHA,
   DARKNESS_COLOR,
   PHASE_FADE_MS,
   PHASE_LOOK,
@@ -251,6 +250,8 @@ interface ResidentRT {
   walkTime: number;
   baseY: number;
   nextEmote: number;
+  /** cooldown for the personal-space shuffle */
+  nextShuffle: number;
   emote: Phaser.GameObjects.Image | null;
 }
 
@@ -326,6 +327,12 @@ export class DormScene extends Phaser.Scene {
   /** subtle outline showing where the selected item may go (wall face vs floor) */
   private mountGuide: Phaser.GameObjects.Rectangle | null = null;
   private lighting!: Lighting;
+  /** zone clip rects (world px, face rows included) shared by light clipping + room ambient */
+  private zoneClips = new Map<string, ClipRect>();
+  /** decorative glow patches that only exist at night (alpha scales with darkness) */
+  private nightGated: Array<{ o: Phaser.GameObjects.Image | Phaser.GameObjects.Container; a: number }> = [];
+  /** geometry masks clipping music notes to their room, keyed by room id */
+  private noteMasks = new Map<string, Phaser.Display.Masks.GeometryMask>();
   private getPhase: () => Phase = () => phaseFor(new Date());
   private phase: Phase | null = null;
   private nextPhaseCheck = 0;
@@ -433,11 +440,15 @@ export class DormScene extends Phaser.Scene {
     this.paintFloor(zones);
     this.buildColliders();
     // lighting exists before decor so every prop can register its light where it's created
-    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE);
+    for (const z of zones)
+      this.zoneClips.set(z.id, { x: t(z.x), y: t(z.y - 1), w: t(z.w), h: t(z.h + 1) });
+    this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE, [...this.zoneClips.values()]);
     this.decorate(zones);
     this.decorateExterior();
     this.spawnPlayer();
-    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -14, color: 0xffd9a0, radius: 28, cut: false, strength: 0.22 });
+    // player halo: a cut-out only (no pool), fading out inside another light's radius
+    this.lighting.add({ x: 0, y: 0, follow: this.player, dy: -6, color: 0xffd9a0, radius: 30, pool: false, fadeNearOthers: true });
+    this.updateAmbient();
     this.setupCamera();
     this.refreshPhase(true);
     this.setupInput();
@@ -1060,15 +1071,32 @@ export class DormScene extends Phaser.Scene {
       }
     }
     for (const b of this.beams) b.g.setAlpha(0.2 * look.w[b.phase]);
-    // backdrop beyond the map edge: ground colour under the same tint + darkness
+    // decorative light patches exist only at night
+    for (const n of this.nightGated) n.o.setAlpha(n.a * look.night);
+    // backdrop beyond the map edge: ground colour under the same tint + the same
+    // multiply darkness the lighting layer applies (multiply, not lerp)
     const mulCh = (s: number) => {
       const c = (EXT_GROUND >> s) & 255;
       const tc = (look.tint >> s) & 255;
-      return Math.round(c * (1 - look.tintAlpha + (look.tintAlpha * tc) / 255));
+      const tinted = c * (1 - look.tintAlpha + (look.tintAlpha * tc) / 255);
+      const dc = (DARKNESS_COLOR >> s) & 255;
+      return Math.round(tinted * (1 - look.night + (look.night * dc) / 255));
     };
-    const tinted = (mulCh(16) << 16) | (mulCh(8) << 8) | mulCh(0);
-    const bg = lerpColor(tinted, DARKNESS_COLOR, DARKNESS_ALPHA * look.night);
+    const bg = (mulCh(16) << 16) | (mulCh(8) << 8) | mulCh(0);
     this.cameras.main.setBackgroundColor(bg);
+  }
+
+  /** rooms with someone home and awake (or common rooms 18:00–01:00) glow dimly at night */
+  private updateAmbient() {
+    const hour = this.getHour();
+    const clip = (id: string) => this.zoneClips.get(id) ?? null;
+    this.lighting.setAmbient(ROOMS[0]!.id, this.insideMyRoom ? clip(ROOMS[0]!.id) : null);
+    for (const id of RESIDENT_IDS) {
+      const roomId = RESIDENTS[id].roomId;
+      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour)) ? clip(roomId) : null);
+    }
+    const commonsLit = hour >= 18 || hour < 1;
+    for (const zid of ["lounge", "study", "kitchen"]) this.lighting.setAmbient(zid, commonsLit ? clip(zid) : null);
   }
 
   /** register a night light; follow keeps it on a moving sprite */
@@ -1093,7 +1121,15 @@ export class DormScene extends Phaser.Scene {
       // stand on the grass just south of the path, clear of the building wall
       const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
       this.add.sprite(t(x), y, "lamppost").setDepth(y);
-      this.light({ x: t(x), y: y - 36, color: 0xffd9a0, radius: 80 });
+      // outdoor: clipped to below the building so the brick never glows
+      this.light({
+        x: t(x),
+        y: y - 36,
+        color: 0xffd9a0,
+        radius: 80,
+        poolDy: 36,
+        clip: { x: 0, y: t(34), w: GRID_W * TILE, h: GRID_H * TILE - t(34) },
+      });
     }
   }
 
@@ -1131,19 +1167,6 @@ export class DormScene extends Phaser.Scene {
   }
 
   // ---------- decor & interactives ----------
-
-  private label(x: number, y: number, text: string, color = "#33272c", size = 14) {
-    return this.add
-      .text(x, y, text, {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: `${size}px`,
-        color,
-        fontStyle: "600",
-      })
-      .setOrigin(0.5)
-      .setDepth(2)
-      .setAlpha(0.95);
-  }
 
   private prop(def: PropDef) {
     const s = this.add.sprite(def.x, def.y, def.key).setDepth(def.y + (def.depthBias ?? 0));
@@ -1268,7 +1291,7 @@ export class DormScene extends Phaser.Scene {
     const sconce = this.add
       .rectangle(sconceX, faceTop + 19, 4, 3, room.isActive ? mood.glow : 0x6b6270, 1)
       .setDepth(6);
-    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40 });
+    this.light({ x: sconceX, y: faceTop + 22, color: 0xffd9a0, radius: 40, poolDy: 34, strength: 0.8 });
 
     const pulse = this.tweens.add({
       targets: [glow],
@@ -1279,9 +1302,12 @@ export class DormScene extends Phaser.Scene {
       ease: "Stepped",
       easeParams: [3],
     });
+    // notes belong to the room: clipped to its rect (face included) so they never
+    // drift over the hall face onto the nameplates
+    const roomClip = { key: room.id, rect: this.zoneClips.get(room.id)! };
     const notes = [
-      ...this.spawnSoundCue(dx, dy - 10, mood.glow),
-      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow),
+      ...this.spawnSoundCue(dx, t(rect.y + rect.h) - 24, mood.glow, roomClip),
+      ...this.spawnSoundCue(t(rect.x + 2), t(rect.y + 1.2), mood.glow, roomClip),
     ];
 
     if (editable) {
@@ -2062,8 +2088,20 @@ export class DormScene extends Phaser.Scene {
     return typeof src?.toDataURL === "function" ? src.toDataURL() : null;
   }
 
-  /** drifting music notes — reuses one shared texture */
-  private spawnSoundCue(x: number, y: number, tint: number) {
+  /** geometry mask clipping music notes to their room so they never drift onto hall signs */
+  private noteMask(key: string, r: ClipRect) {
+    let m = this.noteMasks.get(key);
+    if (!m) {
+      const g = this.add.graphics().setVisible(false);
+      g.fillStyle(0xffffff, 1).fillRect(r.x, r.y, r.w, r.h);
+      m = g.createGeometryMask();
+      this.noteMasks.set(key, m);
+    }
+    return m;
+  }
+
+  /** drifting music notes — reuses one shared texture; `clip` keeps them inside their room */
+  private spawnSoundCue(x: number, y: number, tint: number, clip?: { key: string; rect: ClipRect }) {
     const out: Phaser.GameObjects.Image[] = [];
     for (let i = 0; i < 3; i++) {
       const note = this.add
@@ -2072,6 +2110,7 @@ export class DormScene extends Phaser.Scene {
         .setDepth(7)
         .setScale(0.55)
         .setAlpha(0);
+      if (clip) note.setMask(this.noteMask(clip.key, clip.rect));
       // rise, drift sideways, fade out — a continuous loop, never a static icon
       this.tweens.add({
         targets: note,
@@ -2099,12 +2138,12 @@ export class DormScene extends Phaser.Scene {
     );
 
     // zone labels
-    // dorm-door signs in the hallway, just above each common room's doorway
+    // dorm-door plaques in the hallway, on the wall just above each common room's doorway
     for (const z of COMMON) {
       if (z.kind !== "common") continue;
       const door = DOORWAYS.filter(([dx, dy]) => dy === z.y - 1 && dx >= z.x && dx < z.x + z.w).map(([dx]) => dx);
       const cx = door.length ? t(Math.min(...door) + door.length / 2) : t(z.x + z.w / 2);
-      this.label(cx, t(z.y - 1) - 12, z.label, "#3a2f34", 12).setDepth(5);
+      this.wallSign(cx, t(z.y - 1) + TILE / 2 - 2, [z.label], "cream", "center");
     }
     // wayfinding: a dark painted plaque on the hall's back-wall face
     this.wallSign(t(4), t(17), ["FLOOR 3"], "dark", "center");
@@ -2122,7 +2161,7 @@ export class DormScene extends Phaser.Scene {
     this.add.image(lx(1.6), ly(0.05), "poster-film").setTint(0xc7cfd8).setScale(0.62).setDepth(4);
     this.add.image(lx(14.4), ly(-0.05), "poster-band").setTint(0xe2b7a4).setScale(0.62).setDepth(4);
     this.add.image(lx(11.6), ly(-0.1), "neon").setDepth(4);
-    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60 });
+    this.light({ x: lx(11.6), y: ly(-0.1), color: 0xff5fa8, radius: 60, poolDy: 52 });
     // string lights along the top face row, skipping the doorway span — small bulbs on a sagging wire
     {
       const wire = this.add.graphics().setDepth(4);
@@ -2144,14 +2183,24 @@ export class DormScene extends Phaser.Scene {
         }
         prev = { x: sx, y: by };
         this.add.image(sx, by, "sparkle").setTint(0xffe3a6).setScale(0.5).setDepth(4.1);
-        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 14, twinkle: i * 233, strength: 0.22 });
+        // tiny per-bulb cut-out, no pool — one long faint strip along the wire instead
+        this.light({ x: sx, y: by, color: 0xffe3a6, radius: 8, twinkle: i * 233, pool: false });
       }
+      this.light({
+        x: lx(L.w / 2),
+        y: ly(0.9),
+        color: 0xffe3a6,
+        radius: 16,
+        cut: false,
+        strip: { w: lx(L.w - 0.7) - lx(0.4), h: 30 },
+        strength: 0.8,
+      });
     }
 
     // left: the TV pit — everything faces the TV
     this.add.image(lx(3.3), ly(5.1), "rug").setTint(0xbfae97).setScale(1.25, 1.2).setDepth(1);
     this.prop({ key: "tv", x: lx(3.3), y: ly(1.6), solid: true });
-    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true });
+    this.light({ x: lx(3.3), y: ly(1.6), color: 0x8fb8ff, radius: 50, flicker: true, poolDy: 30 });
     // console on the floor in front of the TV's right side — clear of the TV and the door plant
     this.prop({ key: "console", x: lx(4.6), y: ly(3.1), solid: true });
     this.prop({ key: "record", x: lx(0.95), y: ly(1.6), solid: true });
@@ -2168,13 +2217,16 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "beanbag", x: lx(1.0), y: ly(4.4), tint: 0xd98a6c });
     this.prop({ key: "beanbag", x: lx(5.6), y: ly(4.4), tint: 0xd8b25c });
     this.prop({ key: "lamp", x: lx(0.65), y: ly(8.3) });
-    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60 });
-    // party-light flecks: slow drifting, fading spots of colored light across the rug
+    this.light({ x: lx(0.65), y: ly(8.3) - 30, color: 0xffd9a0, radius: 60, poolDy: 30 });
+    // party-light flecks: slow drifting, fading spots of colored light across the rug (night only)
     const fleckColors = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b];
+    const fleckLayer = this.add.container(0, 0).setDepth(1.5).setAlpha(0);
+    this.nightGated.push({ o: fleckLayer, a: 1 });
     for (let i = 0; i < 6; i++) {
       const f = this.add
         .rectangle(lx(1.9 + (i % 3) * 1.4), ly(4.9 + Math.floor(i / 3) * 1.2), 6, 6, fleckColors[i % 4]!, 0)
         .setDepth(1.5);
+      fleckLayer.add(f);
       const drift = () => {
         const ox = lx(1.4 + Math.random() * 3.8);
         const oy = ly(4.6 + Math.random() * 1.6);
@@ -2207,8 +2259,8 @@ export class DormScene extends Phaser.Scene {
     // right: the games corner
     this.prop({ key: "arcade", x: lx(11.22), y: ly(1.7), solid: true });
     this.prop({ key: "arcade", x: lx(12.85), y: ly(1.7), tint: 0xd7b8e8, solid: true });
-    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40 });
-    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40 });
+    this.light({ x: lx(11.22), y: ly(1.4), color: 0x6fe0d0, radius: 40, poolDy: 26 });
+    this.light({ x: lx(12.85), y: ly(1.4), color: 0xb98cff, radius: 40, poolDy: 26 });
     this.prop({ key: "foosball", x: lx(12.6), y: ly(4.8), solid: true });
     this.prop({ key: "papasan", x: lx(11.2), y: ly(7.9), solid: true });
     this.prop({ key: "beanbag", x: lx(13.6), y: ly(8.1), tint: 0x74a8ab });
@@ -2220,7 +2272,7 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "desk", x: t(S.x + 1.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "desk", x: t(S.x + 4.5), y: t(S.y + 1.7), solid: true });
     this.prop({ key: "lamp", x: t(S.x + 13.3), y: t(S.y + 1.5) });
-    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60 });
+    this.light({ x: t(S.x + 13.3), y: t(S.y + 1.5) - 30, color: 0xffd9a0, radius: 60, poolDy: 30 });
     this.prop({
       key: "shelf",
       x: t(S.x + 9.4),
@@ -2246,7 +2298,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.prop({ key: "counter", x: t(K.x + 3.38), y: t(K.y + 1.7), scale: 0.95, solid: true });
     // under-cabinet strip so the kitchenette isn't a black box at night
-    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44 });
+    this.light({ x: t(K.x + 3.38), y: t(K.y + 1.6), color: 0xffe3b0, radius: 44, poolDy: 26 });
     this.add.image(t(K.x + 8.4), t(K.y), "snackshelf").setDepth(4);
     this.add.image(t(K.x + 10.6), t(K.y + 0.05), "poster").setTint(0xe6d7a8).setScale(0.55).setDepth(4);
     // eating nook, centered in the open floor (door lane cols 5–6 stays clear)
@@ -2273,14 +2325,23 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
     this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
     this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
-    // string lights across the courtyard
+    // string lights across the courtyard: tiny per-bulb cut-outs + one faint strip below
     for (let i = 0; i < 16; i++) {
       const lx = t(C.x + 0.6) + i * 30;
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
       if (lx > t(C.x + C.w)) break;
       this.add.image(lx, ly, "sparkle").setTint(0xffe9a8).setDepth(2);
-      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 14, twinkle: i * 311, strength: 0.26 });
+      this.light({ x: lx, y: ly, color: 0xffe3a6, radius: 8, twinkle: i * 311, pool: false });
     }
+    this.light({
+      x: t(C.x + C.w / 2),
+      y: t(C.y + 2.4),
+      color: 0xffe3a6,
+      radius: 16,
+      cut: false,
+      strip: { w: t(C.w - 1), h: 34 },
+      strength: 0.7,
+    });
 
 
     // ---- hallway shared props ----
@@ -2305,7 +2366,7 @@ export class DormScene extends Phaser.Scene {
       payload: { kind: "flavor", ...FLAVOR_PROPS.vending },
       solid: true,
     });
-    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50 });
+    this.light({ x: t(46), y: standOn(98, 20), color: 0xdff3ff, radius: 50, poolDy: 34 });
     this.prop({
       key: "crate",
       x: t(8),
@@ -2343,13 +2404,14 @@ export class DormScene extends Phaser.Scene {
     // warm floor lamp lighting an otherwise empty stretch of corridor (clear of Sam's nameplate)
     const lampX = t(37.9);
     this.prop({ key: "lamp", x: lampX, y: standOn(88, 24) });
-    this.add
+    const lampGlow = this.add
       .image(lampX, t(HALL.y + 1) + 20, "glow")
       .setTint(0xffdca0)
-      .setAlpha(0.3)
+      .setAlpha(0)
       .setScale(1.8)
       .setDepth(1);
-    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70 });
+    this.nightGated.push({ o: lampGlow, a: 0.3 });
+    this.light({ x: lampX, y: standOn(88, 24) - 30, color: 0xffd9a0, radius: 70, poolDy: 30 });
 
     // recycling + trash pair
     this.prop({ key: "bin", x: t(40), y: standOn(38, 20), tint: 0x7f9ec4 });
@@ -2532,6 +2594,7 @@ export class DormScene extends Phaser.Scene {
         walkTime: 0,
         baseY: 0,
         nextEmote: this.time.now + 4000 + (id === "sam" ? 0 : 9000),
+        nextShuffle: 0,
         emote: null,
       };
       this.residents.set(id, rt);
@@ -2610,6 +2673,7 @@ export class DormScene extends Phaser.Scene {
     }
     this.refreshDoors();
     this.refreshDaily();
+    this.updateAmbient();
   }
 
   private goToBlock(rt: ResidentRT) {
@@ -2668,6 +2732,55 @@ export class DormScene extends Phaser.Scene {
       } else if (rt.mode === "idle") {
         // small 2-frame bob
         s.y = rt.baseY + (Math.floor(time / 650) % 2 === 0 ? 0 : -1);
+        // personal space: when you crowd an idle resident, they turn to face you
+        // and shuffle one free tile aside (a short 2-step walk)
+        const d = Phaser.Math.Distance.Between(s.x, s.y, this.player.x, this.player.y);
+        if (d < 20 && time >= rt.nextShuffle && !this.editMode && !this.cinematic) {
+          rt.nextShuffle = time + 4000;
+          rt.facing =
+            Math.abs(this.player.x - s.x) > Math.abs(this.player.y - s.y)
+              ? this.player.x > s.x
+                ? "right"
+                : "left"
+              : this.player.y > s.y
+                ? "down"
+                : "up";
+          s.setTexture(`${rt.prefix}-${rt.facing}-0`);
+          const tx = Math.floor(s.x / TILE);
+          const ty = Math.floor(s.y / TILE);
+          const options: Array<[number, number]> = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
+          // prefer the free tile that steps away from the player
+          options.sort(
+            (a, b) =>
+              Math.hypot(tx + b[0] + 0.5 - this.player.x / TILE, ty + b[1] + 0.5 - this.player.y / TILE) -
+              Math.hypot(tx + a[0] + 0.5 - this.player.x / TILE, ty + a[1] + 0.5 - this.player.y / TILE),
+          );
+          for (const [ox, oy] of options) {
+            const nx = tx + ox;
+            const ny = ty + oy;
+            if (this.grid[ny]?.[nx] !== FLOOR) continue;
+            const occupied = [...this.residents.values()].some(
+              (o) =>
+                o !== rt &&
+                o.sprite.visible &&
+                Math.floor(o.sprite.x / TILE) === nx &&
+                Math.floor(o.sprite.y / TILE) === ny,
+            );
+            if (occupied) continue;
+            rt.path = [this.tileCenter([nx, ny])];
+            rt.mode = "walk";
+            rt.onArrive = () => {
+              rt.mode = "idle";
+              rt.baseY = s.y;
+            };
+            break;
+          }
+        }
       }
       rt.ring.setPosition(s.x, s.y + 6);
       if (rt.emote) rt.emote.setPosition(s.x + 10, s.y - 44);
@@ -3143,6 +3256,7 @@ export class DormScene extends Phaser.Scene {
     if (inside !== this.insideMyRoom) {
       this.insideMyRoom = inside;
       this.onInsideRoom(inside);
+      this.updateAmbient();
     }
   }
 

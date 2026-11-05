@@ -31,8 +31,10 @@ export interface PhaseLook {
   night: number;
 }
 
-export const DARKNESS_COLOR = 0x1c1f3d;
-export const DARKNESS_ALPHA = 0.62;
+/** moonlit blue — the darkness RenderTexture MULTIPLIES this over the world */
+export const DARKNESS_COLOR = 0x3a4686;
+/** darkness strength at full night (the RT's alpha is DARKNESS_ALPHA * night) */
+export const DARKNESS_ALPHA = 1;
 /** how long a phase change crossfades */
 export const PHASE_FADE_MS = 3000;
 
