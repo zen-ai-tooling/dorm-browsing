@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { ROOMS, type Bulletin, type NowWatching, type PlacedItem, type Song } from "@/data/dorm";
+import { MOODS, ROOMS, type Bulletin, type MoodKey, type NowWatching, type PlacedItem, type Pin, type Song } from "@/data/dorm";
+import { BULLETIN_MAX_PINS } from "@/data/dorm";
+import { cleanName, DEFAULT_LOOK, normalizeAvatar, randomLook, type AvatarLook } from "@/data/avatar";
 import { normalizeBulletin, normalizeSongs, normalizeWatching } from "@/data/interests";
 import { ITEM_CATALOG, newlyCompletedSets, SET_REWARD } from "@/data/items";
 import { migrateMountLayout } from "@/data/placement";
@@ -62,6 +64,16 @@ export interface PlayerState {
   questsDone: string[];
   /** the one-time "Welcome to Floor 3" celebration has been shown */
   questsCelebrated: boolean;
+  /** your character (Iteration 25) */
+  avatar: AvatarLook;
+  /** max 16 chars; display only — your room's id and ROOMS[0].name never change */
+  playerName: string;
+  /** Your Room's mood (wall/floor/accent colours) — seeded from ROOMS[0] */
+  myMood: MoodKey;
+  /** finished (or skipped) Move-In Day */
+  onboarded: boolean;
+  /** older saves see a one-time "make your avatar" toast */
+  avatarNewsSeen: boolean;
 }
 
 export interface LastPackage {
@@ -98,6 +110,11 @@ const defaultState = (): PlayerState => ({
   packagesSinceExclusive: 0,
   questsDone: [],
   questsCelebrated: false,
+  avatar: randomLook(),
+  playerName: "",
+  myMood: seed.mood,
+  onboarded: false,
+  avatarNewsSeen: true,
 });
 
 const normalizeLastPackage = (raw: unknown): LastPackage | null => {
@@ -120,6 +137,21 @@ export const migrateLayout = (layout: PlacedItem[]): PlacedItem[] => {
     next.unshift({ itemId: "poster_default", gx: 4, gy: 0 });
   // Iteration 17: row 0 is the back-wall face — wall items go there, floor items move off it
   return migrateMountLayout(next);
+};
+
+/**
+ * Iteration 25 fields. Saves from before avatars existed keep the old default look,
+ * skip Move-In Day (onboarded) and get a one-time toast instead.
+ */
+export const migrateMoveIn = (parsed: Partial<PlayerState>) => {
+  const legacy = !("onboarded" in parsed);
+  return {
+    avatar: normalizeAvatar(parsed.avatar, legacy ? DEFAULT_LOOK : randomLook()),
+    playerName: cleanName(parsed.playerName).trim(),
+    myMood: typeof parsed.myMood === "string" && parsed.myMood in MOODS ? parsed.myMood : seed.mood,
+    onboarded: legacy ? true : parsed.onboarded === true,
+    avatarNewsSeen: legacy ? false : parsed.avatarNewsSeen !== false,
+  };
 };
 
 /** quests an older save already satisfies — ticked without paying their rewards */
@@ -182,7 +214,11 @@ const read = (): PlayerState => {
         ? parsed.questsDone.filter((x): x is string => typeof x === "string")
         : [],
       questsCelebrated: parsed.questsCelebrated === true,
+      ...migrateMoveIn(parsed),
     };
+    // a worn outfit you no longer own (dev reset) falls back to your own pieces
+    if (next.avatar.outfitItemId && !next.ownedItemIds.includes(next.avatar.outfitItemId))
+      delete next.avatar.outfitItemId;
     // saves from before quests existed: tick what they've already done, with no rewards
     if (!Array.isArray(parsed.questsDone)) next.questsDone = migrateQuests(next);
     return next;
@@ -327,6 +363,7 @@ export const devActions = {
       ownedItemIds: owned,
       roomLayout: state.roomLayout.filter((p) => keep.has(p.itemId)),
       myWallpaperId: keep.has(state.myWallpaperId) ? state.myWallpaperId : seed.wallpaperId,
+      avatar: dropOutfit(state.avatar),
     });
   },
   allowDailyAgain() {
@@ -356,6 +393,11 @@ export const devActions = {
   resetQuests() {
     if (!dev.enabled) return;
     set({ questsDone: [], questsCelebrated: false });
+  },
+  /** runs Move-In Day again on the current save (nothing else is reset) */
+  replayMoveIn() {
+    if (!dev.enabled) return;
+    set({ onboarded: false });
   },
   resetStreak() {
     if (!dev.enabled) return;
@@ -396,7 +438,58 @@ export const takeCompletedSets = () => {
   return out;
 };
 
+const dropOutfit = (look: AvatarLook): AvatarLook => {
+  const { outfitItemId: _o, ...rest } = look;
+  void _o;
+  return rest;
+};
+
+/** your 3 sticker picks replace the board's interest pins; other pins stay */
+export const pinsWithInterests = (pins: Pin[], stickerIds: string[]): Pin[] => {
+  const picks: Pin[] = stickerIds.slice(0, 3).map((stickerId) => ({ kind: "interest", stickerId }));
+  return [...picks, ...pins.filter((p) => p.kind !== "interest")].slice(0, BULLETIN_MAX_PINS);
+};
+
 export const playerActions = {
+  setAvatar(look: AvatarLook) {
+    const next = normalizeAvatar(look);
+    if (next.outfitItemId && !state.ownedItemIds.includes(next.outfitItemId)) delete next.outfitItemId;
+    set({ avatar: next });
+  },
+  /** wear an owned outfit, or null to go back to your own pieces */
+  wearOutfit(itemId: string | null) {
+    if (itemId === null) {
+      set({ avatar: dropOutfit(state.avatar) });
+      return true;
+    }
+    if (!state.ownedItemIds.includes(itemId) || ITEM_CATALOG[itemId]?.category !== "outfit") return false;
+    set({ avatar: { ...state.avatar, outfitItemId: itemId } });
+    sfx.placeItem();
+    return true;
+  },
+  setPlayerName(name: string) {
+    set({ playerName: cleanName(name) });
+  },
+  setMyMood(mood: MoodKey) {
+    if (!(mood in MOODS) || state.myMood === mood) return;
+    set({ myMood: mood });
+  },
+  /** Move-In Day "Unpack": 3 interest stickers + the song on repeat */
+  unpack(stickerIds: string[], song: Song | null) {
+    const mySongs = state.mySongs.map((s) => ({ ...s }));
+    if (song && song.title.trim()) mySongs[0] = { title: song.title.trim(), artist: song.artist.trim() };
+    set({
+      myBulletin: { pins: stickerIds.length ? pinsWithInterests(state.myBulletin.pins, stickerIds) : state.myBulletin.pins },
+      mySongs,
+    });
+  },
+  finishMoveIn() {
+    set({ onboarded: true, playerName: state.playerName.trim(), seenControls: true });
+  },
+  markAvatarNewsSeen() {
+    if (state.avatarNewsSeen) return;
+    set({ avatarNewsSeen: true });
+  },
   buy(itemId: string) {
     const item = ITEM_CATALOG[itemId];
     if (!item || item.exclusive || state.ownedItemIds.includes(itemId) || !canAfford(item.price))
