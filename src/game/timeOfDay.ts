@@ -14,8 +14,9 @@ export const isPhase = (v: unknown): v is Phase =>
   typeof v === "string" && (PHASES as string[]).includes(v);
 
 /** morning 6–10, day 10–17, golden 17–20, night 20–6 (local hours) */
-export const phaseFor = (date: Date): Phase => {
-  const h = date.getHours();
+export const phaseFor = (date: Date): Phase => phaseForHour(date.getHours());
+
+export const phaseForHour = (h: number): Phase => {
   if (h >= 6 && h < 10) return "morning";
   if (h >= 10 && h < 17) return "day";
   if (h >= 17 && h < 20) return "golden";
