@@ -910,7 +910,49 @@ const DormGame = () => {
         </button>
       ) : null}
 
-      {moveIn && scene ? <MoveIn scene={scene} onDone={() => setHintOpen(null)} /> : null}
+      {moveIn && scene ? (
+        <MoveIn
+          scene={scene}
+          onDone={() => setHintOpen(null)}
+          onSignIn={() => setSavePanel("signin")}
+        />
+      ) : null}
+
+      {nudge && !moveIn && !editing ? (
+        <GamePanel accent="#7f9c86" className="absolute bottom-3 left-3 z-40 w-56 p-3">
+          <p className="mb-1 font-display text-sm font-bold text-panel-foreground">Like your dorm?</p>
+          <p className="mb-2 font-body text-[11px] leading-snug text-panel-muted">
+            Save it so it's there on any device.
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                sfx.uiClick();
+                dismissNudge();
+                setSavePanel("save");
+              }}
+              className="flex-1 rounded-[3px] border-2 border-ink bg-ink px-2 py-1 font-display text-[11px] font-bold text-panel"
+            >
+              Save your dorm
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sfx.uiClick();
+                dismissNudge();
+              }}
+              className="rounded-[3px] border-2 border-ink bg-panel px-2 py-1 font-display text-[11px] font-bold text-panel-foreground"
+            >
+              Not now
+            </button>
+          </div>
+        </GamePanel>
+      ) : null}
+
+      <SaveDormPanel open={savePanel !== null} mode={savePanel ?? "save"} onClose={() => setSavePanel(null)} />
+      {syncState.conflict ? <ConflictDialog conflict={syncState.conflict} /> : null}
+      <FeedbackPanel open={feedbackOpen} onClose={() => setFeedbackOpen(false)} getContext={feedbackContext} />
 
       {avatarOpen && !moveIn ? (
         <div
