@@ -788,18 +788,23 @@ const DormGame = () => {
                   Edit My Room
                 </Button>
               ) : null}
-              <Button
-                size="sm"
-                variant="secondary"
-                aria-label="Edit your avatar"
-                className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-                onClick={openAvatar}
-              >
-                <IconChip>
-                  <UserRound className="size-3.5" aria-hidden />
-                </IconChip>
-                Me
-              </Button>
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Me menu"
+                  aria-expanded={meOpen}
+                  className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                  onClick={openMe}
+                >
+                  <IconChip>
+                    <UserRound className="size-3.5" aria-hidden />
+                  </IconChip>
+                  Me
+                </Button>
+                {guestDot}
+                {meMenu("top")}
+              </div>
               <button
                 type="button"
                 aria-label={muted ? "Unmute sound" : "Mute sound"}
@@ -808,6 +813,20 @@ const DormGame = () => {
                 className="rounded-[3px]"
               >
                 <IconChip>{soundIcon}</IconChip>
+              </button>
+              <button
+                type="button"
+                aria-label="Send feedback"
+                onClick={() => {
+                  sfx.uiClick();
+                  setFeedbackOpen(true);
+                }}
+                className="rounded-[3px]"
+                title="Send feedback"
+              >
+                <IconChip>
+                  <MessageSquarePlus className="size-3.5" aria-hidden />
+                </IconChip>
               </button>
             </div>
           </div>
