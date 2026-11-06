@@ -107,6 +107,163 @@ const DormGame = () => {
 
   const devMode = useDevMode();
 
+  // ---------- accounts (Iteration 27) ----------
+  const auth = useAuth();
+  const syncState = useSaveSync();
+  const [meOpen, setMeOpen] = useState(false);
+  const [savePanel, setSavePanel] = useState<"save" | "signin" | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const wasOnboarded = useRef<boolean | null>(null);
+  const isGuest = auth.ready && auth.isAnonymous;
+
+  // soft "save your dorm" nudge: after move-in, first purchase, 3rd day — at most once a day
+  useEffect(() => {
+    const justOnboarded = wasOnboarded.current === false && onboarded;
+    wasOnboarded.current = onboarded;
+    if (!auth.ready || !auth.isAnonymous || !onboarded) return;
+    const today = todayKey();
+    try {
+      if (window.localStorage.getItem("dorm-vibes-save-nudge") === today) return;
+    } catch {
+      /* storage blocked */
+    }
+    const daysPlayed = Object.keys(dailyAnswers).length;
+    const firstPurchase = ownedItemIds.length > DEFAULT_OWNED_COUNT;
+    if (justOnboarded || firstPurchase || daysPlayed >= 3) setNudge(true);
+  }, [auth.ready, auth.isAnonymous, onboarded, ownedItemIds.length, dailyAnswers]);
+
+  const dismissNudge = () => {
+    setNudge(false);
+    try {
+      window.localStorage.setItem("dorm-vibes-save-nudge", todayKey());
+    } catch {
+      /* storage blocked */
+    }
+  };
+
+  /** where/what the tester was doing — attached to every feedback row */
+  const feedbackContext = (): Record<string, unknown> => ({
+    hour: currentHour(),
+    phase: currentPhase(),
+    zone: sceneRef.current?.playerZoneLabel() ?? "",
+    popup: popup ? popupTitle(popup, playerName) : null,
+    editing,
+    shopOpen,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    device: isTouch ? "touch" : "desktop",
+    coins,
+    daysPlayed: Object.keys(dailyAnswers).length,
+    onboarded,
+    buildTime: new Date(document.lastModified).toISOString(),
+  });
+
+  const syncIcon =
+    syncState.status === "offline" ? (
+      <CloudOff className="size-3.5" aria-hidden />
+    ) : syncState.status === "saving" ? (
+      <RefreshCw className="size-3.5 animate-spin" aria-hidden />
+    ) : (
+      <Cloud className="size-3.5" aria-hidden />
+    );
+
+  const openMe = () => {
+    sfx.uiClick();
+    setSignOutConfirm(false);
+    setMeOpen(!meOpen);
+  };
+
+  const meMenu = (placement: "top" | "bottom") =>
+    meOpen ? (
+      <GamePanel
+        className={`absolute right-0 z-50 w-52 p-1.5 ${
+          placement === "top" ? "top-full mt-1" : "bottom-full mb-1"
+        }`}
+      >
+        <div className="flex flex-col gap-1">
+          <button type="button" className={meItem} onClick={() => { setMeOpen(false); openAvatar(); }}>
+            Edit avatar
+          </button>
+          {isGuest ? (
+            <button
+              type="button"
+              className={meItem}
+              onClick={() => {
+                setMeOpen(false);
+                setSavePanel("save");
+              }}
+            >
+              Save your dorm
+            </button>
+          ) : (
+            <div className="flex items-center justify-between px-2 py-1 font-body text-xs font-bold text-panel-foreground">
+              <span>@{auth.handle ?? "…"}</span>
+              <span className="flex items-center gap-1 text-panel-muted" title={`Sync: ${syncState.status}`}>
+                {syncIcon}
+                <span className="text-[10px]">{syncState.status}</span>
+              </span>
+            </div>
+          )}
+          {isGuest ? (
+            <button
+              type="button"
+              className={meItem}
+              onClick={() => {
+                setMeOpen(false);
+                setSavePanel("signin");
+              }}
+            >
+              Sign in
+            </button>
+          ) : signOutConfirm ? (
+            <div className="rounded-[3px] border-2 border-ink bg-panel-foreground/5 p-2">
+              <p className="mb-1.5 font-body text-[11px] leading-snug text-panel-muted">
+                This device will start a fresh guest dorm; yours stays saved.
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  className="flex-1 rounded-[3px] border-2 border-ink bg-destructive px-2 py-1 font-display text-[11px] font-bold text-destructive-foreground"
+                  onClick={() => void signOutToGuest()}
+                >
+                  Sign out
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-[3px] border-2 border-ink bg-panel px-2 py-1 font-display text-[11px] font-bold text-panel-foreground"
+                  onClick={() => setSignOutConfirm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className={meItem} onClick={() => setSignOutConfirm(true)}>
+              Sign out
+            </button>
+          )}
+          <button
+            type="button"
+            className={meItem}
+            onClick={() => {
+              setMeOpen(false);
+              setFeedbackOpen(true);
+            }}
+          >
+            Send feedback
+          </button>
+        </div>
+      </GamePanel>
+    ) : null;
+
+  const guestDot = isGuest ? (
+    <span
+      aria-label="Guest — save your dorm"
+      className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
+    />
+  ) : null;
+
   useEffect(() => {
     hydratePlayerState();
     hydrateDevMode();
