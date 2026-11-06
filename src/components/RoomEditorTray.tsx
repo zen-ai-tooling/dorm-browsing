@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,11 +29,16 @@ const TAB_LABEL: Record<TrayTab, string> = {
 const TABS = Object.keys(TAB_LABEL) as TrayTab[];
 const PLACE_TABS: Array<ItemDef["category"] & TrayTab> = ["furniture", "companion", "poster"];
 
+const COACH_KEY = "dorm-vibes-editor-coach-seen";
+
 export const RoomEditorTray = ({
   onDone,
   onTrayClick,
   onCancelPlacing,
   onTabChange,
+  onOpenShop,
+  onUndo,
+  undoCount = 0,
   placingItemId = null,
   thumbnails = {},
   itemThumbnails = {},
@@ -42,16 +48,29 @@ export const RoomEditorTray = ({
   onCancelPlacing?: () => void;
   /** the Door tab pans the camera to your door; other tabs bring it back to the room */
   onTabChange?: (tab: TrayTab) => void;
+  /** empty storage offers a shortcut to the shop */
+  onOpenShop?: () => void;
+  onUndo?: () => void;
+  undoCount?: number;
   placingItemId?: string | null;
   thumbnails?: Record<string, string>;
   /** tinted per-item thumbnails (match the room); falls back to the raw texture */
   itemThumbnails?: Record<string, { src: string }>;
 }) => {
   const { ownedItemIds, roomLayout, myWallpaperId, myFloorId } = usePlayerState();
+  const [coachSeen, setCoachSeen] = useState(() => {
+    try {
+      return localStorage.getItem(COACH_KEY) === "1";
+    } catch {
+      return true;
+    }
+  });
   const placedIds = new Set(roomLayout.map((p) => p.itemId));
+  // newest purchases first: ownedItemIds appends, so storage lists in reverse
   const owned = ownedItemIds
     .map((id) => ITEM_CATALOG[id])
-    .filter((i): i is ItemDef => !!i && !placedIds.has(i.id));
+    .filter((i): i is ItemDef => !!i && !placedIds.has(i.id))
+    .reverse();
   const papers = [WALLPAPER_DEFAULT, ...WALLPAPER_ITEM_IDS.filter((id) => ownedItemIds.includes(id))];
   const floors = FLOOR_ITEM_IDS.filter((id) => id === FLOOR_DEFAULT || ownedItemIds.includes(id));
 
@@ -92,7 +111,7 @@ export const RoomEditorTray = ({
         <p className="font-display text-xs font-bold uppercase tracking-widest text-panel-muted">
           {placingItemId
             ? `Placing ${ITEM_CATALOG[placingItemId]?.name ?? "item"} — tap a green tile`
-            : "Tap an item, then tap a tile — or drag items already in the room"}
+            : `In storage · ${owned.length}  ·  In room · ${roomLayout.length}`}
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {placingItemId ? (
@@ -110,6 +129,15 @@ export const RoomEditorTray = ({
           ) : null}
           <Button
             size="sm"
+            variant="secondary"
+            disabled={undoCount === 0}
+            onClick={() => onUndo?.()}
+            className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80 disabled:opacity-40"
+          >
+            Undo
+          </Button>
+          <Button
+            size="sm"
             onClick={() => {
               sfx.uiClick();
               onDone();
@@ -120,6 +148,23 @@ export const RoomEditorTray = ({
           </Button>
         </div>
       </div>
+      {!coachSeen && !placingItemId ? (
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              localStorage.setItem(COACH_KEY, "1");
+            } catch {
+              /* private mode */
+            }
+            setCoachSeen(true);
+          }}
+          className="mt-1.5 flex w-full items-center justify-between rounded-[3px] border-2 border-ink bg-primary/20 px-2 py-1 text-left font-body text-[11px] text-panel-foreground"
+        >
+          <span>Drag to move · tap to select · R to rotate · Ctrl+Z to undo</span>
+          <span className="font-display text-[10px] font-bold text-panel-muted">OK</span>
+        </button>
+      ) : null}
 
       <Tabs defaultValue="furniture" className="mt-2" onValueChange={(v) => onTabChange?.(v as TrayTab)}>
         <TabsList className="h-auto w-full flex-wrap rounded-[3px] border-2 border-ink bg-panel-foreground/5">
@@ -140,9 +185,26 @@ export const RoomEditorTray = ({
             <TabsContent key={category} value={category}>
               <ScrollArea className="h-28 pr-2">
                 {items.length === 0 ? (
-                  <p className="pt-3 font-body text-xs text-panel-muted">
-                    Nothing here yet — visit the Shop.
-                  </p>
+                  <div className="flex flex-col items-start gap-2 pt-3">
+                    <p className="font-body text-xs text-panel-muted">
+                      {placedIds.size > 0
+                        ? "Everything you own is out in the room."
+                        : "Nothing here yet — your dorm is a blank canvas."}
+                    </p>
+                    {onOpenShop ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          sfx.uiClick();
+                          onOpenShop();
+                        }}
+                        className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                      >
+                        Browse Floor 3 Supply
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : (
                   <ul className="flex flex-wrap gap-2 pt-2">
                     {items.map((item) => {

@@ -29,7 +29,7 @@ describe("seed rooms", () => {
     for (const room of ROOMS) {
       const placed: typeof room.layout = [];
       for (const p of room.layout) {
-        expect({ room: room.id, item: p.itemId, ok: canPlaceIn(placed, p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation) }).toEqual({
+        expect({ room: room.id, item: p.itemId, ok: canPlaceIn(placed, p.itemId, p.gx, p.gy, (p.rotation ?? 0) as Rotation).ok }).toEqual({
           room: room.id,
           item: p.itemId,
           ok: true,

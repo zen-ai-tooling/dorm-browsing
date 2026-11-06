@@ -16,12 +16,13 @@ import {
   FLOOR_DEFAULT,
   ITEM_CATALOG,
   isPaletteColor,
+  layerOf,
   newlyCompletedSets,
   recolorCost,
   SET_REWARD,
 } from "@/data/items";
 import { doorChange, normalizeDoor, DOOR_DEFAULT, type DoorChange, type DoorState } from "@/data/door";
-import { migrateMountLayout } from "@/data/placement";
+import { migrateMountLayout, nearestSpot } from "@/data/placement";
 import {
   DAILY_COIN_REWARD,
   normalizeDailyAnswers,
@@ -56,6 +57,7 @@ export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
   { itemId: "speaker_basic", gx: 1, gy: 2 },
   { itemId: "board_basic", gx: 9, gy: 0 },
   { itemId: "plant_basic", gx: 1, gy: 4 },
+  { itemId: "rug_woven", gx: 3, gy: 3 },
 ];
 
 export interface PlayerState {
@@ -350,6 +352,14 @@ export const normalizeSave = (raw: unknown): PlayerState => {
     // a worn outfit you no longer own (dev reset) falls back to your own pieces
     if (next.avatar.outfitItemId && !next.ownedItemIds.includes(next.avatar.outfitItemId))
       delete next.avatar.outfitItemId;
+    // the room rug is a real placed item now — seed it for saves that predate that
+    if (
+      next.ownedItemIds.includes("rug_woven") &&
+      !next.roomLayout.some((p) => layerOf(ITEM_CATALOG[p.itemId]) === "rug")
+    ) {
+      const spot = nearestSpot(next.roomLayout, "rug_woven", 3, 3);
+      if (spot) next.roomLayout.push({ itemId: "rug_woven", ...spot });
+    }
     // saves from before quests existed: tick what they've already done, with no rewards
     if (!Array.isArray(parsed.questsDone)) next.questsDone = migrateQuests(next);
     return next;
@@ -853,6 +863,18 @@ export const playerActions = {
     set({ roomLayout, coins: isUnlimited() ? state.coins : state.coins - cost });
     if (cost > 0) sfx.coin();
     return true;
+  },
+  /** editor undo: restores a recolour and refunds what it cost (no affordability check) */
+  undoRecolor(itemId: string, tint: number | null, refund: number) {
+    const idx = state.roomLayout.findIndex((p) => p.itemId === itemId);
+    if (idx < 0) return;
+    const roomLayout = state.roomLayout.map((q, i) => {
+      if (i !== idx) return q;
+      const { tint: _t, ...rest } = q;
+      void _t;
+      return tint === null ? rest : { ...rest, tint };
+    });
+    set({ roomLayout, coins: isUnlimited() || refund <= 0 ? state.coins : state.coins + refund });
   },
   setFloor(itemId: string) {
     if (state.myFloorId === itemId || ITEM_CATALOG[itemId]?.category !== "floor") return false;

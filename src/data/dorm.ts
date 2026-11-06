@@ -185,6 +185,7 @@ export const ROOMS: PersonRoom[] = [
       { itemId: "speaker_basic", gx: 1, gy: 2 },
       { itemId: "board_basic", gx: 9, gy: 0 },
       { itemId: "plant_basic", gx: 1, gy: 4 },
+      { itemId: "rug_woven", gx: 3, gy: 3 },
     ],
     wallpaperId: "wallpaper_default",
     posterId: "poster_default",
@@ -292,9 +293,9 @@ export const ROOMS: PersonRoom[] = [
     },
     // house-music DJ and runner: darker blues and neon
     layout: [
-      { itemId: "board_basic", gx: 3, gy: 0 },
-      { itemId: "neon_sign", gx: 5, gy: 0 },
-      { itemId: "poster_gig", gx: 8, gy: 0 },
+      { itemId: "board_basic", gx: 7, gy: 0 },
+      { itemId: "neon_sign", gx: 3, gy: 0 },
+      { itemId: "poster_gig", gx: 0, gy: 0 },
       { itemId: "poster_pennant", gx: 9, gy: 0 },
       { itemId: "plant_basic", gx: 0, gy: 1 },
       { itemId: "speaker_tower", gx: 3, gy: 1 },

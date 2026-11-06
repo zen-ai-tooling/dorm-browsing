@@ -1,3 +1,14 @@
+# Room Editor Overhaul (footprints, rug layer, walkability, UX)
+
+- [x] items.ts: measured footprints, layer (rug/floor/wall), solid flags per spec
+- [x] placement.ts: layered collision, rejection reasons, walkability flood fill, migration
+- [x] Seed + save migration: rug_woven as a real placed item (3,3)
+- [x] DormScene: base anchoring, remove myRug, ghost follows pointer, player fade in edit
+- [x] Editor UX: rejection tooltips, undo (20, Ctrl+Z, recolor refund), grid, keyboard, tap cycling, phone targets/zoom/vibrate, tray counts/coach mark/empty state, feel polish, Saved toast
+- [x] Tests: placement.test.ts overhaul + residents.test.ts .ok fix; 119 pass, typecheck clean, build OK
+
+Verification limits: browser checked edit mode (grid, hatched door lane, faded player, tray counts, coach mark, empty state, rug as real item, neighbor rooms with base anchoring). Not browser-verified: drag-and-drop move, ghost placement click-through, undo button action, arrow nudge selection, phone viewport (390×844), recolor refund via undo. Test save had a stuck inside-room flag requiring a manual nudge — worth a fresh-save pass.
+
 # Pre-test fixes
 
 - [x] Ownership-aware save decisions, single boot, race-safe sign-out/reset, regression tests

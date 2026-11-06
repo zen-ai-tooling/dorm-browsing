@@ -14,6 +14,8 @@ export interface ItemDef {
   solid: boolean;
   /** "wall" items hang on the back-wall face (row 0); default "floor" */
   mount?: "wall" | "floor";
+  /** placement layer: rugs sit under furniture, wall items on the face — assigned below */
+  layer?: "rug" | "floor" | "wall";
   /** which popup this triggers, if any */
   interactive?: "songs" | "bulletin" | "companion" | "watching" | "art";
   /** wallpaper items only: the wall base colour applied when equipped */
@@ -110,7 +112,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Basic Desk",
     category: "furniture",
     textureKey: "desk",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 3, h: 1 },
     solid: true,
     price: 0,
     unlockedByDefault: true,
@@ -121,7 +123,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Speaker",
     category: "furniture",
     textureKey: "speaker",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 1, h: 1 },
     solid: false,
     interactive: "songs",
     price: 0,
@@ -146,7 +148,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Potted Plant",
     category: "companion",
     textureKey: "plant",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 1, h: 1 },
     solid: false,
     interactive: "companion",
     price: 0,
@@ -158,7 +160,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Cat",
     category: "companion",
     textureKey: "pet",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 0,
@@ -170,8 +172,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "TV",
     category: "furniture",
     textureKey: "tv",
-    footprint: { w: 2, h: 2 },
-    solid: false,
+    footprint: { w: 3, h: 1 },
+    solid: true,
     interactive: "watching",
     price: 0,
     unlockedByDefault: true,
@@ -244,7 +246,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Book Shelf",
     category: "furniture",
     textureKey: "shelf",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: true,
     price: 45,
     unlockedByDefault: false,
@@ -255,7 +257,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Record Player",
     category: "furniture",
     textureKey: "record",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     price: 30,
     unlockedByDefault: false,
@@ -266,7 +268,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Scruffy Dog",
     category: "companion",
     textureKey: "pet",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     tint: 0xd9c08a,
@@ -307,7 +309,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Retro Boombox",
     category: "furniture",
     textureKey: "boombox",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "songs",
     price: 45,
@@ -319,7 +321,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Tower Speaker",
     category: "furniture",
     textureKey: "tower",
-    footprint: { w: 1, h: 3 },
+    footprint: { w: 1, h: 1 },
     solid: true,
     interactive: "songs",
     price: 65,
@@ -331,7 +333,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Vintage Hi-Fi Cabinet",
     category: "furniture",
     textureKey: "hifi",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: true,
     interactive: "songs",
     price: 105,
@@ -343,8 +345,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Retro CRT TV",
     category: "furniture",
     textureKey: "crt",
-    footprint: { w: 2, h: 2 },
-    solid: false,
+    footprint: { w: 2, h: 1 },
+    solid: true,
     interactive: "watching",
     price: 40,
     unlockedByDefault: false,
@@ -355,8 +357,8 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Mounted Flatscreen + Soundbar",
     category: "furniture",
     textureKey: "flatscreen",
-    footprint: { w: 3, h: 2 },
-    solid: false,
+    footprint: { w: 3, h: 1 },
+    solid: true,
     interactive: "watching",
     price: 120,
     unlockedByDefault: false,
@@ -367,7 +369,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Gaming TV Setup",
     category: "furniture",
     textureKey: "tvgaming",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 3, h: 1 },
     solid: true,
     interactive: "watching",
     price: 95,
@@ -392,7 +394,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Mini Disco Ball",
     category: "furniture",
     textureKey: "discoball",
-    footprint: { w: 1, h: 2 },
+    footprint: { w: 1, h: 1 },
     solid: false,
     tint: 0xc9d6ec,
     price: 95,
@@ -404,7 +406,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Tabletop Arcade",
     category: "furniture",
     textureKey: "arcade",
-    footprint: { w: 2, h: 3 },
+    footprint: { w: 2, h: 1 },
     solid: true,
     price: 110,
     unlockedByDefault: false,
@@ -415,7 +417,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Hammock Chair",
     category: "furniture",
     textureKey: "hammock",
-    footprint: { w: 2, h: 3 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     price: 75,
     unlockedByDefault: false,
@@ -438,7 +440,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Papasan Chair",
     category: "furniture",
     textureKey: "papasan",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: true,
     price: 70,
     unlockedByDefault: false,
@@ -449,7 +451,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Vinyl Crate Shelf",
     category: "furniture",
     textureKey: "vinylcrate",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: true,
     price: 40,
     unlockedByDefault: false,
@@ -460,7 +462,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Projector + Screen",
     category: "furniture",
     textureKey: "projector",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 3, h: 1 },
     solid: true,
     price: 90,
     unlockedByDefault: false,
@@ -471,7 +473,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Canopy Bed",
     category: "furniture",
     textureKey: "canopybed",
-    footprint: { w: 4, h: 3 },
+    footprint: { w: 3, h: 2 },
     solid: true,
     price: 140,
     unlockedByDefault: false,
@@ -482,7 +484,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Floor Cushion Stack",
     category: "furniture",
     textureKey: "cushions",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     price: 20,
     unlockedByDefault: false,
@@ -494,7 +496,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Hamster + Wheel",
     category: "companion",
     textureKey: "hamster",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 45,
@@ -506,7 +508,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Betta Fish",
     category: "companion",
     textureKey: "betta",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 35,
@@ -518,7 +520,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Axolotl Tank",
     category: "companion",
     textureKey: "axolotl",
-    footprint: { w: 3, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 120,
@@ -530,7 +532,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Corgi",
     category: "companion",
     textureKey: "corgi",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 85,
@@ -542,7 +544,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Bonsai Tree",
     category: "companion",
     textureKey: "bonsai",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "companion",
     price: 50,
@@ -743,7 +745,7 @@ export const ITEM_CATALOG: Record<string, ItemDef> = {
     name: "Retro Boombox, Pink",
     category: "furniture",
     textureKey: "boombox",
-    footprint: { w: 2, h: 2 },
+    footprint: { w: 2, h: 1 },
     solid: false,
     interactive: "songs",
     tint: 0xf4a6c6,
@@ -1014,6 +1016,12 @@ export const rotatedFootprint = (item: ItemDef, rotation: Rotation = 0) =>
 
 export const isWallItem = (item: ItemDef | undefined) => item?.mount === "wall";
 
+/** the one layer rule: wall mount → wall, rug_* → rug, everything else → floor */
+export const layerOf = (item: ItemDef | undefined): "rug" | "floor" | "wall" =>
+  !item ? "floor" : isWallItem(item) ? "wall" : item.id.startsWith("rug_") ? "rug" : "floor";
+
+for (const item of Object.values(ITEM_CATALOG)) item.layer = layerOf(item);
+
 /** footprint used for placement: wall items are always one row tall and never rotate */
 export const effectiveFootprint = (item: ItemDef, rotation: Rotation = 0) =>
   isWallItem(item) ? { w: item.footprint.w, h: 1 } : rotatedFootprint(item, rotation);
@@ -1049,6 +1057,8 @@ export const displayTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: num
   // posters wear the room's accent unless the catalog gives them their own colour (mail finds)
   if (item.category === "poster") return item.tint ?? mixColor(mood.posterAccent, 0xffffff, 0.32);
   if (item.textureKey === "tv") return mixColor(mood.glow, 0xffffff, 0.62);
+  // the plain woven rug picks up the room's accent, like the old hardcoded floor rug did
+  if (item.textureKey === "rug") return item.tint ?? mixColor(mood.posterAccent, 0xbca584, 0.18);
   return item.tint;
 };
 
