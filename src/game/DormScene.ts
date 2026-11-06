@@ -1261,10 +1261,19 @@ export class DormScene extends Phaser.Scene {
     });
   }
 
+  private zones: Zone[] = [];
+
   private zoneNear(x: number, y: number, zones: Zone[]): Zone | undefined {
     const hit = (z: Zone) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h;
     // rooms own their trim colour; the hallway only claims walls nobody else touches
     return zones.find((z) => z.kind !== "hall" && hit(z)) ?? zones.find(hit);
+  }
+
+  /** the room/zone the player is standing in — feedback reports attach it automatically */
+  playerZoneLabel(): string {
+    if (!this.player) return "";
+    const z = this.zoneNear(Math.floor(this.player.x / TILE), Math.floor(this.player.y / TILE), this.zones);
+    return z?.label ?? "";
   }
 
 
