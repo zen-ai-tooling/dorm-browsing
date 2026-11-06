@@ -487,6 +487,7 @@ export class DormScene extends Phaser.Scene {
 
   create() {
     const zones = this.buildZones();
+    this.zones = zones;
     this.buildGrid(zones);
     this.paintFloor(zones);
     this.buildColliders();

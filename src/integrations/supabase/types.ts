@@ -91,7 +91,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      handle_available: { Args: { _handle: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
