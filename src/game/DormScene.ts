@@ -556,6 +556,7 @@ export class DormScene extends Phaser.Scene {
       getHour: () => this.getHour(), getHourOverride: () => this.getHourOverride(),
       onPetSpot: (near) => this.onPetSpot(near), onPet: () => this.onPetProfessor(),
       jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour()).awayNote === "at the library",
+      onPayloadChange: (payload) => { if (this.activePayload === payload) this.onPopup({ ...payload }); },
       register: (sprite, payload) => {
         const ring = this.add.image(sprite.x, sprite.y, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
         this.interactives.push({ sprite, ring, payload });

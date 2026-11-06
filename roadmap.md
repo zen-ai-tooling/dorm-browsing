@@ -1,11 +1,13 @@
 # Campus Life
 
-- [ ] Open campus grid/gate, shared waypoint graph and reachability tests
-- [ ] Library, clock, seasonal oak, Quad stops and nighttime lights
-- [ ] Seeded students, activities/overheards and animals/Professor
-- [ ] Real resident away destinations and Quad sketching
-- [ ] Daily fountain action/save normalization, campus popups, dev controls
-- [ ] Tests and desktop/phone day/night campus verification
+- [x] Open campus grid/gate, shared waypoint graph and reachability tests
+- [x] Library, clock, seasonal oak, Quad stops and nighttime lights
+- [x] Seeded students, activities/overheards and animals/Professor
+- [x] Real resident away destinations and Quad sketching
+- [x] Daily fountain action/save normalization, campus popups, dev controls
+- [x] 131 tests; browser: connected live-grid paths, keyboard gate crossing, phone-sized click walk, fortune/reload, density bands, petting, resident arrival, night library, cat couch
+
+Verification limits: not a complete room-to-Quad-and-back input journey; touch-device performance and animal scatter/climb timing were not exhaustively checked. Resident arrival and bedtime checks advanced the live simulation for long routes.
 
 # Small editor follow-ups
 

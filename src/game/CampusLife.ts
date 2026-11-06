@@ -28,6 +28,7 @@ interface Hooks {
   onPetSpot: (near: boolean) => void;
   onPet: () => void;
   jordanInside: () => boolean;
+  onPayloadChange: (payload: PopupPayload) => void;
 }
 const T = 32;
 const center = (p: Point) => ({ x: (p.x + 0.5) * T, y: (p.y + 0.5) * T });
@@ -221,7 +222,10 @@ export class CampusLife {
     }
     this.coffeePayload.lines = ["Drink of the day", drinkForDate(date), hour >= 6 ? "The barista remembers everyone's order. Somehow." : "Back at 6am. The espresso machine is dreaming."];
     const libraryLines = ["Hale Library — open 8am–2am.", libraryOpen(hour) ? (this.hooks.jordanInside() ? "Jordan is studying here." : "Quiet tables, warm windows, one very determined printer.") : "Closed for a little sleep. Back at 8am."];
-    if (libraryLines.join("|") !== this.libraryPayload.lines.join("|")) this.libraryPayload.lines = libraryLines;
+    if (libraryLines.join("|") !== this.libraryPayload.lines.join("|")) {
+      this.libraryPayload.lines = libraryLines;
+      this.hooks.onPayloadChange(this.libraryPayload);
+    }
     const winOn = libraryOpen(hour);
     if (winOn !== this.windowOn) {
       this.windowOn = winOn;
