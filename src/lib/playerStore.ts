@@ -358,13 +358,29 @@ export const normalizeSave = (raw: unknown): PlayerState => {
   }
 };
 
-const persist = () => {
+const read = (): PlayerState => {
+  if (typeof window === "undefined") return defaultState();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    return normalizeSave(JSON.parse(raw));
+  } catch {
+    return defaultState();
+  }
+};
+
+const writeLocal = () => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     /* storage full or blocked — in-memory state still works this session */
   }
+};
+
+const persist = () => {
+  state.savedAt = Date.now();
+  writeLocal();
 };
 
 const set = (next: Partial<PlayerState>) => {
