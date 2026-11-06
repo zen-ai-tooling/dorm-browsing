@@ -50,29 +50,29 @@ const TEAL = 0x4f9a9a;
 
 describe("displayTintFor precedence", () => {
   test("placed tint beats catalog tint, catalog beats mood", () => {
-    const rug = ITEM_CATALOG.rug_shag!; // has its own catalog tint
+    const rug = ITEM_CATALOG["rug_shag"]!; // has its own catalog tint
     expect(displayTintFor(rug, "chill_ambient", ROSE)).toBe(ROSE);
     expect(displayTintFor(rug, "chill_ambient")).toBe(rug.tint);
   });
   test("a poster with no colour wears the mood accent (Original)", () => {
-    const poster = ITEM_CATALOG.poster_default!;
+    const poster = ITEM_CATALOG["poster_default"]!;
     expect(displayTintFor(poster, "cozy_soft")).toBe(mixColor(MOODS.cozy_soft.posterAccent, 0xffffff, 0.32));
     expect(displayTintFor(poster, "cozy_soft", TEAL)).toBe(TEAL);
   });
   test("accent items tint only the overlay; the base keeps its baked look", () => {
-    const bed = ITEM_CATALOG.bed_basic!;
+    const bed = ITEM_CATALOG["bed_basic"]!;
     expect(baseTintFor(bed, "chill_ambient", ROSE)).toBeUndefined();
     expect(accentTintFor(bed, ROSE)).toBe(ROSE);
     expect(accentTintFor(bed, undefined)).toBeUndefined();
   });
   test("a recolored lamp's light mixes 40% toward its shade", () => {
-    const lamp = ITEM_CATALOG.lava_lamp!;
+    const lamp = ITEM_CATALOG["lava_lamp"]!;
     expect(lightColorFor(lamp, ROSE)).toBe(mixColor(lamp.light!.color, ROSE, 0.4));
     expect(lightColorFor(lamp, undefined)).toBe(lamp.light!.color);
   });
   test("at least 15 items are recolorable", () => {
     expect(RECOLORABLE_IDS.length).toBeGreaterThanOrEqual(15);
-    expect(ITEM_CATALOG.desk_basic!.recolor).toBeUndefined();
+    expect(ITEM_CATALOG["desk_basic"]!.recolor).toBeUndefined();
   });
 });
 
@@ -108,8 +108,8 @@ describe("door + floor migration", () => {
   test("older saves load with today's look", () => {
     const s = m.getPlayerState();
     expect(s.myFloorId).toBe("floor_checker");
-    expect(s.door.frameColor).toBeNull();
-    expect(s.door.plateText).toBeNull();
+    expect(s.door.frameColor).toBe(null);
+    expect(s.door.plateText).toBe(null);
     expect(s.door.plateStyle).toBe("cream");
     expect(s.door.boardMode).toBe("answer");
     expect(s.door.matId).toBe("mat_plain");
@@ -128,7 +128,7 @@ describe("door + floor migration", () => {
     expect(d.plateText!.length).toBe(PLATE_MAX);
     expect(d.plateStyle).toBe("cream");
     expect(d.stickers).toEqual(["vinyl", "coffee", "chess", "boba"]);
-    expect(d.frameColor).toBeNull();
+    expect(d.frameColor).toBe(null);
     expect(d.matId).toBe("mat_plain");
     expect(normalizeDoor(undefined)).toEqual(DOOR_DEFAULT);
   });
