@@ -510,6 +510,9 @@ const defaultOwned = () => defaultState().ownedItemIds;
 export const hasRealProgress = (s: PlayerState) =>
   s.onboarded && (s.ownedItemIds.length > defaultOwned().length || Object.keys(s.dailyAnswers).length >= 3);
 
+/** how many items a fresh save owns — the nudge/conflict rules compare against it */
+export const defaultOwnedCount = () => defaultOwned().length;
+
 export const devActions = {
   /** hidden triple-tap switch — the only dev action that works while dev mode is off */
   toggleEnabled() {

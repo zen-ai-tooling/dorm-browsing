@@ -56,6 +56,10 @@ import { roomInfoFor } from "@/lib/residentTalk";
 import { PHASE_LABEL } from "@/game/timeOfDay";
 import { PhaseChip, PHASE_GLYPHS } from "./PhaseChip";
 import { PixelIcon } from "./PixelIcon";
+import { defaultOwnedCount } from "@/lib/playerStore";
+
+const meItem =
+  "rounded-[3px] px-2 py-1.5 text-left font-body text-xs font-bold text-panel-foreground hover:bg-panel-foreground/10";
 
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
