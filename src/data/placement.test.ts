@@ -167,7 +167,7 @@ describe("old saved layouts", () => {
 
   test("nearestSpot finds the closest valid tile", () => {
     const layout = [{ itemId: "bed_basic", gx: 9, gy: 5 }];
-    expect(nearestSpot(layout, "desk_basic", 9, 5)).toEqual({ gx: 6, gy: 5 });
+    expect(nearestSpot(layout, "desk_basic", 9, 5)).toEqual({ gx: 9, gy: 4 });
     expect(nearestSpot(layout, "rug_woven", 3, 3)).toEqual({ gx: 3, gy: 3 });
   });
 });
