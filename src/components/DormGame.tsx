@@ -112,6 +112,9 @@ const DormGame = () => {
     hydrateDevMode();
     hydrateTimeOverride();
     setHydrated(true);
+    // guest-first accounts: silent anonymous session, then cloud-save sync
+    void initAuth();
+    startSaveSync();
   }, []);
 
   // live avatar / room mood / name in the world
