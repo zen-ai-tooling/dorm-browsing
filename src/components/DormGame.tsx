@@ -134,7 +134,7 @@ const DormGame = () => {
       /* storage blocked */
     }
     const daysPlayed = Object.keys(dailyAnswers).length;
-    const firstPurchase = ownedItemIds.length > DEFAULT_OWNED_COUNT;
+    const firstPurchase = ownedItemIds.length > defaultOwnedCount();
     if (justOnboarded || firstPurchase || daysPlayed >= 3) setNudge(true);
   }, [auth.ready, auth.isAnonymous, onboarded, ownedItemIds.length, dailyAnswers]);
 
@@ -667,16 +667,21 @@ const DormGame = () => {
                   </IconChip>
                 </button>
               ) : null}
-              <button
-                type="button"
-                aria-label="Edit your avatar"
-                onClick={openAvatar}
-                className="flex flex-1 items-center justify-center rounded-[3px] py-0.5"
-              >
-                <IconChip>
-                  <UserRound className="size-3.5" aria-hidden />
-                </IconChip>
-              </button>
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  aria-label="Me menu"
+                  aria-expanded={meOpen}
+                  onClick={openMe}
+                  className="flex w-full items-center justify-center rounded-[3px] py-0.5"
+                >
+                  <IconChip>
+                    <UserRound className="size-3.5" aria-hidden />
+                  </IconChip>
+                </button>
+                {guestDot}
+                {meMenu("bottom")}
+              </div>
               <button
                 type="button"
                 aria-label={muted ? "Unmute sound" : "Mute sound"}
