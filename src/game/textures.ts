@@ -1,6 +1,7 @@
 import * as Phaser from "phaser";
 import { DEFAULT_LOOK, type AvatarLook } from "@/data/avatar";
 import { CHAR_H, CHAR_W, DIRS, paintChar, type Dir } from "./avatarDraw";
+import { leafPhaseForMonth, TRUCKS } from "@/data/campus";
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -111,6 +112,117 @@ export const buildCharTextures = (scene: Phaser.Scene, prefix: string, look: Ava
       make(scene, `${prefix}-${dir}-${step}`, CHAR_W, CHAR_H, (g) => drawChar(g, dir, step, look));
   // eyes-closed front frame; the scene lays it down on a bed
   make(scene, `${prefix}-sleep`, CHAR_W, CHAR_H, (g) => paintChar(g, look, "down", 0, P, { sleep: true }));
+};
+
+/** Outdoor art uses the same two-pixel grid and three-tone shading as dorm props. */
+export const buildCampusTextures = (scene: Phaser.Scene) => {
+  make(scene, "campus-library", 528, 300, (g) => {
+    panel(g, 0, 120, 528, 172, 0x965f50, 0x653e38, 0xb57c65);
+    // Slate roof: stepped pitches and small roof courses.
+    for (let y = 0; y < 94; y += 4) r(g, 12 + Math.floor(y / 12), 124 + y, 504 - Math.floor(y / 12) * 2, 4, y % 12 === 0 ? 0x768488 : 0x4f5c63);
+    r(g, 0, 218, 528, 8, 0x303a43);
+    r(g, 0, 226, 528, 3, 0xd2c8b6);
+    for (let y = 232; y < 290; y += 8) for (let x = (y % 16 === 0 ? 0 : 12); x < 528; x += 24) {
+      r(g, x, y, 22, 1, 0x784739); r(g, x, y, 1, 7, 0x784739);
+    }
+    for (const x of [30, 103, 376, 449]) {
+      panel(g, x, 240, 46, 42, 0x263b49, 0x1e2836, 0x65808a);
+      for (let i = 0; i < 6; i++) r(g, x + 3 + i * 3, 235 - i, 40 - i * 6, 2, 0xc5b59b);
+      r(g, x + 22, 238, 2, 43, 0xc5b59b); r(g, x + 2, 259, 42, 2, 0xc5b59b);
+    }
+    for (const x of [173, 211, 301, 339]) {
+      panel(g, x, 235, 14, 51, 0xd4cdbc, 0x9a9d96, 0xf0e8d5);
+      r(g, x - 4, 232, 22, 5, 0xe4dac2); r(g, x - 4, 284, 22, 6, 0x9a9d96);
+    }
+    panel(g, 239, 244, 50, 48, 0x364f59, 0x243840, 0x68848b);
+    r(g, 263, 245, 2, 45, 0xd4cdbc); r(g, 257, 268, 3, 2, 0xe0b858); r(g, 268, 268, 3, 2, 0xe0b858);
+    // Tower grows through the roof, its clock is drawn live by the scene.
+    panel(g, 230, 30, 68, 193, 0x986f5d, 0x664c45, 0xc39677);
+    for (let y = 34; y < 216; y += 12) r(g, 234, y, 60, 1, 0x785344);
+    panel(g, 235, 8, 58, 22, 0x394c56, 0x24343d, 0x768488);
+    for (let i = 0; i < 8; i++) r(g, 240 + i * 3, 7 - Math.min(i, 7 - i), 48 - i * 6, 2, 0x768488);
+    panel(g, 238, 122, 52, 32, 0x29333b, 0x172027, 0xb7ab95);
+    r(g, 239, 158, 50, 5, 0xddd0b4);
+  });
+  for (const phase of ["green", "autumn", "snow", "blossom"] as const) make(scene, `campus-oak-${phase}`, 160, 150, (g) => {
+    const palette = phase === "autumn" ? [0xc16b36, 0x94423b, 0xe9ac54] : phase === "blossom" ? [0xd697b2, 0xac6b91, 0xf2c6d5] : [0x6e9854, 0x406541, 0x9db76b];
+    panel(g, 73, 60, 15, 83, 0x85614b, 0x513e37, 0xa7805c);
+    for (const [x, y, w, h] of [[25, 45, 36, 10], [90, 45, 39, 10], [51, 27, 13, 45], [101, 20, 10, 42]]) panel(g, x ?? 0, y ?? 0, w ?? 1, h ?? 1, 0x85614b, 0x513e37, 0xa7805c);
+    if (phase === "snow") {
+      for (const [x, y, w] of [[25, 44, 36], [90, 44, 39], [51, 27, 13], [101, 20, 10]]) r(g, x ?? 0, y ?? 0, w ?? 1, 4, 0xe7eef0);
+    } else {
+      for (const [x, y, w, h] of [[28, 12, 48, 48], [69, 0, 50, 53], [111, 27, 41, 43], [8, 43, 58, 38], [54, 48, 71, 36]]) {
+        panel(g, x ?? 0, y ?? 0, w ?? 1, h ?? 1, palette[0] ?? LEAF, palette[1] ?? LEAF_SH, palette[2] ?? LEAF_HI);
+        for (let i = 0; i < 14; i++) r(g, (x ?? 0) + 5 + (i * 13) % Math.max(6, (w ?? 12) - 8), (y ?? 0) + 5 + (i * 7) % Math.max(6, (h ?? 12) - 8), 4, 2, palette[2] ?? LEAF_HI);
+      }
+    }
+    foot(g, 80, 144, 22);
+  });
+  for (let frame = 0; frame < 3; frame++) make(scene, `campus-fountain-${frame}`, 40, 44, (g) => {
+    panel(g, 1, 17, 38, 22, 0xa4afb0, 0x707f85, 0xd4d8cb);
+    panel(g, 5, 19, 30, 12, 0x65aebd, 0x367485, 0xa2d7d5);
+    panel(g, 17, 8, 6, 18, 0xb8beb6, 0x7c898c, 0xe0dfcb);
+    r(g, 18, 2, 4, 10, 0x9fdee2);
+    for (let i = 0; i < 4; i++) r(g, 7 + i * 7, 20 + (i + frame) % 3 * 2, 4, 1, 0xd7edf0);
+    r(g, 11 - frame, 10 + frame, 3, 2, 0x9fdee2); r(g, 27 + frame, 10 + frame, 3, 2, 0x9fdee2);
+  });
+  make(scene, "campus-picnic", 54, 35, (g) => {
+    panel(g, 7, 7, 40, 10, WOOD, WOOD_SH, WOOD_HI);
+    for (const y of [21, 28]) panel(g, 1, y, 52, 5, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 10, 17, 4, 14, INK); r(g, 40, 17, 4, 14, INK);
+  });
+  make(scene, "campus-bench", 38, 26, (g) => {
+    for (const y of [2, 7, 15]) panel(g, 1, y, 36, 4, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 6, 2, 2, 23, INK); r(g, 30, 2, 2, 23, INK);
+  });
+  make(scene, "campus-kiosk", 24, 49, (g) => {
+    panel(g, 4, 8, 16, 35, 0x6e7870, 0x46534e, 0x9fa88d);
+    panel(g, 1, 4, 22, 5, 0x54776f, 0x38514f, 0x8ca397);
+    for (const [x, y, c] of [[6, 12, 0xf4d4a3], [12, 19, 0xa5bdcd], [5, 27, 0xe69b8d], [13, 32, 0xd3cb86]]) panel(g, x ?? 0, y ?? 0, 7, 9, c ?? CREAM, 0x887b6c, 0xf5e8ce);
+    r(g, 9, 43, 6, 5, 0x46534e);
+  });
+  for (const [i, truck] of TRUCKS.entries()) make(scene, `campus-truck-${i}`, 70, 52, (g) => {
+    panel(g, 2, 11, 65, 33, truck.color, 0x425054, 0xf1ddbd);
+    panel(g, 47, 17, 18, 16, 0x7197a4, 0x395761, 0xa1c6ce);
+    panel(g, 8, 20, 33, 13, 0x334849, 0x203438, 0xb4c9b8);
+    for (let x = 4; x < 44; x += 8) r(g, x, 14, 4, 5, 0xf1ddbd);
+    panel(g, 6, 5, 36, 8, 0xf1ddbd, 0xb5a78c, 0xfff1ce);
+    for (const x of [12, 53]) { panel(g, x, 39, 11, 11, INK, 0x172027, 0x7d8986); r(g, x + 4, 43, 3, 3, 0xbfc4b8); }
+  });
+  make(scene, "campus-coffee", 38, 41, (g) => {
+    panel(g, 2, 22, 34, 13, 0x588d85, 0x365c59, 0x9bc4b0);
+    for (const x of [5, 31]) r(g, x, 5, 2, 18, INK);
+    for (let x = 0; x < 38; x += 6) r(g, x, 1, 6, 8, x % 12 === 0 ? 0xe9dab8 : 0xb85b4e);
+    panel(g, 9, 14, 10, 9, METAL, METAL_SH, METAL_HI);
+    r(g, 26, 17, 5, 6, CREAM); r(g, 6, 35, 4, 5, INK); r(g, 28, 35, 4, 5, INK);
+  });
+  for (let frame = 0; frame < 2; frame++) {
+    make(scene, `campus-squirrel-${frame}`, 20, 22, (g) => {
+      panel(g, 1, 1 + frame * 2, 9, 15, 0xb9845a, 0x80563f, 0xdaa573);
+      panel(g, 9, 11 - frame, 10, 8, 0xb9845a, 0x80563f, 0xdaa573);
+      r(g, 15, 8 - frame, 3, 6, 0xb9845a); r(g, 17, 10 - frame, 1, 1, INK);
+    });
+    make(scene, `campus-pigeon-${frame}`, 16, 16, (g) => {
+      panel(g, 3, 7, 10, 6, 0x8c9caa, 0x526975, 0xb1bdc4);
+      r(g, 10, 3, 4, 6, 0x6e8790); r(g, 12, 4, 1, 1, INK); r(g, 14, 6, 2, 1, 0xdbab5a);
+      if (frame) { r(g, 0, 2, 6, 3, 0xb1bdc4); r(g, 7, 0, 5, 3, 0xb1bdc4); }
+      r(g, 5, 13, 1, 2, 0xb87668); r(g, 10, 13, 1, 2, 0xb87668);
+    });
+    make(scene, `campus-professor-${frame}`, 24, 19, (g) => {
+      panel(g, 5, 8, 15, 8, 0xd7974e, 0x9f633a, 0xf3c47c);
+      panel(g, 15, 3, 8, 9, 0xd7974e, 0x9f633a, 0xf3c47c);
+      r(g, 15, 0, 2, 4, 0xd7974e); r(g, 21, 0, 2, 4, 0xd7974e);
+      r(g, 16, 6, 1, 1, INK); r(g, 21, 6, 1, 1, INK);
+      r(g, 1, 4 + frame, 3, 10, 0xd7974e); r(g, 3, 13, 4, 2, 0xd7974e);
+      for (const x of [7, 12, 17]) r(g, x, 8, 2, 4, 0x9f633a);
+      r(g, 6 + frame, 16, 3, 2, 0x9f633a); r(g, 16 - frame, 16, 3, 2, 0x9f633a);
+    });
+  }
+  make(scene, "campus-frisbee", 12, 5, (g) => panel(g, 0, 1, 12, 3, 0xf0cb65, 0xb37a44, 0xffeaa0));
+  make(scene, "campus-skateboard", 18, 6, (g) => { panel(g, 0, 0, 18, 3, 0xb4788d, 0x724e65, 0xe7b0b3); r(g, 3, 4, 3, 2, INK); r(g, 12, 4, 3, 2, INK); });
+  make(scene, "campus-backpack", 10, 13, (g) => panel(g, 1, 1, 8, 11, 0xa8614b, 0x714539, 0xca9170));
+  // Prewarm the current month's texture name; all seasonal variants are generated above.
+  void leafPhaseForMonth(new Date().getMonth() + 1);
 };
 
 /** the pre-avatar hand-drawn sprite, kept for reference (no longer used) */
