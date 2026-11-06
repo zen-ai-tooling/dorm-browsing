@@ -4054,7 +4054,7 @@ export class DormScene extends Phaser.Scene {
       }
 
       if (this.cinematic) return;
-      if (this.travelling) { this.stopTravel(); return; } // tap anywhere cancels quick travel
+      if (this.travelling) { console.log("QTtapcancel"); this.stopTravel(); return; } // tap anywhere cancels quick travel
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       // tapping yourself opens the avatar creator
       if (this.player.getBounds().contains(wp.x, wp.y)) {
@@ -4180,6 +4180,7 @@ export class DormScene extends Phaser.Scene {
           Math.abs(body.body!.velocity.x) < 8 && Math.abs(body.body!.velocity.y) < 8;
         this.stuckMs = stalled ? this.stuckMs + delta : 0;
         if (this.stuckMs > 450) {
+          console.log("QTstuck", Math.round(body.x/32), Math.round(body.y/32), this.path.length);
           this.target = null;
           this.path = [];
           this.stuckMs = 0;
