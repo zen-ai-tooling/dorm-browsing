@@ -284,12 +284,14 @@ let state: PlayerState = defaultState();
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-const read = (): PlayerState => {
-  if (typeof window === "undefined") return defaultState();
+/**
+ * Pure save normalizer: defaults, catalog filtering, layout migration, recolor
+ * validation, outfit fallback, quest migration. Both localStorage reads and cloud
+ * loads go through it, so a cloud save gets every migration a local save gets.
+ */
+export const normalizeSave = (raw: unknown): PlayerState => {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw) as Partial<PlayerState>;
+    const parsed = (raw ?? {}) as Partial<PlayerState>;
     const base = defaultState();
     const next: PlayerState = {
       coins: typeof parsed.coins === "number" ? parsed.coins : base.coins,
