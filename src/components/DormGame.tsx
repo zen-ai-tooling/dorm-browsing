@@ -71,6 +71,7 @@ const DormGame = () => {
   const [editing, setEditing] = useState(false);
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
+  const [undoCount, setUndoCount] = useState(0);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   /** per item id, tinted exactly like the room renders it (see displayTintFor) */
   const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
@@ -395,6 +396,9 @@ const DormGame = () => {
         getDoor: () => getPlayerState().door,
         onRecolor: (index: number, tint: number | null) => playerActions.recolorPlaced(index, tint),
         canAfford: (price: number) => canAfford(price),
+        onUndoChange: setUndoCount,
+        onUndoRecolor: (itemId: string, tint: number | null, refund: number) =>
+          playerActions.undoRecolor(itemId, tint, refund),
         onKnockSpot: setKnockSpot,
         onSoldHint: showSoldHint,
         getVisitLine: (id: ResidentId) => {
@@ -496,6 +500,29 @@ const DormGame = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // editor keyboard: Ctrl/Cmd+Z undo, R rotate, Delete put away, arrows nudge
+  useEffect(() => {
+    if (!editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const scene = sceneRef.current;
+      if (!scene) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        scene.undo();
+      } else if (e.key === "r" || e.key === "R") scene.rotateSelected();
+      else if (e.key === "Delete" || e.key === "Backspace") scene.removeSelected();
+      else if (e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        if (d) scene.nudgeSelected(d[0]!, d[1]!);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing]);
+
   // hidden dev switch: 3 title taps within 1s toggles dev mode and leaves the hint as it was
   const titleTapsRef = useRef<number[]>([]);
   const hintBeforeTapsRef = useRef<boolean | null>(null);
@@ -524,7 +551,10 @@ const DormGame = () => {
     setTrayTab("furniture");
     if (!on) setWallpaperOpen(false);
     sceneRef.current?.setEditMode(on);
-    if (!on) sceneRef.current?.restoreCamera();
+    if (!on) {
+      sceneRef.current?.restoreCamera();
+      toast("Saved ✓", { duration: 1500 });
+    }
   };
 
 
@@ -861,6 +891,9 @@ const DormGame = () => {
               if (tab === "door") sceneRef.current?.cancelPlacing();
               setTrayTab(tab);
             }}
+            onOpenShop={() => setShopOpen(true)}
+            onUndo={() => sceneRef.current?.undo()}
+            undoCount={undoCount}
             placingItemId={placingItemId}
             thumbnails={thumbs}
             itemThumbnails={itemThumbs}
