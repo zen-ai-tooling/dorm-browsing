@@ -1,3 +1,12 @@
+# Campus Life
+
+- [ ] Open campus grid/gate, shared waypoint graph and reachability tests
+- [ ] Library, clock, seasonal oak, Quad stops and nighttime lights
+- [ ] Seeded students, activities/overheards and animals/Professor
+- [ ] Real resident away destinations and Quad sketching
+- [ ] Daily fountain action/save normalization, campus popups, dev controls
+- [ ] Tests and desktop/phone day/night campus verification
+
 # Small editor follow-ups
 
 - [x] Phone room fits screen width and meets tray with hallway hidden
