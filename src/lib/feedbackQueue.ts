@@ -35,8 +35,9 @@ export const flushFeedbackQueue = (): Promise<void> => {
       // Never submit somebody else's queued note as the current account.
       if (entry.user_id && entry.user_id !== uid) continue;
       if (getAuth().userId !== uid) return;
-      const { error } = await supabase.from("feedback").upsert({ ...entry, user_id: uid }, { onConflict: "id", ignoreDuplicates: true });
-      if (error) return;
+      const { error } = await supabase.from("feedback").insert({ ...entry, user_id: uid });
+      // INSERT-only permissions are intentional; stable IDs make duplicate retries safe.
+      if (error && error.code !== "23505") return;
       write(read().filter((row) => row.id !== entry.id));
     }
   };
