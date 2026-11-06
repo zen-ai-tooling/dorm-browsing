@@ -56,7 +56,16 @@ import {
   type ResidentId,
 } from "@/data/residents";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
-import { canPlaceIn, nearestSpot, WINDOW_COLS, type PlaceRejection } from "@/data/placement";
+import {
+  canPlaceIn,
+  isDoorLane,
+  isWindowCol,
+  nearestSpot,
+  ROOM_H,
+  ROOM_W,
+  WINDOW_COLS,
+  type PlaceRejection,
+} from "@/data/placement";
 import { Lighting, type ClipRect, type Light, type LightSpec } from "./lighting";
 import {
   DARKNESS_COLOR,
@@ -354,7 +363,9 @@ export class DormScene extends Phaser.Scene {
   private selectionUi: Phaser.GameObjects.Container | null = null;
   private pendingPlaceItemId: string | null = null;
   private ghost: Phaser.GameObjects.Sprite | null = null;
-  private highlight: Phaser.GameObjects.Rectangle | null = null;
+  private ghostTile: { gx: number; gy: number } | null = null;
+  private highlight: Phaser.GameObjects.Graphics | null = null;
+  private dragShadow: Phaser.GameObjects.Image | null = null;
   private onPlacingChange: (itemId: string | null) => void = () => {};
   private getMyLayout: () => PlacedItem[] = () => ROOMS[0]!.layout;
   private onLayoutChange: (l: PlacedItem[]) => void = () => {};
@@ -2445,11 +2456,12 @@ export class DormScene extends Phaser.Scene {
   cancelPlacing() {
     if (!this.pendingPlaceItemId) return;
     this.pendingPlaceItemId = null;
+    this.ghostTile = null;
     this.onPlacingChange(null);
     this.showMountGuide(null);
     this.ghost?.destroy();
     this.ghost = null;
-    this.highlight?.setVisible(false);
+    this.highlight?.clear();
   }
 
   private ensureHighlight() {
