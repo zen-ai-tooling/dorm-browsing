@@ -404,6 +404,29 @@ const subscribe = (l: () => void) => {
 
 export const getPlayerState = () => state;
 
+/** saveSync subscribes here to upload on every change */
+export const subscribePlayerState = subscribe;
+
+/**
+ * Replaces the whole state with a (normalized) cloud save. Keeps this device's
+ * mute preference and does NOT bump savedAt — the cloud timestamp stays the
+ * source of truth for which side is newer.
+ */
+export const applyPlayerState = (next: PlayerState) => {
+  state = { ...next, muted: state.muted };
+  writeLocal();
+  listeners.forEach((l) => l());
+};
+
+/** dev "Reset everything" + sign-out: wipe this device's save key */
+export const clearLocalSave = () => {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+};
+
 /** tests only: forget hydration so each test file starts from its own stubbed storage */
 export const __resetStoreForTests = () => {
   hydrated = false;
