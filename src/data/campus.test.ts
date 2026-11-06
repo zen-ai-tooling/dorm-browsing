@@ -26,7 +26,7 @@ describe("campus reachability", () => {
     for (const [id, p] of Object.entries(WAYPOINTS)) {
       expect(grid[p.y]?.[p.x]).toBe(1); expect(seen.has(`${p.x},${p.y}`)).toBe(true);
       expect((WAYPOINT_GRAPH[id] ?? []).length).toBeGreaterThan(0);
-      for (const neighbor of WAYPOINT_GRAPH[id] ?? []) expect(WAYPOINTS[neighbor]).toBeDefined();
+      for (const neighbor of WAYPOINT_GRAPH[id] ?? []) expect(WAYPOINTS[neighbor] === undefined).toBe(false);
     }
   });
   test("library, fountain and oak trunk block; canopy and north scenery do not become solid ground", () => {
