@@ -308,6 +308,10 @@ interface DoorState {
 const RESIDENT_SPEED = 130;
 /** speech + emote bubbles stay readable at night, like editor UI */
 const BUBBLE_DEPTH = 4990;
+/** rugs lie just above the floor tiles, under every floor item */
+const RUG_DEPTH = 1.5;
+/** editor grid lines + tile tints stay above the night darkness layer */
+const GRID_DEPTH = 4950;
 
 export class DormScene extends Phaser.Scene {
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -1297,14 +1301,17 @@ export class DormScene extends Phaser.Scene {
   // ---------- decor & interactives ----------
 
   private prop(def: PropDef) {
-    const s = this.add.sprite(def.x, def.y, def.key).setDepth(def.y + (def.depthBias ?? 0));
+    const s = this.add.sprite(def.x, def.y, def.key);
+    if (def.anchorBase) s.setOrigin(0.5, 1);
+    s.setDepth(def.flat ? RUG_DEPTH : def.y + (def.depthBias ?? 0));
     this.collecting?.push(s);
     if (def.scale) s.setScale(def.scale);
     if (def.tint) s.setTint(def.tint);
     if (def.solid) {
-      const zw = s.displayWidth * 0.8;
-      const zh = s.displayHeight * 0.4;
-      const zy = def.y + s.displayHeight * 0.2;
+      // base-anchored props collide on their footprint, not their drawn pixels
+      const zw = def.anchorBase ? t(def.baseW ?? 1) * 0.85 : s.displayWidth * 0.8;
+      const zh = def.anchorBase ? t(def.baseH ?? 1) * 0.7 : s.displayHeight * 0.4;
+      const zy = def.anchorBase ? def.y - t(def.baseH ?? 1) / 2 : def.y + s.displayHeight * 0.2;
       const zone = this.add.zone(def.x, zy, zw, zh);
       this.walls.add(zone);
       this.collecting?.push(zone);
@@ -1657,11 +1664,14 @@ export class DormScene extends Phaser.Scene {
       const rotation = placed.rotation ?? 0;
       const f = effectiveFootprint(item, rotation);
       const payload = placed.ambient ? undefined : this.payloadFor(room, item);
+      const wall = isWallItem(item);
       const def: PropDef = {
         key: item.textureKey,
         x: t(rect.x + placed.gx + f.w / 2),
-        y: t(rect.y + placed.gy + f.h / 2),
+        // wall items stay centered on the face row; floor items anchor by their base
+        y: wall ? t(rect.y + placed.gy + f.h / 2) : t(rect.y + placed.gy + f.h),
         solid: item.solid,
+        ...(wall ? {} : { anchorBase: true, baseW: f.w, baseH: f.h, flat: layerOf(item) === "rug" }),
       };
       const tint = baseTintFor(item, room.mood, placed.tint);
       if (tint) def.tint = tint;
@@ -1703,6 +1713,7 @@ export class DormScene extends Phaser.Scene {
     if (at === undefined || !this.textures.exists(key)) return null;
     const overlay = this.add
       .sprite(base.x, base.y, key)
+      .setOrigin(base.originX, base.originY)
       .setTint(at)
       .setScale(base.scaleX, base.scaleY)
       .setAngle(base.angle)
