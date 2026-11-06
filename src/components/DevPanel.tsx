@@ -68,7 +68,8 @@ export const DevPanel = ({
       return;
     }
     toast("Save cleared — reloading");
-    devActions.resetEverything();
+    // wipe the cloud row too, so the new-player flow reruns on this account
+    void deleteCloudSave().finally(() => devActions.resetEverything());
   };
 
   if (!open)
@@ -186,6 +187,18 @@ export const DevPanel = ({
           }}
         >
           Trigger door visit now
+        </DevButton>
+        <DevButton
+          onClick={() =>
+            run(() => {
+              if (userId) void navigator.clipboard?.writeText(userId);
+            }, userId ? "User id copied" : "No session yet")
+          }
+        >
+          Copy user id{isAnonymous ? " (guest)" : ""}
+        </DevButton>
+        <DevButton onClick={() => run(() => void signOutToGuest(), "Signing out to a fresh guest")}>
+          Sign out (dev)
         </DevButton>
         <DevButton danger onClick={resetEverything}>
           {confirmReset ? "Tap again to confirm" : "Reset everything"}
