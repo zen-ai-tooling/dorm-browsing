@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { clearLocalSave } from "@/lib/playerStore";
+import { toast } from "sonner";
 
 /**
  * Guest-first auth (Iteration 27): everyone gets a silent anonymous session on
@@ -55,7 +56,7 @@ export const initAuth = async (): Promise<void> => {
   started = true;
 
   supabase.auth.onAuthStateChange((event, session) => {
-    if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+    if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
     const prev = auth.userId;
     const userId = session?.user.id ?? null;
     write({
@@ -66,8 +67,12 @@ export const initAuth = async (): Promise<void> => {
       handle: userId === prev ? auth.handle : null,
     });
     if (userId && userId !== prev) {
-      void loadHandle(userId);
-      userChangeListeners.forEach((cb) => cb(userId, prev));
+      // Leave the auth callback before starting requests that read the session.
+      window.setTimeout(() => {
+        if (auth.userId !== userId) return;
+        void loadHandle(userId);
+        userChangeListeners.forEach((cb) => cb(userId, prev));
+      }, 0);
     }
   });
 
@@ -83,17 +88,8 @@ export const initAuth = async (): Promise<void> => {
       }
       session = s.session;
     }
-    const userId = session?.user.id ?? null;
-    write({
-      ready: true,
-      userId,
-      isAnonymous: session?.user.is_anonymous ?? true,
-      email: session?.user.email ?? null,
-    });
-    if (userId) {
-      await loadHandle(userId);
-      userChangeListeners.forEach((cb) => cb(userId, null));
-    }
+    // Session events are the only source of user-change notifications.
+    if (!session) write({ ready: true });
   } catch {
     write({ ready: true });
   }
@@ -201,7 +197,16 @@ export const saveHandle = async (handle: string, displayName: string): Promise<{
  * and a fresh guest session starts. Reloads for a clean slate.
  */
 export const signOutToGuest = async () => {
+  const { flushNow, stopSync } = await import("@/lib/saveSync");
+  try {
+    await flushNow();
+  } catch {
+    toast("Couldn't save your latest changes — reconnect before signing out.");
+    return;
+  }
+  await stopSync();
   clearLocalSave();
+  try { window.localStorage.removeItem("dorm-vibes-save-owner"); } catch { /* storage unavailable */ }
   try {
     await supabase.auth.signOut();
     await supabase.auth.signInAnonymously();

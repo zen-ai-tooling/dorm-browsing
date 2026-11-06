@@ -108,7 +108,7 @@ const scheduleRetry = () => {
   write({ status: "offline" });
   window.clearTimeout(retryTimer);
   retryTimer = window.setTimeout(() => {
-    if (!bootReady && userId) void boot(userId);
+    if (!bootReady && userId && !sync.conflict) void boot(userId);
     else void flush().catch(scheduleRetry);
   }, retryDelay);
   retryDelay = Math.min(retryDelay * 3, 60_000);
