@@ -2348,6 +2348,7 @@ export class DormScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.selectionUi = this.add.container(p.sprite.x, 0, [...buttons, nameLabel]).setDepth(5000);
+    if (isTouch()) this.selectionUi.setScale(1 / this.cameras.main.zoom);
     this.positionSelectionUi();
   }
 
@@ -3931,9 +3932,13 @@ export class DormScene extends Phaser.Scene {
     const h = t(r.h + 2);
     const visH = Math.max(120, cam.height - bottomInsetPx - 12);
     // phones: fill the screen width above the tray; desktop: fit both dimensions
-    const zoom = isPhoneWidth() ? (cam.width / w) * 0.98 : Math.min(cam.width / w, visH / h) * 0.96;
-    // shift the center down so the room sits in the visible band above the tray
-    this.glideCamera(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom), zoom, 400);
+    const phone = isPhoneWidth();
+    const zoom = phone ? cam.width / w : Math.min(cam.width / w, visH / h) * 0.96;
+    // On phones align the bottom wall with the tray, not the middle of the free area.
+    const cy = phone
+      ? y0 + h - (cam.height / 2 - bottomInsetPx) / zoom
+      : y0 + h / 2 + bottomInsetPx / (2 * zoom);
+    this.glideCamera(x0 + w / 2, cy, zoom, 400);
   }
 
   restoreCamera() {

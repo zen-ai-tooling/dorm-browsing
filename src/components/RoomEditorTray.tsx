@@ -15,6 +15,7 @@ import { playerActions, usePlayerState } from "@/lib/playerStore";
 import { GamePanel } from "./GamePanel";
 import { DoorEditor } from "./DoorEditor";
 import { sfx } from "@/game/sounds";
+import { useIsTouch, useMediaQuery } from "@/hooks/use-media-query";
 
 export type TrayTab = "furniture" | "companion" | "poster" | "surfaces" | "door";
 
@@ -58,6 +59,13 @@ export const RoomEditorTray = ({
   itemThumbnails?: Record<string, { src: string }>;
 }) => {
   const { ownedItemIds, roomLayout, myWallpaperId, myFloorId } = usePlayerState();
+  const touch = useIsTouch();
+  const narrow = useMediaQuery("(max-width: 419px)");
+  const [tab, setTab] = useState<TrayTab>("furniture");
+  const changeTab = (next: TrayTab) => {
+    setTab(next);
+    onTabChange?.(next);
+  };
   const [coachSeen, setCoachSeen] = useState(() => {
     try {
       return localStorage.getItem(COACH_KEY) === "1";
@@ -107,13 +115,15 @@ export const RoomEditorTray = ({
       accent="#c9a227"
       className="pointer-events-auto absolute bottom-4 left-1/2 w-[min(94vw,560px)] -translate-x-1/2 p-3"
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="font-display text-xs font-bold uppercase tracking-widest text-panel-muted">
+      <div className="flex items-center justify-between gap-1 min-[420px]:gap-3">
+        <p className={`min-w-0 font-display font-bold text-panel-muted ${placingItemId ? "text-xs" : "whitespace-nowrap text-[10px] min-[420px]:text-xs"}`}>
           {placingItemId
             ? `Placing ${ITEM_CATALOG[placingItemId]?.name ?? "item"} — tap a green tile`
-            : `In storage · ${owned.length}  ·  In room · ${roomLayout.length}`}
+            : narrow
+              ? `Storage ${owned.length} · Room ${roomLayout.length}`
+              : `In storage · ${owned.length}  ·  In room · ${roomLayout.length}`}
         </p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 min-[420px]:gap-2 [&>button]:px-2 min-[420px]:[&>button]:px-3">
           {placingItemId ? (
             <Button
               size="sm"
@@ -161,12 +171,12 @@ export const RoomEditorTray = ({
           }}
           className="mt-1.5 flex w-full items-center justify-between rounded-[3px] border-2 border-ink bg-primary/20 px-2 py-1 text-left font-body text-[11px] text-panel-foreground"
         >
-          <span>Drag to move · tap to select · R to rotate · Ctrl+Z to undo</span>
+          <span>{touch ? "Drag to move · tap to select · tap again to pick what's underneath" : "Drag to move · tap to select · R to rotate · Ctrl+Z to undo"}</span>
           <span className="font-display text-[10px] font-bold text-panel-muted">OK</span>
         </button>
       ) : null}
 
-      <Tabs defaultValue="furniture" className="mt-2" onValueChange={(v) => onTabChange?.(v as TrayTab)}>
+      <Tabs value={tab} className="mt-2" onValueChange={(v) => changeTab(v as TrayTab)}>
         <TabsList className="h-auto w-full flex-wrap rounded-[3px] border-2 border-ink bg-panel-foreground/5">
           {TABS.map((tab) => (
             <TabsTrigger
@@ -181,16 +191,29 @@ export const RoomEditorTray = ({
         </TabsList>
         {PLACE_TABS.map((category) => {
           const items = owned.filter((i) => i.category === category);
+          const otherTabs = PLACE_TABS.filter((t) => t !== category && owned.some((i) => i.category === t));
+          const elsewhere = owned.filter((i) => otherTabs.includes(i.category as typeof otherTabs[number])).length;
           return (
             <TabsContent key={category} value={category}>
               <ScrollArea className="h-28 pr-2">
                 {items.length === 0 ? (
                   <div className="flex flex-col items-start gap-2 pt-3">
                     <p className="font-body text-xs text-panel-muted">
-                      {placedIds.size > 0
+                      {elsewhere > 0
+                        ? `No ${TAB_LABEL[category].toLowerCase()} in storage — ${elsewhere} ${elsewhere === 1 ? "item" : "items"} in other tabs`
+                        : placedIds.size > 0
                         ? "Everything you own is out in the room."
                         : "Nothing here yet — your dorm is a blank canvas."}
                     </p>
+                    {otherTabs.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {otherTabs.map((other) => (
+                          <Button key={other} size="sm" variant="link" className="h-auto p-0 font-body text-xs" onClick={() => { sfx.uiClick(); changeTab(other); }}>
+                            {TAB_LABEL[other]}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
                     {onOpenShop ? (
                       <Button
                         size="sm"

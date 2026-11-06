@@ -475,9 +475,13 @@ const DormGame = () => {
       else sceneRef.current?.frameMyRoom(inset);
     };
     const raf = requestAnimationFrame(frame);
+    const tray = trayWrapRef.current?.firstElementChild;
+    const observer = new ResizeObserver(frame);
+    if (tray) observer.observe(tray);
     window.addEventListener("resize", frame);
     return () => {
       cancelAnimationFrame(raf);
+      observer.disconnect();
       window.removeEventListener("resize", frame);
     };
   }, [editing, wallpaperOpen, trayTab]);
