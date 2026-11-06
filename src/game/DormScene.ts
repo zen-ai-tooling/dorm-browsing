@@ -2206,12 +2206,66 @@ export class DormScene extends Phaser.Scene {
       this.activePayload = null;
       this.onPopup(null);
       this.enableDragging();
+      this.drawEditorGrid();
+      // the player steps back visually while editing: faded, never covering furniture
+      this.player.setAlpha(0.25);
     } else {
       this.cancelPlacing();
       this.disableDragging();
       this.clearSelection();
+      this.editorGrid?.destroy();
+      this.editorGrid = null;
+      this.undoStack = [];
+      this.onUndoChange(0);
       this.commitLayout();
       this.rebuildMyRoom();
+      this.player.setAlpha(1);
+      this.unstickPlayer();
+    }
+  }
+
+  /** faint tile grid over the floor while editing; the door lane is hatched */
+  private editorGrid: Phaser.GameObjects.Graphics | null = null;
+  private drawEditorGrid() {
+    this.editorGrid?.destroy();
+    const g = this.add.graphics().setDepth(GRID_DEPTH);
+    const r = PERSONAL_RECTS[0]!;
+    g.lineStyle(1, 0xfaf0e0, 0.16);
+    for (let x = 0; x <= r.w; x++) g.lineBetween(t(r.x + x), t(r.y + 1), t(r.x + x), t(r.y + r.h));
+    for (let y = 1; y <= r.h; y++) g.lineBetween(t(r.x), t(r.y + y), t(r.x + r.w), t(r.y + y));
+    g.lineStyle(1, 0xf2cf5c, 0.45);
+    for (const x of [5, 6])
+      for (let k = -1; k < 5; k++)
+        g.lineBetween(t(r.x + x) + k * 8, t(r.y + r.h), t(r.x + x) + k * 8 + 10, t(r.y + r.h - 1));
+    this.editorGrid = g;
+  }
+
+  /** on exit, if the player ended up inside a solid item, step to the nearest free tile */
+  private unstickPlayer() {
+    const tx = Math.floor(this.player.x / TILE);
+    const ty = Math.floor(this.player.y / TILE);
+    if (this.grid[ty]?.[tx] !== BLOCKED) return;
+    const seen = new Set([`${tx},${ty}`]);
+    const q: Array<[number, number]> = [[tx, ty]];
+    while (q.length && seen.size < 200) {
+      const [x, y] = q.shift()!;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const k = `${nx},${ny}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        if (this.grid[ny]?.[nx] === FLOOR) {
+          this.player.setPosition(t(nx) + TILE / 2, t(ny) + TILE / 2);
+          return;
+        }
+        if (this.grid[ny]?.[nx] !== undefined) q.push([nx, ny]);
+      }
     }
   }
 
