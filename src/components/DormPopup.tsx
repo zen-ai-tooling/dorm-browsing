@@ -1577,7 +1577,7 @@ const samCommonFor = (
 
 /* ---------------- root ---------------- */
 
-const FountainPopup = ({ onToss }: { onToss?: () => void }) => {
+const FountainPopup = ({ onToss }: { onToss?: (() => void) | undefined }) => {
   const { lastFountainDate } = usePlayerState();
   const [tossing, setTossing] = useState(false);
   const claimed = lastFountainDate === todayKey();

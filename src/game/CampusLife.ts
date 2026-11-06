@@ -72,6 +72,7 @@ export class CampusLife {
   private random = seededRandom("campus-life");
   private leafPhase = leafPhaseForMonth(new Date().getMonth() + 1);
   private leaves: Phaser.GameObjects.Rectangle[] = [];
+  private barista: Phaser.GameObjects.Sprite;
 
   constructor(private scene: Phaser.Scene, private lighting: Lighting, private hooks: Hooks) {
     const s = scene;
@@ -83,12 +84,12 @@ export class CampusLife {
       steps.fillStyle(0xb6baad).fillRect(35 * T, y, 12 * T, 8);
       steps.fillStyle(0x7d8986).fillRect(35 * T, y + 6, 12 * T, 2);
     }
-    this.clock = s.add.graphics().setDepth(50 * T + 1);
+    this.clock = s.add.graphics().setDepth(4901);
     const bx = this.clockCenter.x, by = 40.6 * T;
     this.bell = s.add.container(bx, by, [s.add.rectangle(0, 0, 18, 20, 0xd7b367), s.add.rectangle(0, 10, 26, 4, 0x947341), s.add.rectangle(0, 14, 4, 4, 0x493b32)]).setDepth(50 * T + 1);
     this.clockLight = lighting.add({ ...this.clockCenter, color: 0xf5d392, radius: 32, pool: false, clip: { x: this.clockCenter.x - 34, y: this.clockCenter.y - 34, w: 68, h: 68 } });
     for (const x of [27.3, 31.85, 48.9, 53.5]) {
-      this.windows.push(s.add.rectangle(x * T, 48.2 * T, 64, 40, 0xf3ca79, 0.55).setDepth(50 * T + 1).setVisible(false));
+      this.windows.push(s.add.rectangle(x * T, 48.2 * T, 64, 40, 0xf3ca79, 0.55).setDepth(4901).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
     }
     const oak = CAMPUS_PROPS.find((p) => p.id === "oak");
     if (oak) s.add.sprite((oak.x + 0.5) * T, (oak.y + 1) * T, `campus-oak-${this.leafPhase}`).setOrigin(0.5, 1).setDepth((oak.y + 1) * T);
@@ -111,7 +112,7 @@ export class CampusLife {
     this.coffeePayload = { kind: "flavor", title: "Campus coffee cart", lines: [] };
     hooks.register(cart, this.coffeePayload);
     buildCharTextures(s, "campus-barista", STUDENTS[3]?.look ?? DEFAULT_LOOK);
-    s.add.sprite(62.5 * T, 39.6 * T, "campus-barista-down-0").setOrigin(0.5, 0.85).setDepth(40 * T);
+    this.barista = s.add.sprite(62.5 * T, 39.6 * T, "campus-barista-down-0").setOrigin(0.5, 0.85).setDepth(40 * T);
     this.libraryPayload = { kind: "flavor", title: "Hale Library", lines: [] };
     hooks.register(s.add.sprite(40.5 * T, 50.5 * T, "campus-frisbee").setVisible(false), this.libraryPayload);
     for (const x of [8, 21, 59, 80]) this.lamp(x, 38.6);
@@ -274,6 +275,8 @@ export class CampusLife {
   update(time: number, delta: number, player: Point) {
     if (time >= this.nextRefresh) { this.nextRefresh = time + 1000; this.refresh(); }
     const view = this.scene.cameras.main.worldView;
+    this.windows.forEach((w) => w.setAlpha(this.lighting.nightAmount * 0.45));
+    this.barista.setVisible(this.hooks.getHour() >= 6 && this.hooks.getHour() < 22);
     for (const [i, st] of this.students.entries()) {
       if (!st.sprite.visible) continue;
       const target = st.path[0];
