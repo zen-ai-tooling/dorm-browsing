@@ -119,6 +119,8 @@ export interface PlayerState {
   doorVersion: number;
   doorLastChange: DoorChange | null;
   doorSeen: Record<ResidentId, number>;
+  /** ms timestamp of the last local persist — cloud sync compares against it */
+  savedAt: number;
 }
 
 const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
@@ -175,6 +177,7 @@ const defaultState = (): PlayerState => ({
   doorVersion: 0,
   doorLastChange: null,
   doorSeen: { sam: 0, jordan: 0 },
+  savedAt: 0,
 });
 
 /** Iteration 28 fields: floor, door + who has noticed the latest door change */
