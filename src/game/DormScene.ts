@@ -3937,7 +3937,8 @@ export class DormScene extends Phaser.Scene {
     const zoom = phone ? cam.width / w : Math.min(cam.width / w, visH / h) * 0.96;
     // On phones align the bottom wall with the tray, not the middle of the free area.
     const cy = phone
-      ? y0 + h - (cam.height / 2 - bottomInsetPx) / zoom
+      // The shared bottom ring is the hallway's back-wall face, not bedroom content.
+      ? t(r.y + r.h) - (cam.height / 2 - bottomInsetPx) / zoom
       : y0 + h / 2 + bottomInsetPx / (2 * zoom);
     this.glideCamera(x0 + w / 2, cy, zoom, 400);
   }
