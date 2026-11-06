@@ -30,7 +30,16 @@ type Step = 1 | 2 | 3 | 4 | 5;
  * Move-In Day: five short steps over the live game. The room behind updates as you go
  * (avatar, mood); "Skip setup" keeps a random avatar and the defaults.
  */
-export const MoveIn = ({ scene, onDone }: { scene: DormScene; onDone: () => void }) => {
+export const MoveIn = ({
+  scene,
+  onDone,
+  onSignIn,
+}: {
+  scene: DormScene;
+  onDone: () => void;
+  /** returning players on a new device can load their saved dorm instead */
+  onSignIn?: () => void;
+}) => {
   const { avatar, playerName, myMood, ownedItemIds } = usePlayerState();
   const [step, setStep] = useState<Step>(1);
   const [stickers, setStickers] = useState<string[]>([]);
@@ -120,6 +129,21 @@ export const MoveIn = ({ scene, onDone }: { scene: DormScene; onDone: () => void
             <button type="button" className={`${btn} bg-ink text-panel`} onClick={() => go(2)}>
               Let's move in
             </button>
+            {onSignIn ? (
+              <p className="font-body text-[11px] text-panel-muted">
+                Already have a dorm?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    sfx.uiClick();
+                    onSignIn();
+                  }}
+                  className="font-bold text-panel-foreground underline underline-offset-2"
+                >
+                  Sign in
+                </button>
+              </p>
+            ) : null}
           </div>
         ) : null}
 
