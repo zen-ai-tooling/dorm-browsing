@@ -14,7 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      feedback: {
+        Row: {
+          context: Json | null
+          created_at: string
+          id: string
+          kind: string
+          note: string
+          user_id: string
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          id?: string
+          kind: string
+          note: string
+          user_id: string
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          id?: string
+          kind?: string
+          note?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      player_saves: {
+        Row: {
+          device_label: string | null
+          save_version: number
+          state: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          device_label?: string | null
+          save_version?: number
+          state: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          device_label?: string | null
+          save_version?: number
+          state?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          handle: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          handle?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          handle?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
