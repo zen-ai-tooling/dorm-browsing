@@ -54,6 +54,8 @@ import { getPlayerState, playerActions, usePlayerState } from "@/lib/playerStore
 import { GamePanel, IconChip } from "./GamePanel";
 import { PixelIcon } from "./PixelIcon";
 import { sfx } from "@/game/sounds";
+import { Button } from "@/components/ui/button";
+import { fortuneForDate } from "@/data/campus";
 
 const MY_ROOM_ID = "room-1";
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
@@ -1575,15 +1577,43 @@ const samCommonFor = (
 
 /* ---------------- root ---------------- */
 
+const FountainPopup = ({ onToss }: { onToss?: (() => void) | undefined }) => {
+  const { lastFountainDate } = usePlayerState();
+  const [tossing, setTossing] = useState(false);
+  const claimed = lastFountainDate === todayKey();
+  const fortune = fortuneForDate(todayKey());
+  return (
+    <Shell accent="#6a9da0" title="The Quad fountain" subtitle={claimed ? "Today's fortune" : "One wish, on the house"} interactive>
+      {claimed && !tossing ? (
+        <div className="space-y-2 font-body text-sm text-panel-foreground">
+          <p>{fortune.text}</p>
+          {fortune.coins > 0 ? <p className="font-display font-bold">+{fortune.coins} coins</p> : null}
+          <p className="text-xs text-panel-muted">Another wish tomorrow.</p>
+        </div>
+      ) : (
+        <Button disabled={claimed || tossing} variant="secondary" className="min-h-11 rounded-[3px] border-2 border-ink font-display font-bold" onClick={() => {
+          const result = playerActions.tossFountain();
+          if (!result) return;
+          setTossing(true);
+          onToss?.();
+          window.setTimeout(() => setTossing(false), 700);
+        }}>{tossing ? "Making a wish…" : "Toss a coin · free"}</Button>
+      )}
+    </Shell>
+  );
+};
+
 export const DormPopup = ({
   payload,
   thumbnails = {},
   itemThumbnails = {},
+  onFountainToss,
 }: {
   payload: PopupPayload | null;
   thumbnails?: Record<string, string>;
   /** tinted per-item thumbnails keyed by item id (mail finds) */
   itemThumbnails?: Record<string, { src: string }>;
+  onFountainToss?: () => void;
 }) => {
   const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone, playerName } = usePlayerState();
   const [editing, setEditing] = useState(false);
@@ -1616,6 +1646,7 @@ export const DormPopup = ({
   if (!payload) return null;
 
   if (payload.kind === "package") return <PackagePopup itemThumbnails={itemThumbnails} />;
+  if (payload.kind === "fountain") return <FountainPopup onToss={onFountainToss} />;
   if (payload.kind === "resident") return <ResidentPopup key={payload.residentId} residentId={payload.residentId} />;
   if (payload.kind === "whiteboard") return <WhiteboardPopup payload={payload} />;
 
@@ -1790,6 +1821,8 @@ export const popupTitle = (p: PopupPayload, playerName: string): string => {
       return "Question of the day";
     case "package":
       return "Mail cubby";
+    case "fountain":
+      return "The Quad fountain";
     case "whiteboard":
       return p.residentId === MY_ROOM_ID ? "Your door board" : `${p.name}'s door board`;
     case "art":

@@ -35,9 +35,11 @@ const DevButton = ({
 export const DevPanel = ({
   onLayoutReset,
   onTriggerVisit,
+  onCampusTeleport,
 }: {
   onLayoutReset: () => void;
   onTriggerVisit: () => boolean;
+  onCampusTeleport: (target: "quad" | "library") => void;
 }) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
@@ -154,6 +156,9 @@ export const DevPanel = ({
         </div>
       </div>
       <div className="space-y-1.5">
+        <DevButton onClick={() => run(() => onCampusTeleport("quad"), "Welcome to the Quad")}>Teleport to Quad</DevButton>
+        <DevButton onClick={() => run(() => onCampusTeleport("library"), "Hale Library steps")}>Teleport to library steps</DevButton>
+        <DevButton onClick={() => run(devActions.resetFountain, "Today's fountain is ready again")}>Reset today's fountain</DevButton>
         <DevButton onClick={() => run(() => devActions.addCoins(500), "+500 coins")}>+500 coins</DevButton>
         <DevButton onClick={() => run(devActions.zeroCoins, "Coins set to 0 · unlimited off")}>
           Coins → 0
