@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleHelp, Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
+import {
+  CircleHelp,
+  Cloud,
+  CloudOff,
+  Coins,
+  Flame,
+  Mail,
+  MessageSquarePlus,
+  Pencil,
+  RefreshCw,
+  Store,
+  UserRound,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
 import type { PopupPayload } from "@/data/dorm";
 import { buildItemThumb, buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
@@ -29,6 +43,11 @@ import {
 } from "@/lib/playerStore";
 import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
+import { SaveDormPanel } from "./SaveDormPanel";
+import { ConflictDialog } from "./ConflictDialog";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { initAuth, signOutToGuest, useAuth } from "@/lib/auth";
+import { startSaveSync, useSaveSync } from "@/lib/saveSync";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 import { currentHour, currentPhase, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
