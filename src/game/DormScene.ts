@@ -27,6 +27,7 @@ import {
   effectiveFootprint,
   isShopItem,
   isWallItem,
+  layerOf,
   zoomTextureKey,
   type ItemDef,
   type Rotation,
@@ -55,7 +56,7 @@ import {
   type ResidentId,
 } from "@/data/residents";
 import { boardText, promptForToday, residentPick } from "@/data/prompts";
-import { canPlaceIn, WINDOW_COLS } from "@/data/placement";
+import { canPlaceIn, nearestSpot, WINDOW_COLS, type PlaceRejection } from "@/data/placement";
 import { Lighting, type ClipRect, type Light, type LightSpec } from "./lighting";
 import {
   DARKNESS_COLOR,
