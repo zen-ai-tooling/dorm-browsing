@@ -1860,12 +1860,17 @@ export class DormScene extends Phaser.Scene {
 
   // ---------- per-item operations ----------
 
-  private addPlacedItem(itemId: string, gx: number, gy: number, rotation: Rotation = 0) {
+  private addPlacedItem(itemId: string, gx: number, gy: number, rotation: Rotation = 0, silent = false) {
     const idx = this.spawnPlaced(itemId, gx, gy, rotation);
     if (idx < 0) return false;
     const entry = this.placed[idx]!;
     this.makeDraggable(entry.sprite);
-    sfx.placeItem();
+    if (!silent) {
+      this.pushUndo({ kind: "place", itemId });
+      sfx.placeItem();
+      this.buzz(10);
+      this.dustPuff(entry.sprite.x, entry.sprite.y);
+    }
     this.commitLayout();
     this.select(idx);
     return true;
@@ -1926,12 +1931,23 @@ export class DormScene extends Phaser.Scene {
     this.commitLayout();
   }
 
-  private removePlacedItem(idx: number) {
+  private removePlacedItem(idx: number, silent = false) {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
     const f = effectiveFootprint(item, entry.rotation);
     this.clearSelection();
+    if (!silent)
+      this.pushUndo({
+        kind: "remove",
+        item: {
+          itemId: entry.itemId,
+          gx: entry.gx,
+          gy: entry.gy,
+          rotation: entry.rotation,
+          ...(entry.tint !== undefined ? { tint: entry.tint } : {}),
+        },
+      });
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     this.interactives = this.interactives.filter((i) => i.sprite !== entry.sprite);
     const dead = [entry.sprite, entry.ring, entry.zone, entry.accent].filter(Boolean) as Phaser.GameObjects.GameObject[];
@@ -1940,9 +1956,24 @@ export class DormScene extends Phaser.Scene {
     if (entry.zone) this.walls.remove(entry.zone, true, true);
     entry.ring?.destroy();
     this.dropItemLight(entry.sprite);
-    entry.sprite.destroy();
     this.placed.splice(idx, 1);
-    sfx.removeItem();
+    if (!silent) {
+      sfx.removeItem();
+      // the item shrinks toward the tray instead of vanishing
+      const cam = this.cameras.main;
+      const trayWp = cam.getWorldPoint(cam.width / 2, cam.height);
+      this.tweens.add({
+        targets: entry.sprite,
+        x: trayWp.x,
+        y: trayWp.y,
+        scale: 0.1,
+        alpha: 0.4,
+        duration: 220,
+        ease: "Stepped",
+        easeParams: [4],
+        onComplete: () => entry.sprite.destroy(),
+      });
+    } else entry.sprite.destroy();
     this.commitLayout();
   }
 
