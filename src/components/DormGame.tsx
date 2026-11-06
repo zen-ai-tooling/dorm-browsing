@@ -52,7 +52,7 @@ import { startFeedbackQueue } from "@/lib/feedbackQueue";
 import { markSaveTriggerShown, nextSaveTrigger, shownSaveTriggers } from "@/lib/saveNudge";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
-import { currentHour, currentPhase, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
+import { currentHour, currentPhase, getHourOverride, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
 import { roomRemark, RESIDENTS, type ResidentId } from "@/data/residents";
 import { roomInfoFor } from "@/lib/residentTalk";
 import { PHASE_LABEL } from "@/game/timeOfDay";
@@ -72,6 +72,7 @@ const DormGame = () => {
   const [inMyRoom, setInMyRoom] = useState(false);
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [undoCount, setUndoCount] = useState(0);
+  const [petSpot, setPetSpot] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   /** per item id, tinted exactly like the room renders it (see displayTintFor) */
   const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
@@ -392,6 +393,11 @@ const DormGame = () => {
         getMyMood: () => getPlayerState().myMood,
         getPlayerName: () => getPlayerState().playerName,
         getHour: () => currentHour(),
+        getHourOverride: () => getHourOverride(),
+        onPetSpot: setPetSpot,
+        onPetProfessor: () => {
+          if (playerActions.petProfessor()) toast("Professor approves of you.");
+        },
         getMyFloorId: () => getPlayerState().myFloorId,
         getDoor: () => getPlayerState().door,
         onRecolor: (index: number, tint: number | null) => playerActions.recolorPlaced(index, tint),
@@ -1025,7 +1031,15 @@ const DormGame = () => {
         <DevPanel
           onLayoutReset={() => sceneRef.current?.reloadMyLayout()}
           onTriggerVisit={() => sceneRef.current?.maybeVisit(true) ?? false}
+          onCampusTeleport={(target) => sceneRef.current?.teleportCampus(target)}
         />
+      ) : null}
+      {petSpot && !editing && !moveIn ? (
+        <Button
+          variant="secondary"
+          onClick={() => sceneRef.current?.petProfessor()}
+          className={`absolute left-1/2 z-30 min-h-11 -translate-x-1/2 rounded-[3px] border-2 border-ink font-display font-bold ${isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"}`}
+        >Pet Professor</Button>
       ) : null}
 
       <ShopPanel
