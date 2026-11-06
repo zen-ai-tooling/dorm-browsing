@@ -2348,7 +2348,6 @@ export class DormScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.selectionUi = this.add.container(p.sprite.x, 0, [...buttons, nameLabel]).setDepth(5000);
-    if (isTouch()) this.selectionUi.setScale(1 / this.cameras.main.zoom);
     this.positionSelectionUi();
   }
 
@@ -2499,6 +2498,8 @@ export class DormScene extends Phaser.Scene {
   private positionSelectionUi() {
     const entry = this.placed[this.selectedIdx];
     if (!this.selectionUi || !entry?.sprite.active) return;
+    // Camera zoom must never shrink touch buttons below 44 screen pixels.
+    if (isTouch()) this.selectionUi.setScale(1 / this.cameras.main.zoom);
     const s = entry.sprite;
     const h = s.angle % 180 === 0 ? s.displayHeight : s.displayWidth;
     // base-anchored sprites (originY 1) extend upward from y; centered ones straddle it
