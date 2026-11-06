@@ -14,6 +14,8 @@ export interface ItemDef {
   solid: boolean;
   /** "wall" items hang on the back-wall face (row 0); default "floor" */
   mount?: "wall" | "floor";
+  /** placement layer: rugs sit under furniture, wall items on the face — assigned below */
+  layer?: "rug" | "floor" | "wall";
   /** which popup this triggers, if any */
   interactive?: "songs" | "bulletin" | "companion" | "watching" | "art";
   /** wallpaper items only: the wall base colour applied when equipped */
@@ -1014,6 +1016,12 @@ export const rotatedFootprint = (item: ItemDef, rotation: Rotation = 0) =>
 
 export const isWallItem = (item: ItemDef | undefined) => item?.mount === "wall";
 
+/** the one layer rule: wall mount → wall, rug_* → rug, everything else → floor */
+export const layerOf = (item: ItemDef | undefined): "rug" | "floor" | "wall" =>
+  !item ? "floor" : isWallItem(item) ? "wall" : item.id.startsWith("rug_") ? "rug" : "floor";
+
+for (const item of Object.values(ITEM_CATALOG)) item.layer = layerOf(item);
+
 /** footprint used for placement: wall items are always one row tall and never rotate */
 export const effectiveFootprint = (item: ItemDef, rotation: Rotation = 0) =>
   isWallItem(item) ? { w: item.footprint.w, h: 1 } : rotatedFootprint(item, rotation);
@@ -1049,6 +1057,8 @@ export const displayTintFor = (item: ItemDef, moodKey: MoodKey, placedTint?: num
   // posters wear the room's accent unless the catalog gives them their own colour (mail finds)
   if (item.category === "poster") return item.tint ?? mixColor(mood.posterAccent, 0xffffff, 0.32);
   if (item.textureKey === "tv") return mixColor(mood.glow, 0xffffff, 0.62);
+  // the plain woven rug picks up the room's accent, like the old hardcoded floor rug did
+  if (item.textureKey === "rug") return item.tint ?? mixColor(mood.posterAccent, 0xbca584, 0.18);
   return item.tint;
 };
 
