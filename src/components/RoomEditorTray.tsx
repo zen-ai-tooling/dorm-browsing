@@ -29,6 +29,12 @@ const TAB_LABEL: Record<TrayTab, string> = {
 };
 const TABS = Object.keys(TAB_LABEL) as TrayTab[];
 const PLACE_TABS: Array<ItemDef["category"] & TrayTab> = ["furniture", "companion", "poster"];
+const storageTab = (item: ItemDef): TrayTab | null => {
+  if (item.category === "wallpaper" || item.category === "floor") return "surfaces";
+  if (item.category === "mat") return "door";
+  if (item.category === "outfit") return null;
+  return item.category;
+};
 
 const COACH_KEY = "dorm-vibes-editor-coach-seen";
 
@@ -191,8 +197,11 @@ export const RoomEditorTray = ({
         </TabsList>
         {PLACE_TABS.map((category) => {
           const items = owned.filter((i) => i.category === category);
-          const otherTabs = PLACE_TABS.filter((t) => t !== category && owned.some((i) => i.category === t));
-          const elsewhere = owned.filter((i) => otherTabs.includes(i.category as typeof otherTabs[number])).length;
+          const otherTabs = TABS.filter((t) => t !== category && owned.some((i) => storageTab(i) === t));
+          const elsewhere = owned.filter((i) => {
+            const destination = storageTab(i);
+            return destination !== null && otherTabs.includes(destination);
+          }).length;
           return (
             <TabsContent key={category} value={category}>
               <ScrollArea className="h-28 pr-2">
