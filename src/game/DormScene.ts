@@ -475,11 +475,15 @@ export class DormScene extends Phaser.Scene {
     getDoor?: () => MyDoor;
     onRecolor?: (index: number, tint: number | null) => boolean;
     canAfford?: (price: number) => boolean;
+    onUndoChange?: (n: number) => void;
+    onUndoRecolor?: (itemId: string, tint: number | null, refund: number) => void;
   }) {
     if (data?.getMyFloorId) this.getMyFloorId = data.getMyFloorId;
     if (data?.getDoor) this.getDoor = data.getDoor;
     if (data?.onRecolor) this.onRecolor = data.onRecolor;
     if (data?.canAfford) this.canAffordCb = data.canAfford;
+    if (data?.onUndoChange) this.onUndoChange = data.onUndoChange;
+    if (data?.onUndoRecolor) this.onUndoRecolor = data.onUndoRecolor;
     if (data?.getHour) this.getHour = data.getHour;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
     if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
@@ -2181,7 +2185,7 @@ export class DormScene extends Phaser.Scene {
     sprite.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!this.editMode || this.pendingPlaceItemId) return;
       pointer.event.stopPropagation();
-      this.select(this.placed.findIndex((q) => q.sprite === sprite));
+      this.cycleSelect(pointer.worldX, pointer.worldY);
     });
   }
 
@@ -3926,7 +3930,8 @@ export class DormScene extends Phaser.Scene {
     const w = t(r.w + 2);
     const h = t(r.h + 2);
     const visH = Math.max(120, cam.height - bottomInsetPx - 12);
-    const zoom = Math.min(cam.width / w, visH / h) * 0.96;
+    // phones: fill the screen width above the tray; desktop: fit both dimensions
+    const zoom = isPhoneWidth() ? (cam.width / w) * 0.98 : Math.min(cam.width / w, visH / h) * 0.96;
     // shift the center down so the room sits in the visible band above the tray
     this.glideCamera(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom), zoom, 400);
   }
