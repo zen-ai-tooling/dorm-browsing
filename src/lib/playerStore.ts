@@ -593,11 +593,7 @@ export const devActions = {
   },
   resetEverything() {
     if (!dev.enabled) return;
-    try {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    clearLocalSave();
     window.location.reload();
   },
 };
