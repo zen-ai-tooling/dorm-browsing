@@ -502,6 +502,14 @@ export const canAfford = (price: number) => isUnlimited() || state.coins >= pric
 
 const defaultOwned = () => defaultState().ownedItemIds;
 
+/**
+ * Conflict rule (Iteration 27): this device has progress worth protecting when the
+ * player finished move-in AND (bought something OR played 3+ days). Fresh or
+ * skipped move-ins silently keep the cloud dorm.
+ */
+export const hasRealProgress = (s: PlayerState) =>
+  s.onboarded && (s.ownedItemIds.length > defaultOwned().length || Object.keys(s.dailyAnswers).length >= 3);
+
 export const devActions = {
   /** hidden triple-tap switch — the only dev action that works while dev mode is off */
   toggleEnabled() {
