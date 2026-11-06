@@ -4,35 +4,35 @@ export const CAMPUS_H = 60;
 export type TilePoint = { x: number; y: number };
 export const LIBRARY = { x: 24, y: 39, w: 33, h: 11 };
 export const CAMPUS_PROPS = [
-  { id: "oak", x: 43, y: 55, w: 1, h: 1 },
+  { id: "oak", x: 51, y: 58, w: 1, h: 1 },
   { id: "fountain", x: 33, y: 54, w: 2, h: 2 },
   { id: "truck", x: 64, y: 52, w: 4, h: 2 },
   { id: "kiosk", x: 18, y: 51, w: 1, h: 1 },
   { id: "coffee", x: 60, y: 39, w: 2, h: 1 },
   ...[[26, 53], [52, 53], [26, 57], [52, 57]].map(([x, y], i) => ({ id: `picnic-${i}`, x: x ?? 0, y: y ?? 0, w: 3, h: 1 })),
-  ...[[39, 53], [47, 55], [39, 58], [17, 56]].map(([x, y], i) => ({ id: `bench-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
+  ...[[31, 57], [47, 58], [49, 55], [17, 56]].map(([x, y], i) => ({ id: `bench-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
 ];
 export const WAYPOINTS: Record<string, TilePoint> = {
   west: { x: 3, y: 36 }, east: { x: 84, y: 36 }, gate: { x: 76, y: 28 },
   walkWest: { x: 21, y: 36 }, walkEast: { x: 59, y: 36 },
   library: { x: 40, y: 50 }, steps: { x: 40, y: 51 },
   coffee: { x: 60, y: 40 }, truck: { x: 65, y: 54 }, kiosk: { x: 19, y: 51 },
-  fountain: { x: 35, y: 55 }, oak: { x: 42, y: 55 },
+  fountain: { x: 35, y: 55 }, oak: { x: 50, y: 58 },
   picnic0: { x: 27, y: 54 }, picnic1: { x: 53, y: 54 },
   picnic2: { x: 27, y: 58 }, picnic3: { x: 53, y: 58 },
-  bench0: { x: 40, y: 54 }, bench1: { x: 48, y: 56 },
-  bench2: { x: 40, y: 57 }, bench3: { x: 18, y: 57 },
+  bench0: { x: 32, y: 58 }, bench1: { x: 48, y: 59 },
+  bench2: { x: 50, y: 56 }, bench3: { x: 18, y: 57 },
 };
 export const WAYPOINT_GRAPH: Record<string, string[]> = {
   west: ["walkWest"], east: ["walkEast", "gate"], gate: ["walkEast", "east"],
   walkWest: ["west", "walkEast", "kiosk"], walkEast: ["east", "gate", "walkWest", "coffee"],
   coffee: ["walkEast", "steps", "truck"], kiosk: ["walkWest", "steps", "bench3"],
   library: ["steps"], steps: ["library", "kiosk", "coffee", "fountain", "picnic0", "picnic1"],
-  fountain: ["steps", "oak", "bench0", "picnic2"], oak: ["fountain", "bench1", "bench2"],
+  fountain: ["steps", "bench0", "picnic2", "bench2"], oak: ["bench1", "bench2", "picnic3"],
   truck: ["coffee", "picnic1", "picnic3"], picnic0: ["steps", "picnic2"],
-  picnic1: ["steps", "truck"], picnic2: ["picnic0", "fountain", "bench2"],
-  picnic3: ["truck", "bench1"], bench0: ["fountain", "oak"], bench1: ["oak", "picnic3"],
-  bench2: ["oak", "picnic2"], bench3: ["kiosk", "picnic2"],
+  picnic1: ["steps", "truck", "bench2"], picnic2: ["picnic0", "fountain", "bench0"],
+  picnic3: ["truck", "bench1", "oak"], bench0: ["fountain", "picnic2"], bench1: ["oak", "picnic3"],
+  bench2: ["oak", "fountain", "picnic1"], bench3: ["kiosk", "picnic2"],
 };
 export const isCampusGround = (x: number, y: number) => y >= 35 && y < CAMPUS_H && x >= 1 && x < CAMPUS_W - 1;
 export const isCampusBlocked = (x: number, y: number) =>
@@ -132,3 +132,11 @@ export const flyersForDate = (date: string) => {
 };
 const DRINKS = ["Brown-sugar deadline latte", "Lavender library fog", "Maple midterm cold brew", "Extra-credit espresso", "Cinnamon syllabus cappuccino", "Honey oat office-hours latte", "Mint matcha motivation", "Orange mocha existential crisis"];
 export const drinkForDate = (date: string) => DRINKS[seedFor(`${date}:drink`) % DRINKS.length] ?? "Coffee";
+/** Library doors/steps axis that must stay clear of props and canopy all the way down the Quad. */
+export const LIBRARY_AXIS = { x0: 38, x1: 43, y0: 50, y1: CAMPUS_H - 1 };
+/** Outdoor tiles walk faster than rooms. */
+export const isOutdoorTile = (x: number, y: number) => y >= 35 || (y >= 28 && x >= 76 && x <= 77);
+export const OUTDOOR_SPEED = 1.4;
+export const JOG_SPEED = 1.8;
+/** Quick-travel destinations for the Me menu (tile targets). */
+export const QUICK_TRAVEL = { quad: { x: 41, y: 56 }, library: { x: 40, y: 51 } } as const;
