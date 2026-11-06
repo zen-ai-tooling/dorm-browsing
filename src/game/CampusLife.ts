@@ -8,6 +8,7 @@ import { SQUIRREL_COUNT, PIGEON_COUNT, PROFESSOR_FOLLOW_MS, professorPlace, PROF
 import { todayKey } from "@/data/prompts";
 import type { PopupPayload } from "@/data/dorm";
 import { buildCharTextures } from "./textures";
+import { DEFAULT_LOOK } from "@/data/avatar";
 import type { Light, Lighting } from "./lighting";
 
 type Point = { x: number; y: number };
@@ -48,6 +49,8 @@ export class CampusLife {
   private clockCenter = { x: 40.5 * T, y: 36.5 * T };
   private clockKey = "";
   private lastHour: number | null = null;
+  private nextRefresh = 0;
+  private professorReturning = false;
   private hourKey = "";
   private date = "";
   private windowLights: Light[] = [];
@@ -107,7 +110,7 @@ export class CampusLife {
     s.add.text(61 * T, 39.5 * T, "COFFEE", this.textStyle(10)).setOrigin(0.5).setDepth(40 * T + 1);
     this.coffeePayload = { kind: "flavor", title: "Campus coffee cart", lines: [] };
     hooks.register(cart, this.coffeePayload);
-    buildCharTextures(s, "campus-barista", STUDENTS[3]?.look ?? STUDENTS[0]?.look ?? { skin: 0, hairStyle: "short", hairColor: 0, top: { style: "tee", color: 0 }, bottom: { style: "jeans", color: 0 }, accessory: "none" });
+    buildCharTextures(s, "campus-barista", STUDENTS[3]?.look ?? DEFAULT_LOOK);
     s.add.sprite(62.5 * T, 39.6 * T, "campus-barista-down-0").setOrigin(0.5, 0.85).setDepth(40 * T);
     this.libraryPayload = { kind: "flavor", title: "Hale Library", lines: [] };
     hooks.register(s.add.sprite(40.5 * T, 50.5 * T, "campus-frisbee").setVisible(false), this.libraryPayload);
@@ -137,7 +140,10 @@ export class CampusLife {
     for (const [i, x] of [9, 16].entries()) this.frisbeePair.push(s.add.sprite(x * T, 55 * T, `stu-${i}-right-0`).setOrigin(0.5, 0.85).setDepth(55 * T).setVisible(false));
     this.squirrels = this.makeAnimals(SQUIRREL_COUNT, "squirrel", [{ x: 40, y: 56 }, { x: 46, y: 54 }, { x: 37, y: 58 }]);
     this.pigeons = this.makeAnimals(PIGEON_COUNT, "pigeon", [{ x: 35, y: 54 }, { x: 32, y: 56 }, { x: 36, y: 56 }, { x: 59, y: 41 }, { x: 62, y: 41 }]);
-    this.professor = s.add.sprite(45.5 * T, 56.5 * T, "campus-professor-0").setOrigin(0.5, 1).setDepth(57 * T);
+    const catPlace = professorPlace(hooks.getHour());
+    const catStart = center(PROFESSOR_ANCHORS[catPlace]);
+    this.professorLocation = catPlace;
+    this.professor = s.add.sprite(catStart.x, catStart.y, "campus-professor-0").setOrigin(0.5, 1).setDepth(catStart.y + 10);
     if (this.leafPhase === "autumn" || this.leafPhase === "blossom") for (let i = 0; i < 8; i++) this.leaves.push(s.add.rectangle(0, 0, 4, 2, this.leafPhase === "autumn" ? 0xd78b45 : 0xefb8c8).setDepth(1850));
     for (const [x, y] of [[61, 38.9], [64.4, 51.8]] as const) for (let i = 0; i < 3; i++) {
       const puff = s.add.rectangle((x + i * 0.15) * T, y * T, 4, 6, 0xe5ddd0, 0.5).setDepth(1900);
@@ -212,7 +218,9 @@ export class CampusLife {
       this.kioskPayload.lines = flyersForDate(date);
       this.coffeePayload.lines = ["Drink of the day", drinkForDate(date), hour >= 6 ? "The barista remembers everyone's order. Somehow." : "Back at 6am. The espresso machine is dreaming."];
     }
-    this.libraryPayload.lines = ["Hale Library — open 8am–2am.", libraryOpen(hour) ? (this.hooks.jordanInside() ? "Jordan is studying here." : "Quiet tables, warm windows, one very determined printer.") : "Closed for a little sleep. Back at 8am."];
+    this.coffeePayload.lines = ["Drink of the day", drinkForDate(date), hour >= 6 ? "The barista remembers everyone's order. Somehow." : "Back at 6am. The espresso machine is dreaming."];
+    const libraryLines = ["Hale Library — open 8am–2am.", libraryOpen(hour) ? (this.hooks.jordanInside() ? "Jordan is studying here." : "Quiet tables, warm windows, one very determined printer.") : "Closed for a little sleep. Back at 8am."];
+    if (libraryLines.join("|") !== this.libraryPayload.lines.join("|")) this.libraryPayload.lines = libraryLines;
     const winOn = libraryOpen(hour);
     if (winOn !== this.windowOn) {
       this.windowOn = winOn;
@@ -255,12 +263,13 @@ export class CampusLife {
   petProfessor() {
     if (!this.petNear) return;
     this.professorUntil = this.scene.time.now + PROFESSOR_FOLLOW_MS;
+    this.professorReturning = true;
     this.professorPath = []; this.professorNext = 0;
     this.bubble(this.professor, "purr… ♥ ♥", 2000);
     this.hooks.onPet();
   }
   update(time: number, delta: number, player: Point) {
-    this.refresh();
+    if (time >= this.nextRefresh) { this.nextRefresh = time + 1000; this.refresh(); }
     const view = this.scene.cameras.main.worldView;
     for (const [i, st] of this.students.entries()) {
       if (!st.sprite.visible) continue;
@@ -278,7 +287,11 @@ export class CampusLife {
         if (point) { st.path = this.route(st.sprite, point); st.node = next; }
         st.wait = time + 3000;
       } else if (view.contains(st.sprite.x, st.sprite.y)) st.sprite.setTexture(`stu-${i}-${st.facing}-0`).setDepth(st.sprite.y);
-      st.prop.setPosition(st.sprite.x + (STUDENTS[i]?.prop === "skateboard" ? 0 : 11), st.sprite.y + (STUDENTS[i]?.prop === "skateboard" ? 2 : -16)).setDepth(st.sprite.y + 1);
+      if (view.contains(st.sprite.x, st.sprite.y)) {
+        const seated = !st.path.length && (st.node.startsWith("bench") || st.node.startsWith("picnic"));
+        st.sprite.setScale(1, seated ? 0.85 : 1);
+        st.prop.setPosition(st.sprite.x + (STUDENTS[i]?.prop === "skateboard" ? 0 : 11), st.sprite.y + (STUDENTS[i]?.prop === "skateboard" ? 2 : -16)).setDepth(st.sprite.y + 1);
+      }
       if (Math.hypot(player.x - st.sprite.x, player.y - st.sprite.y) < 48 && time > st.nextSpeech) {
         this.bubble(st.sprite, overheardFor(i, st.turn++)); st.nextSpeech = time + 18000;
       }
@@ -331,10 +344,11 @@ export class CampusLife {
   private updateProfessor(time: number, delta: number, player: Point) {
     const location = professorPlace(this.hooks.getHour());
     const following = time < this.professorUntil;
-    if (location !== this.professorLocation && !following) {
+    if ((location !== this.professorLocation || this.professorReturning) && !following) {
       const anchor = PROFESSOR_ANCHORS[location];
+      this.professorReturning = false;
       // Never teleport through a wall when the cat changes its daily destination.
-      this.professorPath = this.route(this.professor, anchor);
+      this.professorPath = this.route(this.professor, location === "lounge" ? { x: 9, y: 28 } : anchor);
       this.professorLocation = location;
       if (!this.professorPath.length) { const p = center(anchor); this.professor.setPosition(p.x, p.y); }
     }
@@ -348,6 +362,10 @@ export class CampusLife {
       this.professorNext = time + 6000;
     }
     this.advance(this.professor, this.professorPath, following ? 160 : 100, delta);
+    if (location === "lounge" && !following && !this.professorPath.length) {
+      const couch = center(PROFESSOR_ANCHORS.lounge);
+      this.professor.setPosition(couch.x, couch.y - 18);
+    }
     this.professor.setDepth(this.professor.y + 10).setTexture(`campus-professor-${this.professorPath.length ? Math.floor(time / 180) % 2 : 0}`);
     if (location === "lounge" && !following && !this.professorPath.length) this.professor.setAngle(-4);
     else this.professor.setAngle(0);

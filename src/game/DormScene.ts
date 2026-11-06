@@ -293,6 +293,7 @@ interface ResidentRT {
   block: Block;
   key: string;
   mode: "idle" | "walk" | "sleep" | "away";
+  awayPortal?: { x: number; y: number };
   path: Phaser.Math.Vector2[];
   onArrive: (() => void) | null;
   facing: string;
@@ -1320,7 +1321,7 @@ export class DormScene extends Phaser.Scene {
     this.walls = this.physics.add.staticGroup();
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
-        if (this.grid[y]?.[x] !== WALL && this.grid[y]?.[x] !== BLOCKED) continue;
+        if (this.grid[y]?.[x] === FLOOR) continue;
         const body = this.add.zone(t(x) + TILE / 2, t(y) + TILE / 2, TILE, TILE);
         this.walls.add(body);
       }
@@ -3604,9 +3605,10 @@ export class DormScene extends Phaser.Scene {
       const p = this.tileCenter(this.nearestFloor(Math.floor(rt.sprite.x / TILE), Math.floor(rt.sprite.y / TILE) + 1));
       rt.sprite.setAngle(0).setPosition(p.x, p.y);
     }
-    const away = awayDestination(rt.def.id, this.getHour());
+    const away = isAway(b) ? awayDestination(rt.def.id, this.getHour()) : rt.awayPortal ?? EXIT_TILE;
     const exit = this.tileCenter([away.x, away.y]);
     if (isAway(b)) {
+      rt.awayPortal = away;
       if (rt.mode !== "away") {
         const finish = () => this.settle(rt, true);
         if (rt.def.id === "jordan" && b.awayNote === "out on a run") {

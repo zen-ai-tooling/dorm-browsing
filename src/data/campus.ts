@@ -53,7 +53,7 @@ export const isCampusPath = (x: number, y: number) =>
   (x >= 76 && x <= 77 && y >= 28 && y <= 34) ||
   (y >= 38 && ((x >= 20 && x <= 22) || (x >= 58 && x <= 60))) ||
   (y >= 50 && y <= 51 && x >= 35 && x <= 46) ||
-  (y >= 51 && (Math.abs(x - (18 + (y - 51) * 7)) < 2 || Math.abs(x - (70 - (y - 51) * 7)) < 2));
+  (y >= 51 && (Math.abs(y - (51 + (x - 18) / 7)) < 0.65 || Math.abs(y - (51 + (70 - x) / 7)) < 0.65));
 export const seedFor = (key: string) => {
   let h = 2166136261;
   for (const c of key) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
