@@ -144,18 +144,36 @@ export const buildCampusTextures = (scene: Phaser.Scene) => {
     panel(g, 238, 122, 52, 32, 0x29333b, 0x172027, 0xb7ab95);
     r(g, 239, 158, 50, 5, 0xddd0b4);
   });
-  for (const phase of ["green", "autumn", "snow", "blossom"] as const) make(scene, `campus-oak-${phase}`, 160, 150, (g) => {
-    const palette = phase === "autumn" ? [0xc16b36, 0x94423b, 0xe9ac54] : phase === "blossom" ? [0xd697b2, 0xac6b91, 0xf2c6d5] : [0x6e9854, 0x406541, 0x9db76b];
-    panel(g, 73, 60, 15, 83, 0x85614b, 0x513e37, 0xa7805c);
-    for (const [x, y, w, h] of [[25, 45, 36, 10], [90, 45, 39, 10], [51, 27, 13, 45], [101, 20, 10, 42]]) panel(g, x ?? 0, y ?? 0, w ?? 1, h ?? 1, 0x85614b, 0x513e37, 0xa7805c);
-    if (phase === "snow") {
-      for (const [x, y, w] of [[25, 44, 36], [90, 44, 39], [51, 27, 13], [101, 20, 10]]) r(g, x ?? 0, y ?? 0, w ?? 1, 4, 0xe7eef0);
-    } else {
-      for (const [x, y, w, h] of [[28, 12, 48, 48], [69, 0, 50, 53], [111, 27, 41, 43], [8, 43, 58, 38], [54, 48, 71, 36]]) {
-        panel(g, x ?? 0, y ?? 0, w ?? 1, h ?? 1, palette[0] ?? LEAF, palette[1] ?? LEAF_SH, palette[2] ?? LEAF_HI);
-        for (let i = 0; i < 14; i++) r(g, (x ?? 0) + 5 + (i * 13) % Math.max(6, (w ?? 12) - 8), (y ?? 0) + 5 + (i * 7) % Math.max(6, (h ?? 12) - 8), 4, 2, palette[2] ?? LEAF_HI);
-      }
+  // Oak: organic canopy of 3 overlapping blobs + edge leaf clusters, 1px dark outline, 3-tone leaves.
+  const disk = (g: G, cx: number, cy: number, rad: number, c: number) => {
+    for (let y = -rad; y <= rad; y += 2) {
+      const half = Math.floor(Math.sqrt(Math.max(0, rad * rad - y * y)) / 2) * 2;
+      if (half > 0) r(g, cx - half, cy + y, half * 2, 2, c);
     }
+  };
+  const OAK_BLOBS: Array<[number, number, number]> = [[50, 62, 32], [110, 60, 32], [80, 40, 36]];
+  const OAK_TUFTS: Array<[number, number, number]> = [[20, 64, 11], [140, 58, 11], [62, 16, 10], [104, 18, 11], [80, 88, 12], [34, 82, 9], [126, 82, 9]];
+  for (const phase of ["green", "autumn", "snow", "blossom"] as const) make(scene, `campus-oak-${phase}`, 160, 150, (g) => {
+    const [base, shade, hi, ink] =
+      phase === "autumn" ? [0xc16b36, 0x94423b, 0xe9ac54, 0x4a2622]
+      : phase === "blossom" ? [0xd697b2, 0xac6b91, 0xf2c6d5, 0x5a3348]
+      : phase === "snow" ? [0xdfe7ea, 0xa3b5c0, 0xffffff, 0x3c4a54]
+      : [0x6e9854, 0x406541, 0x9db76b, 0x223822];
+    panel(g, 73, 70, 15, 73, 0x85614b, 0x513e37, 0xa7805c);
+    r(g, 68, 138, 25, 5, 0x513e37);
+    const all = [...OAK_BLOBS, ...OAK_TUFTS];
+    for (const [x, y, rad] of all) disk(g, x, y, rad + 2, ink); // 1px-art outline (2 canvas px)
+    for (const [x, y, rad] of all) disk(g, x, y, rad, shade);
+    for (const [x, y, rad] of all) disk(g, x - 2, y - 4, rad - 4, base);
+    for (const [x, y, rad] of all) disk(g, x - 6, y - 9, Math.max(3, Math.floor(rad / 3)), hi);
+    // a few leaf flecks so blobs read as foliage, not balloons
+    for (let i = 0; i < 26; i++) {
+      const [bx, by, br] = OAK_BLOBS[i % 3]!;
+      const ang = i * 2.39, d = (i * 7) % Math.max(4, br - 8);
+      r(g, Math.floor((bx + Math.cos(ang) * d) / 2) * 2, Math.floor((by + Math.sin(ang) * d) / 2) * 2, 4, 2, i % 2 ? hi : shade);
+    }
+    // trunk shows through the gap under the canopy, with a branch fork
+    r(g, 76, 96, 9, 8, 0x513e37);
     foot(g, 80, 144, 22);
   });
   for (let frame = 0; frame < 3; frame++) make(scene, `campus-fountain-${frame}`, 40, 44, (g) => {
