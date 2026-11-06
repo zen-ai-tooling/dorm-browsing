@@ -1,3 +1,14 @@
+# Pre-test fixes
+
+- [x] Ownership-aware save decisions, single boot, race-safe sign-out/reset, regression tests
+- [x] Session-only eligibility and once-per-trigger save reminders, tests
+- [x] Durable offline feedback queue (20 max), reconnect/load retry, tests
+- [x] Stronger night pools, ambient halo fade, outdoor wall-only clipping
+- [x] 104 tests pass; build OK; signed-in offline feedback delivered on reconnect; 23:00 desktop/phone checked
+- [x] Mocked cloud browser checks: empty foreign save loads cloud, guest progress shows conflict, new account carries local, startup fetch/upload each once, immediate flush, no upload after delete
+
+Verification limits: real Google/email round-trips, full sign-out/reset reload against a real second account, and the far courtyard lamp were not exercised; these require tester accounts/non-destructive reset approval.
+
 # Iteration 27 — Accounts: Guest-First Sign-In + Cloud Saves
 
 First backend (Lovable Cloud). Gameplay, rendering, economy, dev mode unchanged.

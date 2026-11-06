@@ -1,10 +1,11 @@
 import * as Phaser from "phaser";
 import { DARKNESS_ALPHA, DARKNESS_COLOR } from "./timeOfDay";
+import { saturatedPoolColor } from "./lightColor";
 
 /**
  * Night lighting: one world-sized RenderTexture MULTIPLIED over the world, filled with
  * a moonlit blue and erased at every light source, plus a colored additive "pool" of
- * light on the floor below each source (under the props, not on top of them).
+ * light above the darkness so its color is not multiplied away.
  *
  * - Light textures are generated per radius bucket (8px steps) at 1:1 art pixels with
  *   3 hard-edged stepped rings — no dither, so no checkerboard rims at camera zoom.
@@ -15,8 +16,8 @@ import { DARKNESS_ALPHA, DARKNESS_COLOR } from "./timeOfDay";
  */
 
 export const LIGHT_DEPTH = 4900;
-/** floor pools sit above floors/rugs/sunbeams, below every prop */
-export const POOL_DEPTH = 1.6;
+/** Additive pools must remain above the multiply darkness. */
+export const POOL_DEPTH = LIGHT_DEPTH + 0.5;
 
 export interface ClipRect {
   x: number;
@@ -72,7 +73,7 @@ export interface Light {
 }
 
 const FLECK_COLORS = [0xf07ab8, 0x7fd1e8, 0xf2d06b, 0x9be39b, 0xc9a7f0];
-const POOL_ALPHA = 0.2;
+const POOL_ALPHA = 0.22;
 /** dim warm "ceiling light" erase for rooms with someone home and awake */
 const AMBIENT_ALPHA = 0.35;
 /** pool ellipses are squashed vertically so they sit on the floor in this perspective */
@@ -169,7 +170,7 @@ export class Lighting {
     if (spec.pool !== false) {
       pool = this.scene.add
         .image(x, y, spec.strip ? "light-strip" : `light-p-${bucket}`)
-        .setTint(spec.color)
+        .setTint(saturatedPoolColor(spec.color))
         .setBlendMode(Phaser.BlendModes.ADD)
         .setDepth(POOL_DEPTH)
         .setAlpha(0)
@@ -316,7 +317,8 @@ export class Lighting {
         }
       }
       if (l.spec.fadeNearOthers) {
-        let near = false;
+        let near = [...this.ambients.values()].some((r) =>
+          l.x >= r.x && l.x < r.x + r.w && l.y >= r.y && l.y < r.y + r.h);
         for (const o of this.lights) {
           if (o === l || o.spec.cut === false) continue;
           if (Math.hypot(o.x - l.x, o.y - l.y) < o.spec.radius * 0.9) {
@@ -327,7 +329,8 @@ export class Lighting {
         const target = near ? 0 : 1;
         if (Math.abs(l.cutAlpha - target) > 0.01) {
           l.cutAlpha = Phaser.Math.Linear(l.cutAlpha, target, 0.12);
-          if (Math.abs(l.cutAlpha - l.drawnCutAlpha) > 0.2) this.dirty = true;
+          if (Math.abs(l.cutAlpha - target) <= 0.01) l.cutAlpha = target;
+          if (Math.abs(l.cutAlpha - l.drawnCutAlpha) > 0.2 || l.cutAlpha === target) this.dirty = true;
         }
       }
       if (this.night > 0.003) {
@@ -363,7 +366,9 @@ export class Lighting {
       rt.erase(this.rectStamp);
     }
     for (const l of this.lights) {
-      if (l.spec.cut === false || l.cutAlpha <= 0.01) continue;
+      if (l.spec.cut === false) continue;
+      l.drawnCutAlpha = l.cutAlpha;
+      if (l.cutAlpha <= 0.01) continue;
       l.cutX = l.x;
       l.cutY = l.y;
       l.drawnCutAlpha = l.cutAlpha;

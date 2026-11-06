@@ -48,6 +48,8 @@ import { ConflictDialog } from "./ConflictDialog";
 import { FeedbackPanel } from "./FeedbackPanel";
 import { initAuth, signOutToGuest, useAuth } from "@/lib/auth";
 import { startSaveSync, useSaveSync } from "@/lib/saveSync";
+import { startFeedbackQueue } from "@/lib/feedbackQueue";
+import { markSaveTriggerShown, nextSaveTrigger, shownSaveTriggers } from "@/lib/saveNudge";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 import { currentHour, currentPhase, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
@@ -119,32 +121,25 @@ const DormGame = () => {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [nudge, setNudge] = useState(false);
-  const wasOnboarded = useRef<boolean | null>(null);
   const isGuest = auth.ready && auth.isAnonymous;
 
-  // soft "save your dorm" nudge: after move-in, first purchase, 3rd day — at most once a day
+  // Each eligible trigger is recorded when shown, not only when dismissed.
   useEffect(() => {
-    const justOnboarded = wasOnboarded.current === false && onboarded;
-    wasOnboarded.current = onboarded;
-    if (!auth.ready || !auth.isAnonymous || !onboarded) return;
-    const today = todayKey();
-    try {
-      if (window.localStorage.getItem("dorm-vibes-save-nudge") === today) return;
-    } catch {
-      /* storage blocked */
+    if (!auth.ready || !auth.userId || !auth.isAnonymous || !onboarded) {
+      setNudge(false);
+      return;
     }
-    const daysPlayed = Object.keys(dailyAnswers).length;
-    const firstPurchase = ownedItemIds.length > defaultOwnedCount();
-    if (justOnboarded || firstPurchase || daysPlayed >= 3) setNudge(true);
-  }, [auth.ready, auth.isAnonymous, onboarded, ownedItemIds.length, dailyAnswers]);
+    if (nudge || !scene || editing || moveIn) return;
+    const trigger = nextSaveTrigger({
+      userId: auth.userId, isAnonymous: auth.isAnonymous, onboarded,
+      purchased: ownedItemIds.length > defaultOwnedCount(), daysPlayed: Object.keys(dailyAnswers).length,
+      shown: shownSaveTriggers(),
+    });
+    if (trigger) { markSaveTriggerShown(trigger); setNudge(true); }
+  }, [auth.ready, auth.userId, auth.isAnonymous, onboarded, ownedItemIds.length, dailyAnswers, scene, editing, moveIn]);
 
   const dismissNudge = () => {
     setNudge(false);
-    try {
-      window.localStorage.setItem("dorm-vibes-save-nudge", todayKey());
-    } catch {
-      /* storage blocked */
-    }
   };
 
   /** where/what the tester was doing — attached to every feedback row */
@@ -274,8 +269,9 @@ const DormGame = () => {
     hydrateTimeOverride();
     setHydrated(true);
     // guest-first accounts: silent anonymous session, then cloud-save sync
-    void initAuth();
     startSaveSync();
+    startFeedbackQueue();
+    void initAuth();
   }, []);
 
   // live avatar / room mood / name in the world
@@ -918,7 +914,7 @@ const DormGame = () => {
         />
       ) : null}
 
-      {nudge && !moveIn && !editing ? (
+      {nudge && auth.userId && auth.isAnonymous && !moveIn && !editing ? (
         <GamePanel accent="#7f9c86" className="absolute left-3 top-14 z-40 w-56 p-3">
           <p className="mb-1 font-display text-sm font-bold text-panel-foreground">Like your dorm?</p>
           <p className="mb-2 font-body text-[11px] leading-snug text-panel-muted">

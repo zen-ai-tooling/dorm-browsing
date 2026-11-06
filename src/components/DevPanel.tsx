@@ -69,7 +69,9 @@ export const DevPanel = ({
     }
     toast("Save cleared — reloading");
     // wipe the cloud row too, so the new-player flow reruns on this account
-    void deleteCloudSave().finally(() => devActions.resetEverything());
+    void deleteCloudSave().then(() => devActions.resetEverything()).catch(() => {
+      toast("Couldn't reset your saved dorm — reconnect and reload before trying again.");
+    });
   };
 
   if (!open)

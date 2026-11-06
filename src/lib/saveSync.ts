@@ -60,145 +60,186 @@ const deviceLabel = (): string => {
   return `${touch} · ${browser}`;
 };
 
+export interface BootInput {
+  uid: string;
+  localOwner: string | null;
+  local: PlayerState;
+  cloud: { state: unknown; updated_at: string } | null;
+}
+
+/** Timestamps only mean anything within the same account. */
+export const decideBoot = ({ uid, localOwner, local, cloud }: BootInput): "useCloud" | "uploadLocal" | "conflict" => {
+  if (!cloud) return "uploadLocal";
+  if (localOwner === uid)
+    return new Date(cloud.updated_at).getTime() > local.savedAt ? "useCloud" : "uploadLocal";
+  return hasRealProgress(local) ? "conflict" : "useCloud";
+};
+
+const OWNER_KEY = "dorm-vibes-save-owner";
+let owner: string | null = null;
+const readOwner = () => {
+  try { owner = window.localStorage.getItem(OWNER_KEY); } catch { /* device storage unavailable */ }
+  return owner;
+};
+const setOwner = (uid: string) => {
+  owner = uid;
+  try { window.localStorage.setItem(OWNER_KEY, uid); } catch { /* keep in memory */ }
+};
+
 let userId: string | null = null;
 let timer: number | undefined;
 let retryTimer: number | undefined;
 let retryDelay = 5000;
 let dirty = false;
+let stopped = false;
+let epoch = 0;
+let booting: { uid: string; promise: Promise<void> } | null = null;
+let bootReady = false;
+let uploading: Promise<void> | null = null;
 
 const fetchCloudSave = async (uid: string) => {
-  const { data, error } = await supabase
-    .from("player_saves")
-    .select("state, updated_at")
-    .eq("user_id", uid)
-    .maybeSingle();
+  const { data, error } = await supabase.from("player_saves").select("state, updated_at").eq("user_id", uid).maybeSingle();
   if (error) throw error;
   return data;
 };
 
-const upload = async () => {
-  if (!userId) return;
-  const state = getPlayerState();
-  const { error } = await supabase.from("player_saves").upsert({
-    user_id: userId,
-    state: JSON.parse(JSON.stringify(state)),
-    save_version: 1,
-    updated_at: new Date(state.savedAt).toISOString(),
-    device_label: deviceLabel(),
-  });
-  if (error) throw error;
-  dirty = false;
-  retryDelay = 5000;
-  write({ status: "synced" });
-};
-
 const scheduleRetry = () => {
+  if (stopped) return;
   write({ status: "offline" });
   window.clearTimeout(retryTimer);
-  retryTimer = window.setTimeout(() => void flush(), retryDelay);
+  retryTimer = window.setTimeout(() => {
+    if (!bootReady && userId && !sync.conflict) void boot(userId);
+    else void flush().catch(scheduleRetry);
+  }, retryDelay);
   retryDelay = Math.min(retryDelay * 3, 60_000);
 };
 
-const flush = async () => {
+const flush = async (): Promise<void> => {
   window.clearTimeout(timer);
   timer = undefined;
-  if (!dirty || !userId) return;
-  try {
-    await upload();
-  } catch {
-    scheduleRetry();
-  }
+  if (uploading) await uploading;
+  if (stopped || !dirty || !userId || !bootReady || sync.conflict) return;
+  const uid = userId;
+  const generation = epoch;
+  const state = getPlayerState();
+  dirty = false;
+  const work = async () => {
+    const { error } = await supabase.from("player_saves").upsert({
+      user_id: uid,
+      state: JSON.parse(JSON.stringify(state)),
+      save_version: 1,
+      updated_at: new Date(state.savedAt).toISOString(),
+      device_label: deviceLabel(),
+    });
+    if (generation !== epoch || stopped) return;
+    if (error) { dirty = true; throw error; }
+    setOwner(uid);
+    retryDelay = 5000;
+    write({ status: dirty ? "saving" : "synced" });
+  };
+  uploading = work();
+  try { await uploading; } finally { uploading = null; }
+};
+
+/** Sign-out must not discard changes still waiting for the debounce. */
+export const flushNow = async () => {
+  if (booting) await booting.promise;
+  await flush();
+  if (dirty && !sync.conflict && !stopped) await flush();
+  if (sync.conflict || (!bootReady && userId)) throw new Error("Save is not ready");
 };
 
 const scheduleSave = () => {
-  if (!userId) return;
+  if (stopped || !userId || sync.conflict) return;
   dirty = true;
   write({ status: "saving" });
   window.clearTimeout(timer);
-  timer = window.setTimeout(() => void flush(), 2000);
+  timer = window.setTimeout(() => void flush().catch(scheduleRetry), 2000);
 };
 
-/** boot merge for a (new) session: newer cloud save wins, otherwise local uploads */
-const boot = async (uid: string) => {
+/** One ownership-aware path for both live sign-in and redirect reloads. */
+const boot = (uid: string): Promise<void> => {
+  if (stopped) return Promise.resolve();
+  if (booting?.uid === uid) return booting.promise;
+  window.clearTimeout(timer);
+  window.clearTimeout(retryTimer);
   userId = uid;
-  try {
-    const row = await fetchCloudSave(uid);
-    const local = getPlayerState();
-    if (row && new Date(row.updated_at).getTime() > local.savedAt) {
-      applyPlayerState(normalizeSave(row.state));
-    } else {
-      dirty = true;
-      await flush();
-    }
-    write({ status: "synced" });
-  } catch {
-    scheduleRetry();
-  }
+  bootReady = false;
+  dirty = false;
+  write({ conflict: null });
+  const generation = ++epoch;
+  const promise = (async () => {
+    try {
+      if (uploading) await uploading.catch(() => {});
+      const row = await fetchCloudSave(uid);
+      if (stopped || generation !== epoch) return;
+      const decision = decideBoot({ uid, localOwner: readOwner(), local: getPlayerState(), cloud: row });
+      if (decision === "conflict" && row) {
+        write({ conflict: { cloudState: normalizeSave(row.state), cloudUpdatedAt: row.updated_at }, status: "synced" });
+        return;
+      }
+      if (decision === "useCloud" && row) {
+        setOwner(uid);
+        applyPlayerState(normalizeSave(row.state));
+        dirty = false;
+        bootReady = true;
+        write({ status: "synced" });
+      } else {
+        bootReady = true;
+        dirty = true;
+        await flush();
+      }
+    } catch { if (generation === epoch) scheduleRetry(); }
+  })();
+  booting = { uid, promise };
+  void promise.finally(() => { if (booting?.promise === promise) booting = null; });
+  return promise;
 };
 
 let started = false;
-
 export const startSaveSync = () => {
   if (started || typeof window === "undefined") return;
   started = true;
-
-  subscribePlayerState(() => {
-    if (userId && !sync.conflict) scheduleSave();
-  });
-
+  subscribePlayerState(scheduleSave);
   window.addEventListener("online", () => {
     retryDelay = 5000;
-    void flush();
+    if (!bootReady && userId && !sync.conflict) void boot(userId);
+    else void flush().catch(scheduleRetry);
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") void flush();
+    if (document.visibilityState === "hidden") void flush().catch(scheduleRetry);
   });
-
-  onUserChange((uid, prev) => {
-    const local = getPlayerState();
-    // account switch with real progress on this device → the player picks which dorm wins
-    if (prev && prev !== uid && hasRealProgress(local)) {
-      userId = uid;
-      void (async () => {
-        try {
-          const row = await fetchCloudSave(uid);
-          if (row) {
-            write({ conflict: { cloudState: normalizeSave(row.state), cloudUpdatedAt: row.updated_at } });
-            return;
-          }
-          dirty = true;
-          await flush();
-        } catch {
-          scheduleRetry();
-        }
-      })();
-      return;
-    }
-    void boot(uid);
-  });
+  onUserChange((uid) => { void boot(uid); });
 };
 
-/** conflict dialog: "Keep my saved dorm" */
 export const keepCloudSave = () => {
-  if (!sync.conflict) return;
+  if (!sync.conflict || !userId || stopped) return;
+  setOwner(userId);
   applyPlayerState(sync.conflict.cloudState);
+  dirty = false;
+  bootReady = true;
   write({ conflict: null, status: "synced" });
 };
-
-/** conflict dialog: "Keep this device's dorm" — overwrites the cloud row */
 export const keepLocalSave = () => {
-  if (!sync.conflict) return;
+  if (!sync.conflict || stopped) return;
   write({ conflict: null });
+  bootReady = true;
   dirty = true;
-  void flush();
+  void flush().catch(scheduleRetry);
 };
 
-/** dev "Reset everything" also wipes the cloud row so the new-player flow reruns */
+/** Drain requests already sent before deleting; no new flush may resurrect the row. */
+export const stopSync = async () => {
+  stopped = true;
+  ++epoch;
+  window.clearTimeout(timer);
+  window.clearTimeout(retryTimer);
+  dirty = false;
+  if (uploading) await uploading.catch(() => {});
+};
 export const deleteCloudSave = async () => {
+  await stopSync();
   if (!userId) return;
-  try {
-    await supabase.from("player_saves").delete().eq("user_id", userId);
-  } catch {
-    /* offline — local reset still happens */
-  }
+  const { error } = await supabase.from("player_saves").delete().eq("user_id", userId);
+  if (error) throw error;
 };
