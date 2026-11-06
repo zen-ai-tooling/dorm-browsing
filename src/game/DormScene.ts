@@ -2349,6 +2349,7 @@ export class DormScene extends Phaser.Scene {
       this.flashReject(entry.sprite);
       return;
     }
+    this.pushUndo({ kind: "recolor", itemId: entry.itemId, tint: entry.tint ?? null, refund: cost });
     if (tint === null) delete entry.tint;
     else entry.tint = tint;
     // overlay + light follow the new colour
@@ -2418,11 +2419,25 @@ export class DormScene extends Phaser.Scene {
     const item = ITEM_CATALOG[itemId]!;
     this.ghost?.destroy();
     this.ghost = this.add.sprite(-999, -999, item.textureKey).setAlpha(0.6).setDepth(6500);
+    if (!isWallItem(item)) this.ghost.setOrigin(0.5, 1);
     const ghostTint = this.moodTint(this.myRoom(), item);
     if (ghostTint) this.ghost.setTint(ghostTint);
     if (item.scale) this.ghost.setScale(item.scale);
     this.ensureHighlight();
-    this.updatePlacingPreview(this.input.activePointer);
+    if (isTouch()) {
+      // no hover on touch: park the ghost at the best free spot nearest the room's center
+      const f = effectiveFootprint(item, 0);
+      const spot = nearestSpot(
+        this.placed.map((p) => ({ itemId: p.itemId, gx: p.gx, gy: p.gy, rotation: p.rotation })),
+        itemId,
+        Math.floor((12 - f.w) / 2),
+        Math.floor((9 - f.h) / 2) + 1,
+      );
+      if (spot) {
+        this.ghostTile = spot;
+        this.positionGhost(itemId, spot.gx, spot.gy);
+      }
+    } else this.updatePlacingPreview(this.input.activePointer);
   }
 
   cancelPlacing() {
