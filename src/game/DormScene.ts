@@ -2288,19 +2288,21 @@ export class DormScene extends Phaser.Scene {
   }
 
   private iconButton(label: string, fill: number, onTap: () => void) {
-    const bg = this.add.rectangle(0, 0, 22, 22, fill, 1).setStrokeStyle(2, 0x241c26);
+    // 44px touch targets on phones, 22px on desktop
+    const S = isTouch() ? 44 : 22;
+    const bg = this.add.rectangle(0, 0, S, S, fill, 1).setStrokeStyle(2, 0x241c26);
     const icon = label.startsWith("tex:")
       ? this.add.image(0, 0, label.slice(4))
       : this.add
           .text(0, 0, label, {
             fontFamily: '"Pixelify Sans", sans-serif',
-            fontSize: "13px",
+            fontSize: isTouch() ? "20px" : "13px",
             color: "#fff6e8",
           })
           .setOrigin(0.5);
     const c = this.add
       .container(0, 0, [bg, icon])
-      .setSize(22, 22)
+      .setSize(S, S)
       .setInteractive({ useHandCursor: true });
     c.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       pointer.event.stopPropagation();
@@ -2329,9 +2331,40 @@ export class DormScene extends Phaser.Scene {
       buttons.unshift(paint);
     }
     // centre the row: [paint] [rotate] [remove]
-    buttons.forEach((b, i) => b.setPosition((i - (buttons.length - 1) / 2) * 28, 0));
-    this.selectionUi = this.add.container(p.sprite.x, 0, buttons).setDepth(5000);
+    const step = (isTouch() ? 44 : 22) + 6;
+    buttons.forEach((b, i) => b.setPosition((i - (buttons.length - 1) / 2) * step, 0));
+    // the selected item's name rides above the buttons
+    const nameLabel = this.add
+      .text(0, -(isTouch() ? 40 : 24), def?.name ?? "", {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "10px",
+        color: "#fff6e8",
+        backgroundColor: "#241c26",
+        padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5);
+    this.selectionUi = this.add.container(p.sprite.x, 0, [...buttons, nameLabel]).setDepth(5000);
     this.positionSelectionUi();
+  }
+
+  private lastTapKey = "";
+  private lastTapCycle = 0;
+
+  /** tap selects the top item (wall > floor > rug); tapping the same spot cycles down */
+  private cycleSelect(wx: number, wy: number) {
+    const rank = (id: string) => {
+      const l = layerOf(ITEM_CATALOG[id]);
+      return l === "wall" ? 0 : l === "floor" ? 1 : 2;
+    };
+    const hits = this.placed
+      .filter((q) => q.sprite.getBounds().contains(wx, wy))
+      .sort((a, b) => rank(a.itemId) - rank(b.itemId) || b.sprite.depth - a.sprite.depth);
+    if (!hits.length) return;
+    const key = `${Math.floor(wx / TILE)},${Math.floor(wy / TILE)}`;
+    const cycle = this.lastTapKey === key ? (this.lastTapCycle + 1) % hits.length : 0;
+    this.lastTapKey = key;
+    this.lastTapCycle = cycle;
+    this.select(this.placed.indexOf(hits[cycle]!));
   }
 
   private swatchUi: Phaser.GameObjects.Container | null = null;
