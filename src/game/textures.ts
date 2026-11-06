@@ -172,8 +172,6 @@ export const buildCampusTextures = (scene: Phaser.Scene) => {
       const ang = i * 2.39, d = (i * 7) % Math.max(4, br - 8);
       r(g, Math.floor((bx + Math.cos(ang) * d) / 2) * 2, Math.floor((by + Math.sin(ang) * d) / 2) * 2, 4, 2, i % 2 ? hi : shade);
     }
-    // trunk shows through the gap under the canopy, with a branch fork
-    r(g, 76, 96, 9, 8, 0x513e37);
     foot(g, 80, 144, 22);
   });
   for (let frame = 0; frame < 3; frame++) make(scene, `campus-fountain-${frame}`, 40, 44, (g) => {

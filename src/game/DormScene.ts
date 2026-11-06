@@ -335,6 +335,12 @@ export class DormScene extends Phaser.Scene {
   private target: Phaser.Math.Vector2 | null = null;
   private path: Phaser.Math.Vector2[] = [];
   private stuckMs = 0;
+  /** jogging for the current tap path (double-tap or quick travel); cleared when the path ends */
+  private jogPath = false;
+  /** quick travel in progress: the next tap cancels instead of re-targeting */
+  private travelling = false;
+  private lastTap = { time: 0, x: -9, y: -9 };
+  private shiftKey: Phaser.Input.Keyboard.Key | null = null;
   private facing = "down";
   private walkTime = 0;
   private interactives: Array<{
@@ -3995,6 +4001,21 @@ export class DormScene extends Phaser.Scene {
     this.trackMyRoom();
   }
 
+  /** Me-menu quick travel: walks there at jog speed (never a teleport); any tap cancels. */
+  quickTravel(dest: "room" | "lounge" | "quad" | "library") {
+    if (this.editMode || this.cinematic) return;
+    const z = dest === "room" ? this.myZone : dest === "lounge" ? this.zones.find((q) => q.id === "lounge") : null;
+    const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library"];
+    const [gx, gy] = this.nearestFloor(tile.x, tile.y);
+    this.path = this.findPath(Math.floor(this.player.x / TILE), Math.floor(this.player.y / TILE), gx, gy);
+    this.target = this.path.shift() ?? null;
+    this.jogPath = !!this.target; this.travelling = !!this.target; this.stuckMs = 0;
+  }
+
+  private stopTravel() {
+    this.path = []; this.target = null; this.jogPath = false; this.travelling = false;
+  }
+
   petProfessor() { this.campus?.petProfessor(); }
   tossCampusCoin() { this.campus?.tossCoin(); }
 
@@ -4003,6 +4024,7 @@ export class DormScene extends Phaser.Scene {
     this.cursors = kb.createCursorKeys();
     kb.on("keydown", () => unlockAudio());
     this.keys = kb.addKeys("W,A,S,D") as Record<string, Phaser.Input.Keyboard.Key>;
+    this.shiftKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT, false);
 
     this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
       unlockAudio();
@@ -4030,6 +4052,7 @@ export class DormScene extends Phaser.Scene {
       }
 
       if (this.cinematic) return;
+      if (this.travelling) { this.stopTravel(); return; } // tap anywhere cancels quick travel
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       // tapping yourself opens the avatar creator
       if (this.player.getBounds().contains(wp.x, wp.y)) {
@@ -4040,6 +4063,9 @@ export class DormScene extends Phaser.Scene {
       const ty = Math.floor(wp.y / TILE);
       if (this.grid[ty]?.[tx] !== FLOOR) return;
       if (isTouch()) this.tapMarker(tx, ty);
+      const now = this.time.now;
+      this.jogPath = isTouch() && now - this.lastTap.time < 400 && Math.abs(tx - this.lastTap.x) <= 1 && Math.abs(ty - this.lastTap.y) <= 1;
+      this.lastTap = { time: now, x: tx, y: ty };
       this.path = this.findPath(
         Math.floor(this.player.x / TILE),
         Math.floor(this.player.y / TILE),
@@ -4138,6 +4164,7 @@ export class DormScene extends Phaser.Scene {
       this.target = null; // keyboard cancels click path
       this.path = [];
       this.stuckMs = 0;
+      this.jogPath = false; this.travelling = false;
     } else if (this.target) {
       const d = Phaser.Math.Distance.Between(body.x, body.y, this.target.x, this.target.y);
       if (d < 8) {
@@ -4156,11 +4183,14 @@ export class DormScene extends Phaser.Scene {
           this.stuckMs = 0;
         }
       }
+      if (!this.target) { this.jogPath = false; this.travelling = false; }
     }
 
 
     const v = new Phaser.Math.Vector2(vx, vy);
-    if (v.lengthSq() > 0) v.normalize().scale(SPEED);
+    const outdoors = isOutdoorTile(Math.floor(body.x / TILE), Math.floor(body.y / TILE));
+    const jog = this.jogPath || !!this.shiftKey?.isDown;
+    if (v.lengthSq() > 0) v.normalize().scale(SPEED * (outdoors ? OUTDOOR_SPEED : 1) * (jog ? JOG_SPEED : 1));
     body.setVelocity(v.x, v.y);
 
     // facing + walk animation
