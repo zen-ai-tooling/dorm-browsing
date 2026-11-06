@@ -12,22 +12,22 @@ const reason = (layout: PlacedItem[], id: string, gx: number, gy: number, rot: R
 
 describe("footprints", () => {
   test("spot checks: measured bases, not drawn pixels", () => {
-    expect(ITEM_CATALOG.speaker_basic!.footprint).toEqual({ w: 1, h: 1 });
-    expect(ITEM_CATALOG.plant_basic!.footprint).toEqual({ w: 1, h: 1 });
-    expect(ITEM_CATALOG.tv_basic!.footprint).toEqual({ w: 3, h: 1 });
-    expect(ITEM_CATALOG.desk_basic!.footprint).toEqual({ w: 3, h: 1 });
-    expect(ITEM_CATALOG.bed_basic!.footprint).toEqual({ w: 3, h: 2 });
-    expect(ITEM_CATALOG.bed_canopy!.footprint).toEqual({ w: 3, h: 2 });
-    expect(ITEM_CATALOG.rug_woven!.footprint).toEqual({ w: 5, h: 3 });
-    expect(ITEM_CATALOG.speaker_tower!.footprint).toEqual({ w: 1, h: 1 });
+    expect(ITEM_CATALOG["speaker_basic"]!.footprint).toEqual({ w: 1, h: 1 });
+    expect(ITEM_CATALOG["plant_basic"]!.footprint).toEqual({ w: 1, h: 1 });
+    expect(ITEM_CATALOG["tv_basic"]!.footprint).toEqual({ w: 3, h: 1 });
+    expect(ITEM_CATALOG["desk_basic"]!.footprint).toEqual({ w: 3, h: 1 });
+    expect(ITEM_CATALOG["bed_basic"]!.footprint).toEqual({ w: 3, h: 2 });
+    expect(ITEM_CATALOG["bed_canopy"]!.footprint).toEqual({ w: 3, h: 2 });
+    expect(ITEM_CATALOG["rug_woven"]!.footprint).toEqual({ w: 5, h: 3 });
+    expect(ITEM_CATALOG["speaker_tower"]!.footprint).toEqual({ w: 1, h: 1 });
   });
 
   test("layers: rugs are rugs, wall mounts are wall, the rest is floor", () => {
-    expect(layerOf(ITEM_CATALOG.rug_woven)).toBe("rug");
-    expect(layerOf(ITEM_CATALOG.rug_midnight)).toBe("rug");
-    expect(layerOf(ITEM_CATALOG.poster_default)).toBe("wall");
-    expect(layerOf(ITEM_CATALOG.board_basic)).toBe("wall");
-    expect(layerOf(ITEM_CATALOG.bed_basic)).toBe("floor");
+    expect(layerOf(ITEM_CATALOG["rug_woven"])).toBe("rug");
+    expect(layerOf(ITEM_CATALOG["rug_midnight"])).toBe("rug");
+    expect(layerOf(ITEM_CATALOG["poster_default"])).toBe("wall");
+    expect(layerOf(ITEM_CATALOG["board_basic"])).toBe("wall");
+    expect(layerOf(ITEM_CATALOG["bed_basic"])).toBe("floor");
   });
 
   test("base anchoring: bottom edge on the footprint's bottom edge, centered", () => {
