@@ -919,7 +919,7 @@ const DormGame = () => {
       ) : null}
 
       {nudge && !moveIn && !editing ? (
-        <GamePanel accent="#7f9c86" className="absolute bottom-3 left-3 z-40 w-56 p-3">
+        <GamePanel accent="#7f9c86" className="absolute left-3 top-14 z-40 w-56 p-3">
           <p className="mb-1 font-display text-sm font-bold text-panel-foreground">Like your dorm?</p>
           <p className="mb-2 font-body text-[11px] leading-snug text-panel-muted">
             Save it so it's there on any device.
