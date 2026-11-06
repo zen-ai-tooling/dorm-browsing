@@ -4191,7 +4191,7 @@ export class DormScene extends Phaser.Scene {
 
 
     const v = new Phaser.Math.Vector2(vx, vy);
-    if (this.travelling && Math.random() < 0.02) console.log("QTupd", Math.round(body.x), Math.round(body.y), this.path.length, v.x, v.y);
+    if (Math.random() < 0.01) console.log("QTupd", this.travelling, !!this.target, Math.round(body.x), Math.round(body.y), this.path.length, v.x, v.y);
     const outdoors = isOutdoorTile(Math.floor(body.x / TILE), Math.floor(body.y / TILE));
     const jog = this.jogPath || !!this.shiftKey?.isDown;
     if (v.lengthSq() > 0) v.normalize().scale(SPEED * (outdoors ? OUTDOOR_SPEED : 1) * (jog ? JOG_SPEED : 1));
