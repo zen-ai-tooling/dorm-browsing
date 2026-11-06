@@ -51,7 +51,8 @@ describe("normalizeSave", () => {
     expect(next.avatarNewsSeen).toBe(false);
     expect(next.coins).toBe(80);
     // the TV's old side-wall spot migrates, and the default poster is added
-    expect(next.roomLayout.find((p) => p.itemId === "tv_basic")).toMatchObject({ gx: 9, gy: 3 });
+    const tv = next.roomLayout.find((p) => p.itemId === "tv_basic");
+    expect([tv?.gx, tv?.gy]).toEqual([9, 3]);
     expect(next.roomLayout.some((p) => p.itemId === "poster_default")).toBe(true);
     // pre-quests save: already-done quests tick without rewards
     expect(Array.isArray(next.questsDone)).toBe(true);
