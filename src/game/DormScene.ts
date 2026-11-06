@@ -2003,6 +2003,7 @@ export class DormScene extends Phaser.Scene {
   // ---------- editor feel: tooltips, undo, dust, haptics ----------
 
   private rejectTip: Phaser.GameObjects.Text | null = null;
+  private rejectTipTimer: Phaser.Time.TimerEvent | null = null;
 
   /** short pixel tooltip above a spot, gone after 1.5s — why a move failed */
   private showRejectTip(x: number, y: number, reason: PlaceRejection) {
@@ -2020,21 +2021,22 @@ export class DormScene extends Phaser.Scene {
                 : reason.kind === "window"
                   ? "Keep the window clear"
                   : "No room there";
-    this.rejectTip?.destroy();
-    const tip = this.add
-      .text(x, y - 10, msg, {
-        fontFamily: '"Pixelify Sans", sans-serif',
-        fontSize: "10px",
-        color: "#fff6e8",
-        backgroundColor: "#241c26",
-        padding: { x: 4, y: 2 },
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(6600);
-    this.rejectTip = tip;
-    this.time.delayedCall(1500, () => {
-      if (this.rejectTip === tip) this.rejectTip = null;
-      tip.destroy();
+    if (this.rejectTip?.active) this.rejectTip.setText(msg).setPosition(x, y - 10);
+    else
+      this.rejectTip = this.add
+        .text(x, y - 10, msg, {
+          fontFamily: '"Pixelify Sans", sans-serif',
+          fontSize: "10px",
+          color: "#fff6e8",
+          backgroundColor: "#241c26",
+          padding: { x: 4, y: 2 },
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(6600);
+    this.rejectTipTimer?.remove();
+    this.rejectTipTimer = this.time.delayedCall(1500, () => {
+      this.rejectTip?.destroy();
+      this.rejectTip = null;
     });
   }
 
