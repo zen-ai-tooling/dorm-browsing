@@ -339,6 +339,7 @@ export const normalizeSave = (raw: unknown): PlayerState => {
       doorVersion: 0,
       doorLastChange: null,
       doorSeen: base.doorSeen,
+      savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : 0,
     };
     Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
     // placed colours must be palette colours (Original = no tint)
