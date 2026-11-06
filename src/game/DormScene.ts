@@ -3527,6 +3527,13 @@ export class DormScene extends Phaser.Scene {
     rt.onArrive = null;
     rt.sprite.setAngle(0);
     if (isAway(b)) {
+      if (teleport && rt.sprite.x === 0 && rt.sprite.y === 0) {
+        // Start a newly loaded away resident at the courtyard, then walk to their real destination.
+        const p = this.tileCenter([EXIT_TILE.x, EXIT_TILE.y]);
+        rt.sprite.setPosition(p.x, p.y).setVisible(true);
+        this.goToBlock(rt);
+        return;
+      }
       rt.mode = "away";
       rt.sprite.setVisible(false);
       return;
@@ -3973,6 +3980,20 @@ export class DormScene extends Phaser.Scene {
     cam.setZoom(this.baseZoom());
     cam.startFollow(this.player, true, 0.16, 0.16);
   }
+
+  teleportCampus(target: "quad" | "library") {
+    if (this.editMode || this.cinematic) return;
+    const tile = target === "quad" ? WAYPOINTS["fountain"] : WAYPOINTS["steps"];
+    if (!tile) return;
+    const p = this.tileCenter(this.nearestFloor(tile.x, tile.y));
+    this.path = []; this.target = null;
+    this.player.setPosition(p.x, p.y).setVelocity(0, 0);
+    this.cameras.main.centerOn(p.x, p.y);
+    this.trackMyRoom();
+  }
+
+  petProfessor() { this.campus?.petProfessor(); }
+  tossCampusCoin() { this.campus?.tossCoin(); }
 
   private setupInput() {
     const kb = this.input.keyboard!;
