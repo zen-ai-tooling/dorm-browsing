@@ -253,6 +253,13 @@ interface PropDef {
   solid?: boolean;
   /** interactive but fixed to the wall: no idle bob */
   still?: boolean;
+  /** personal-room items: y is the footprint's bottom edge, sprite hangs above it */
+  anchorBase?: boolean;
+  /** footprint in tiles (anchorBase only) — sizes the collision zone */
+  baseW?: number;
+  baseH?: number;
+  /** rugs lie flat: rendered just above the floor, under every floor item */
+  flat?: boolean;
 }
 
 const t = (n: number) => n * TILE;
@@ -402,7 +409,6 @@ export class DormScene extends Phaser.Scene {
   private floorSweep: Phaser.Time.TimerEvent | null = null;
   private camTween: Phaser.Tweens.Tween | null = null;
   private myFloorGfx: Phaser.GameObjects.Graphics | null = null;
-  private myRug: Phaser.GameObjects.Image | null = null;
   private myGlow: Phaser.GameObjects.Image | null = null;
   private myPlateObjs: Phaser.GameObjects.GameObject[] = [];
   private myZone: Zone | null = null;
@@ -1343,16 +1349,15 @@ export class DormScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(1);
 
-    // woven area rug, accent-tinted (opaque pixels, no soft blend)
-    // neighbors who own a rug item get theirs instead of the base rug
-    const ownRug = !editable && room.layout.some((p) => ITEM_CATALOG[p.itemId]?.textureKey === "rug");
-    const rug = this.add
-      .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
-      .setVisible(!ownRug)
-      .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
-      .setScale(0.85)
-      .setDepth(1);
-    if (editable) this.myRug = rug;
+    // neighbors without a rug item get the plain floor rug; Your Room's rug is a
+    // real placed item now (selectable, movable, mood-tinted via displayTintFor)
+    const ownRug = room.layout.some((p) => ITEM_CATALOG[p.itemId]?.textureKey === "rug");
+    if (!editable && !ownRug)
+      this.add
+        .image(t(rect.x + rect.w / 2), t(rect.y + rect.h / 2 + 0.2), "rug")
+        .setTint(mix(mood.posterAccent, 0xbca584, 0.18))
+        .setScale(0.85)
+        .setDepth(1);
 
     // the poster is a real catalog item now (see ITEM_CATALOG.poster_default) and
     // is drawn through room.layout like every other prop — no hardcoded rectangles.
@@ -1734,6 +1739,12 @@ export class DormScene extends Phaser.Scene {
   private centerOf(gx: number, gy: number, w: number, h: number) {
     const r = PERSONAL_RECTS[0]!;
     return { x: t(r.x + gx + w / 2), y: t(r.y + gy + h / 2) };
+  }
+
+  /** base anchor: bottom-center of the footprint in world px — where a sprite's base sits */
+  private baseOf(gx: number, gy: number, w: number, h: number) {
+    const r = PERSONAL_RECTS[0]!;
+    return { x: t(r.x + gx + w / 2), y: t(r.y + gy + h) };
   }
 
   private markTiles(gx: number, gy: number, w: number, h: number, blocked: boolean) {
@@ -2977,7 +2988,6 @@ export class DormScene extends Phaser.Scene {
     void moodKey;
     // floor overlay over the baked floormap (checker + shag follow the mood)
     this.applyMyFloor(false);
-    this.myRug?.setTint(mix(mood.posterAccent, 0xbca584, 0.18));
     this.myGlow?.setTint(mood.glow);
     if (!this.editMode) this.rebuildMyRoom();
   }
