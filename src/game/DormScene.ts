@@ -1774,8 +1774,13 @@ export class DormScene extends Phaser.Scene {
     const item = ITEM_CATALOG[itemId];
     if (!item) return -1;
     const f = effectiveFootprint(item, rotation);
-    const c = this.centerOf(gx, gy, f.w, f.h);
-    const sprite = this.add.sprite(c.x, c.y, item.textureKey).setDepth(c.y);
+    const wall = isWallItem(item);
+    const rug = layerOf(item) === "rug";
+    // wall items hang centered on the face row; floor items stand on their base
+    const c = wall ? this.centerOf(gx, gy, f.w, f.h) : this.baseOf(gx, gy, f.w, f.h);
+    const sprite = this.add.sprite(c.x, c.y, item.textureKey);
+    if (!wall) sprite.setOrigin(0.5, 1);
+    sprite.setDepth(rug ? RUG_DEPTH : c.y);
     const tint = baseTintFor(item, this.getMyMood(), placedTint);
     if (tint) sprite.setTint(tint);
     if (item.scale) sprite.setScale(item.scale);
@@ -1787,7 +1792,8 @@ export class DormScene extends Phaser.Scene {
 
     let zone: Phaser.GameObjects.Zone | null = null;
     if (item.solid) {
-      zone = this.add.zone(c.x, c.y, t(f.w) * 0.85, t(f.h) * 0.7);
+      const cc = this.centerOf(gx, gy, f.w, f.h);
+      zone = this.add.zone(cc.x, cc.y, t(f.w) * 0.85, t(f.h) * 0.7);
       this.walls.add(zone);
       this.myObjs.push(zone);
       this.markTiles(gx, gy, f.w, f.h, true);
@@ -1797,7 +1803,7 @@ export class DormScene extends Phaser.Scene {
     let ring: Phaser.GameObjects.Image | null = null;
     if (payload) {
       ring = this.add
-        .image(c.x, c.y + 6, "glow")
+        .image(c.x, wall ? c.y + 6 : c.y - 4, "glow")
         .setDepth(1)
         .setAlpha(0)
         .setScale(1.1)
@@ -1865,46 +1871,54 @@ export class DormScene extends Phaser.Scene {
     return true;
   }
 
-  private movePlacedItem(idx: number, gx: number, gy: number) {
+  private movePlacedItem(idx: number, gx: number, gy: number, silent = false) {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
+    if (!silent) this.pushUndo({ kind: "move", itemId: entry.itemId, gx: entry.gx, gy: entry.gy });
     const f = effectiveFootprint(item, entry.rotation);
     if (item.solid) this.markTiles(entry.gx, entry.gy, f.w, f.h, false);
     entry.gx = gx;
     entry.gy = gy;
-    const c = this.centerOf(gx, gy, f.w, f.h);
-    entry.sprite.setPosition(c.x, c.y).setDepth(c.y);
-    entry.ring?.setPosition(c.x, c.y + 6);
+    const wall = isWallItem(item);
+    const c = wall ? this.centerOf(gx, gy, f.w, f.h) : this.baseOf(gx, gy, f.w, f.h);
+    entry.sprite.setPosition(c.x, c.y).setDepth(layerOf(item) === "rug" ? RUG_DEPTH : c.y);
+    entry.ring?.setPosition(c.x, wall ? c.y + 6 : c.y - 4);
     if (entry.zone) {
-      entry.zone.setPosition(c.x, c.y);
+      const cc = this.centerOf(gx, gy, f.w, f.h);
+      entry.zone.setPosition(cc.x, cc.y);
       (entry.zone.body as Phaser.Physics.Arcade.StaticBody | undefined)?.updateFromGameObject();
       this.markTiles(gx, gy, f.w, f.h, true);
     }
   }
 
-  private rotatePlacedItem(idx: number) {
+  private rotatePlacedItem(idx: number, silent = false) {
     const entry = this.placed[idx];
     if (!entry) return;
     const item = ITEM_CATALOG[entry.itemId]!;
     if (isWallItem(item)) {
       this.flashReject(entry.sprite);
+      this.showRejectTip(entry.sprite.x, entry.sprite.y, { kind: "floor-only" });
       return;
     }
     const next = ((entry.rotation + 90) % 360) as Rotation;
-    if (!this.canPlace(entry.itemId, entry.gx, entry.gy, next, idx)) {
+    const res = this.canPlace(entry.itemId, entry.gx, entry.gy, next, idx);
+    if (!res.ok) {
       this.flashReject(entry.sprite);
+      this.showRejectTip(entry.sprite.x, entry.sprite.y, res.reason);
       return;
     }
+    if (!silent) this.pushUndo({ kind: "rotate", itemId: entry.itemId, rotation: entry.rotation });
     const old = effectiveFootprint(item, entry.rotation);
     if (item.solid) this.markTiles(entry.gx, entry.gy, old.w, old.h, false);
     entry.rotation = next;
     const f = effectiveFootprint(item, next);
-    const c = this.centerOf(entry.gx, entry.gy, f.w, f.h);
-    entry.sprite.setAngle(next).setPosition(c.x, c.y).setDepth(c.y);
-    entry.ring?.setPosition(c.x, c.y + 6);
+    const c = this.baseOf(entry.gx, entry.gy, f.w, f.h);
+    entry.sprite.setAngle(next).setPosition(c.x, c.y).setDepth(layerOf(item) === "rug" ? RUG_DEPTH : c.y);
+    entry.ring?.setPosition(c.x, c.y - 4);
     if (entry.zone) {
-      entry.zone.setPosition(c.x, c.y).setSize(t(f.w) * 0.85, t(f.h) * 0.7);
+      const cc = this.centerOf(entry.gx, entry.gy, f.w, f.h);
+      entry.zone.setPosition(cc.x, cc.y).setSize(t(f.w) * 0.85, t(f.h) * 0.7);
       (entry.zone.body as Phaser.Physics.Arcade.StaticBody | undefined)?.updateFromGameObject();
       this.markTiles(entry.gx, entry.gy, f.w, f.h, true);
     }
