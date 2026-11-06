@@ -4003,14 +4003,12 @@ export class DormScene extends Phaser.Scene {
 
   /** Me-menu quick travel: walks there at jog speed (never a teleport); any tap cancels. */
   quickTravel(dest: "room" | "lounge" | "quad" | "library") {
-    console.log("QT0", this.editMode, this.cinematic);
     if (this.editMode || this.cinematic) return;
     const z = dest === "room" ? this.myZone : dest === "lounge" ? this.zones.find((q) => q.id === "lounge") : null;
     const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library"];
     const [gx, gy] = this.nearestFloor(tile.x, tile.y);
     this.path = this.findPath(Math.floor(this.player.x / TILE), Math.floor(this.player.y / TILE), gx, gy);
     this.target = this.path.shift() ?? null;
-    console.log("QT", dest, gx, gy, this.path.length);
     this.jogPath = !!this.target; this.travelling = !!this.target; this.stuckMs = 0;
   }
 
@@ -4054,7 +4052,7 @@ export class DormScene extends Phaser.Scene {
       }
 
       if (this.cinematic) return;
-      if (this.travelling) { console.log("QTtapcancel"); this.stopTravel(); return; } // tap anywhere cancels quick travel
+      if (this.travelling) { this.stopTravel(); return; } // tap anywhere cancels quick travel
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       // tapping yourself opens the avatar creator
       if (this.player.getBounds().contains(wp.x, wp.y)) {
@@ -4169,7 +4167,9 @@ export class DormScene extends Phaser.Scene {
       this.jogPath = false; this.travelling = false;
     } else if (this.target) {
       const d = Phaser.Math.Distance.Between(body.x, body.y, this.target.x, this.target.y);
-      if (d < 8) {
+      // faster outdoor/jog speeds overshoot an 8px radius on slow frames: reach = one frame's travel
+      const reach = Math.max(8, (SPEED * OUTDOOR_SPEED * JOG_SPEED * Math.min(delta, 100)) / 1000);
+      if (d < reach) {
         this.target = this.path.shift() ?? null;
       }
       if (this.target) {
@@ -4180,7 +4180,6 @@ export class DormScene extends Phaser.Scene {
           Math.abs(body.body!.velocity.x) < 8 && Math.abs(body.body!.velocity.y) < 8;
         this.stuckMs = stalled ? this.stuckMs + delta : 0;
         if (this.stuckMs > 450) {
-          console.log("QTstuck", Math.round(body.x/32), Math.round(body.y/32), this.path.length);
           this.target = null;
           this.path = [];
           this.stuckMs = 0;
@@ -4191,7 +4190,6 @@ export class DormScene extends Phaser.Scene {
 
 
     const v = new Phaser.Math.Vector2(vx, vy);
-    if (Math.random() < 0.01) console.log("QTupd", this.travelling, !!this.target, Math.round(body.x), Math.round(body.y), this.path.length, v.x, v.y);
     const outdoors = isOutdoorTile(Math.floor(body.x / TILE), Math.floor(body.y / TILE));
     const jog = this.jogPath || !!this.shiftKey?.isDown;
     if (v.lengthSq() > 0) v.normalize().scale(SPEED * (outdoors ? OUTDOOR_SPEED : 1) * (jog ? JOG_SPEED : 1));
