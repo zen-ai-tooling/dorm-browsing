@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import { getAuth } from "@/lib/auth";
+import { submitFeedback } from "@/lib/feedbackQueue";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
 
@@ -39,24 +38,17 @@ export const FeedbackPanel = ({
     if (!kind || !note.trim()) return;
     sfx.uiClick();
     setBusy(true);
-    const userId = getAuth().userId;
-    if (!userId) {
-      setBusy(false);
-      toast("Couldn't send — try again");
-      return;
-    }
-    const { error } = await supabase.from("feedback").insert({
-      user_id: userId,
+    const result = await submitFeedback({
       kind,
       note: note.trim().slice(0, 1000),
       context: getContext() as Json,
     });
     setBusy(false);
-    if (error) {
-      toast("Couldn't send — try again");
+    if (result === "full" || result === "unavailable") {
+      toast(result === "full" ? "20 notes are waiting — reconnect before sending more." : "Couldn't save this note — keep it open and try again.");
       return;
     }
-    toast("Thanks — sent.");
+    toast(result === "sent" ? "Thanks — sent." : "Saved — it'll send when you're back online");
     setKind(null);
     setNote("");
     onClose();
