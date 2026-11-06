@@ -186,6 +186,23 @@ const DormGame = () => {
           <button type="button" className={meItem} onClick={() => { setMeOpen(false); openAvatar(); }}>
             Edit avatar
           </button>
+          <div className="px-2 pt-0.5 font-body text-[10px] font-bold uppercase tracking-wide text-panel-muted">Go to…</div>
+          <div className="grid grid-cols-2 gap-1">
+            {([["room", "My room"], ["lounge", "Lounge"], ["quad", "Quad"], ["library", "Library"]] as const).map(([dest, label]) => (
+              <button
+                key={dest}
+                type="button"
+                className={meItem}
+                onClick={() => {
+                  setMeOpen(false);
+                  sfx.uiClick();
+                  sceneRef.current?.quickTravel(dest);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {isGuest ? (
             <button
               type="button"

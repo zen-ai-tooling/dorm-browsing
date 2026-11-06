@@ -34,7 +34,7 @@ import {
 } from "@/data/items";
 import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
 import { CampusLife } from "./CampusLife";
-import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS } from "@/data/campus";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL } from "@/data/campus";
 import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
