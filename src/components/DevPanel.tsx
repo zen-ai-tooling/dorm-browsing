@@ -3,6 +3,8 @@ import { Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { devActions, useDevMode, usePlayerState } from "@/lib/playerStore";
+import { signOutToGuest, useAuth } from "@/lib/auth";
+import { deleteCloudSave } from "@/lib/saveSync";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
 import { currentHour, setHourOverride, useHourOverride, useTimeOverride } from "@/lib/timeStore";
@@ -39,6 +41,7 @@ export const DevPanel = ({
 }) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
+  const { userId, isAnonymous } = useAuth();
   const timeOverride = useTimeOverride();
   const hourOverride = useHourOverride();
   const shownHour = hourOverride ?? currentHour();
