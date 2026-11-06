@@ -2591,6 +2591,8 @@ export class DormScene extends Phaser.Scene {
 
   private setupEditorInput() {
     this.input.keyboard?.on("keydown-ESC", () => this.escape());
+    // a drag starts only after an 8px move, so taps still select cleanly
+    this.input.dragDistanceThreshold = 8;
 
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!this.editMode) return;
@@ -2602,6 +2604,15 @@ export class DormScene extends Phaser.Scene {
       if (!this.editMode || this.pendingPlaceItemId) return;
       obj.setDepth(6000);
       this.select(this.placed.findIndex((p) => p.sprite === obj));
+      // pickup: a one-step lift plus a shadow where the item stood
+      obj.y -= 4;
+      this.dragShadow?.destroy();
+      this.dragShadow = this.add
+        .image(obj.x, obj.y + 4, "glow")
+        .setTint(0x241c26)
+        .setAlpha(0.3)
+        .setScale(0.8, 0.4)
+        .setDepth(RUG_DEPTH + 0.1);
     });
 
     this.input.on(
@@ -2614,37 +2625,46 @@ export class DormScene extends Phaser.Scene {
         if (!entry) return;
         const item = ITEM_CATALOG[entry.itemId]!;
         const f = effectiveFootprint(item, entry.rotation);
-        const halfW = t(f.w) / 2;
-        const halfH = t(f.h) / 2;
-        const cx = Phaser.Math.Clamp(dx, t(rect.x) + halfW, t(rect.x + rect.w) - halfW);
-        const cy = Phaser.Math.Clamp(dy, t(rect.y) + halfH, t(rect.y + rect.h) - halfH);
-        obj.setPosition(cx, cy);
-        const gx = Math.round(cx / TILE - f.w / 2) - rect.x;
-        const gy = Math.round(cy / TILE - f.h / 2) - rect.y;
-        this.paintHighlight(gx, gy, f.w, f.h, this.canPlace(entry.itemId, gx, gy, entry.rotation, idx));
+        const wall = isWallItem(item);
+        const gx = Phaser.Math.Clamp(Math.round(dx / TILE - f.w / 2) - rect.x, 0, ROOM_W - f.w);
+        const gy = wall ? 0 : Phaser.Math.Clamp(Math.round(dy / TILE) - rect.y - f.h + 1, 1, ROOM_H - f.h);
+        const c = wall ? this.centerOf(gx, gy, f.w, f.h) : this.baseOf(gx, gy, f.w, f.h);
+        obj.setPosition(c.x, c.y - 4); // keep the pickup lift
+        this.dragShadow?.setPosition(c.x, c.y);
+        const res = this.canPlace(entry.itemId, gx, gy, entry.rotation, idx);
+        this.paintTiles(entry.itemId, gx, gy, f.w, f.h, idx);
+        if (!res.ok) this.showRejectTip(c.x, c.y - obj.displayHeight, res.reason);
       },
     );
 
     this.input.on("dragend", (_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Sprite) => {
       if (!this.editMode) return;
-      this.highlight?.setVisible(false);
+      this.highlight?.clear();
+      this.dragShadow?.destroy();
+      this.dragShadow = null;
       const rect = PERSONAL_RECTS[0]!;
       const idx = this.placed.findIndex((p) => p.sprite === obj);
       const entry = this.placed[idx];
       if (!entry) return;
       const item = ITEM_CATALOG[entry.itemId]!;
       const f = effectiveFootprint(item, entry.rotation);
-      const gx = Math.round(obj.x / TILE - f.w / 2) - rect.x;
-      const gy = Math.round(obj.y / TILE - f.h / 2) - rect.y;
-      if (this.canPlace(entry.itemId, gx, gy, entry.rotation, idx)) {
+      const wall = isWallItem(item);
+      const gx = Phaser.Math.Clamp(Math.round(obj.x / TILE - f.w / 2) - rect.x, 0, ROOM_W - f.w);
+      const gy = wall ? 0 : Phaser.Math.Clamp(Math.round((obj.y + 4) / TILE) - rect.y - f.h + 1, 1, ROOM_H - f.h);
+      const res = this.canPlace(entry.itemId, gx, gy, entry.rotation, idx);
+      if (res.ok) {
         this.movePlacedItem(idx, gx, gy);
         sfx.placeItem();
+        this.buzz(10);
+        this.dustPuff(obj.x, obj.y + 4);
         this.commitLayout();
       } else {
         this.flashReject(obj);
+        this.buzz([20, 40, 20]);
         // snap back to the last committed position without rebuilding the room
-        const c = this.centerOf(entry.gx, entry.gy, f.w, f.h);
-        obj.setPosition(c.x, c.y).setDepth(c.y);
+        const c = wall ? this.centerOf(entry.gx, entry.gy, f.w, f.h) : this.baseOf(entry.gx, entry.gy, f.w, f.h);
+        this.showRejectTip(c.x, c.y - obj.displayHeight, res.reason);
+        obj.setPosition(c.x, c.y).setDepth(layerOf(item) === "rug" ? RUG_DEPTH : c.y);
       }
     });
   }
