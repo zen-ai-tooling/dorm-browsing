@@ -4003,6 +4003,7 @@ export class DormScene extends Phaser.Scene {
 
   /** Me-menu quick travel: walks there at jog speed (never a teleport); any tap cancels. */
   quickTravel(dest: "room" | "lounge" | "quad" | "library") {
+    console.log("QT0", this.editMode, this.cinematic);
     if (this.editMode || this.cinematic) return;
     const z = dest === "room" ? this.myZone : dest === "lounge" ? this.zones.find((q) => q.id === "lounge") : null;
     const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library"];

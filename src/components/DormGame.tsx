@@ -196,7 +196,7 @@ const DormGame = () => {
                 onClick={() => {
                   setMeOpen(false);
                   sfx.uiClick();
-                  sceneRef.current?.quickTravel(dest);
+                  console.log("QTclick", !!sceneRef.current); sceneRef.current?.quickTravel(dest);
                 }}
               >
                 {label}
