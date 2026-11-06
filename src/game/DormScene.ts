@@ -2453,35 +2453,67 @@ export class DormScene extends Phaser.Scene {
   }
 
   private ensureHighlight() {
-    if (!this.highlight) {
-      this.highlight = this.add
-        .rectangle(0, 0, TILE, TILE, 0x6fbf73, 0.3)
-        .setStrokeStyle(2, 0x6fbf73)
-        .setDepth(6400)
-        .setOrigin(0.5);
-    }
-    this.highlight.setVisible(true);
+    if (!this.highlight) this.highlight = this.add.graphics().setDepth(GRID_DEPTH + 1);
   }
 
-  /** tile under the pointer for a footprint of w x h, room-relative */
-  private tileUnderPointer(p: Phaser.Input.Pointer, w: number, h: number) {
+  /** tile under the pointer for a footprint of w x h, room-relative, clamped inside the room */
+  private tileUnderPointer(p: Phaser.Input.Pointer, w: number, h: number, wall: boolean) {
     const rect = PERSONAL_RECTS[0]!;
     const wp = this.cameras.main.getWorldPoint(p.x, p.y);
     return {
-      gx: Math.round(wp.x / TILE - w / 2) - rect.x,
-      gy: Math.round(wp.y / TILE - h / 2) - rect.y,
+      gx: Phaser.Math.Clamp(Math.round(wp.x / TILE - w / 2) - rect.x, 0, ROOM_W - w),
+      // the base row follows the pointer: the item's bottom edge sits under the cursor
+      gy: wall ? 0 : Phaser.Math.Clamp(Math.round(wp.y / TILE) - rect.y - h + 1, 1, ROOM_H - h),
     };
   }
 
-  private paintHighlight(gx: number, gy: number, w: number, h: number, ok: boolean) {
+  /** per-tile fit preview: green where the item would fit, red where it's blocked */
+  private paintTiles(itemId: string, gx: number, gy: number, w: number, h: number, ignoreIdx = -1) {
     this.ensureHighlight();
-    const c = this.centerOf(gx, gy, w, h);
-    const color = ok ? 0x6fbf73 : 0xdd4444;
-    this.highlight!
-      .setPosition(c.x, c.y)
-      .setSize(t(w), t(h))
-      .setFillStyle(color, 0.28)
-      .setStrokeStyle(2, color);
+    const g = this.highlight!;
+    g.clear();
+    const r = PERSONAL_RECTS[0]!;
+    const item = ITEM_CATALOG[itemId]!;
+    const layer = layerOf(item);
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const cx = gx + x;
+        const cy = gy + y;
+        let ok = cx >= 0 && cx < ROOM_W && cy >= 0 && cy < ROOM_H;
+        if (ok)
+          if (layer === "wall") ok = cy === 0 && !isWindowCol(cx);
+          else {
+            if (cy < 1) ok = false;
+            if (ok && layer === "floor" && isDoorLane(cx, cy)) ok = false;
+          }
+        if (ok)
+          for (let i = 0; i < this.placed.length; i++) {
+            if (i === ignoreIdx) continue;
+            const q = this.placed[i]!;
+            const qi = ITEM_CATALOG[q.itemId];
+            if (!qi || layerOf(qi) !== layer) continue;
+            const qf = effectiveFootprint(qi, q.rotation);
+            if (cx >= q.gx && cx < q.gx + qf.w && cy >= q.gy && cy < q.gy + qf.h) {
+              ok = false;
+              break;
+            }
+          }
+        g.fillStyle(ok ? 0x6fbf73 : 0xdd4444, 0.28).fillRect(t(r.x + cx) + 1, t(r.y + cy) + 1, TILE - 2, TILE - 2);
+        g.lineStyle(1, ok ? 0x6fbf73 : 0xdd4444, 0.9).strokeRect(t(r.x + cx) + 1, t(r.y + cy) + 1, TILE - 2, TILE - 2);
+      }
+  }
+
+  /** moves the ghost to a tile and repaints the fit preview; returns the placement verdict */
+  private positionGhost(itemId: string, gx: number, gy: number) {
+    const item = ITEM_CATALOG[itemId]!;
+    const f = effectiveFootprint(item, 0);
+    const wall = isWallItem(item);
+    const c = wall ? this.centerOf(gx, gy, f.w, f.h) : this.baseOf(gx, gy, f.w, f.h);
+    this.ghost?.setPosition(c.x, c.y);
+    const res = this.canPlace(itemId, gx, gy, 0);
+    this.ghost?.setTint(res.ok ? 0xffffff : 0xdd4444);
+    this.paintTiles(itemId, gx, gy, f.w, f.h);
+    return res;
   }
 
   private updatePlacingPreview(p: Phaser.Input.Pointer) {
@@ -2489,12 +2521,9 @@ export class DormScene extends Phaser.Scene {
     if (!itemId || !this.ghost) return;
     const item = ITEM_CATALOG[itemId]!;
     const f = effectiveFootprint(item, 0);
-    const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
-    const c = this.centerOf(gx, gy, f.w, f.h);
-    this.ghost.setPosition(c.x, c.y);
-    const ok = this.canPlace(itemId, gx, gy, 0);
-    this.ghost.setTint(ok ? 0xffffff : 0xdd4444);
-    this.paintHighlight(gx, gy, f.w, f.h, ok);
+    const tile = this.tileUnderPointer(p, f.w, f.h, isWallItem(item));
+    this.ghostTile = tile;
+    this.positionGhost(itemId, tile.gx, tile.gy);
   }
 
   /** tap on the room while in placing mode */
@@ -2503,10 +2532,19 @@ export class DormScene extends Phaser.Scene {
     if (!itemId) return;
     const item = ITEM_CATALOG[itemId]!;
     const f = effectiveFootprint(item, 0);
-    const { gx, gy } = this.tileUnderPointer(p, f.w, f.h);
-    if (!this.canPlace(itemId, gx, gy, 0)) {
+    const { gx, gy } = this.tileUnderPointer(p, f.w, f.h, isWallItem(item));
+    // touch: a tap away from the ghost just moves it — tap the ghost's tile to confirm
+    if (isTouch() && this.ghostTile && (this.ghostTile.gx !== gx || this.ghostTile.gy !== gy)) {
+      this.ghostTile = { gx, gy };
+      this.positionGhost(itemId, gx, gy);
+      return;
+    }
+    const res = this.canPlace(itemId, gx, gy, 0);
+    if (!res.ok) {
       // stay in placing mode so the next tap can try again
       this.ghost?.setTint(0xdd4444);
+      this.buzz([20, 40, 20]);
+      if (this.ghost) this.showRejectTip(this.ghost.x, this.ghost.y - this.ghost.displayHeight, res.reason);
       return;
     }
     this.cancelPlacing();
@@ -2519,17 +2557,15 @@ export class DormScene extends Phaser.Scene {
     const item = ITEM_CATALOG[itemId];
     if (!item) return false;
     const f = effectiveFootprint(item, 0);
+    const wall = isWallItem(item);
     let spot: { gx: number; gy: number } | null = null;
     if (screen) {
       const wp = this.cameras.main.getWorldPoint(screen.x, screen.y);
-      const gx = Math.round(wp.x / TILE - f.w / 2) - rect.x;
-      const gy = Math.round(wp.y / TILE - f.h / 2) - rect.y;
-      if (this.canPlace(itemId, gx, gy, 0)) spot = { gx, gy };
+      const gx = Phaser.Math.Clamp(Math.round(wp.x / TILE - f.w / 2) - rect.x, 0, ROOM_W - f.w);
+      const gy = wall ? 0 : Phaser.Math.Clamp(Math.round(wp.y / TILE) - rect.y - f.h + 1, 1, ROOM_H - f.h);
+      if (this.canPlace(itemId, gx, gy, 0).ok) spot = { gx, gy };
     }
-    if (!spot)
-      for (let gy = 0; gy < rect.h && !spot; gy++)
-        for (let gx = 0; gx < rect.w && !spot; gx++)
-          if (this.canPlace(itemId, gx, gy, 0)) spot = { gx, gy };
+    if (!spot) spot = nearestSpot(this.currentLayout(), itemId, Math.floor((ROOM_W - f.w) / 2), wall ? 0 : Math.floor((ROOM_H - f.h) / 2) + 1);
     if (!spot) return false;
     this.cancelPlacing();
     return this.addPlacedItem(itemId, spot.gx, spot.gy, 0);
