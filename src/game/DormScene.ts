@@ -2462,12 +2462,37 @@ export class DormScene extends Phaser.Scene {
     const entry = this.placed[this.selectedIdx];
     if (!this.selectionUi || !entry?.sprite.active) return;
     const s = entry.sprite;
-    const halfH = (s.angle % 180 === 0 ? s.displayHeight : s.displayWidth) / 2;
-    this.selectionUi.setPosition(s.x, s.y - halfH - 16);
+    const h = s.angle % 180 === 0 ? s.displayHeight : s.displayWidth;
+    // base-anchored sprites (originY 1) extend upward from y; centered ones straddle it
+    const top = s.originY === 1 ? s.y - h : s.y - h / 2;
+    this.selectionUi.setPosition(s.x, top - 16);
   }
 
-  private removeSelected() {
+  removeSelected() {
     if (this.selectedIdx >= 0) this.removePlacedItem(this.selectedIdx);
+  }
+
+  rotateSelected() {
+    if (this.selectedIdx >= 0) this.rotatePlacedItem(this.selectedIdx);
+  }
+
+  /** arrow keys nudge the selected item one tile; rejected nudges say why */
+  nudgeSelected(dx: number, dy: number) {
+    const idx = this.selectedIdx;
+    const entry = this.placed[idx];
+    if (!entry) return;
+    const gx = entry.gx + dx;
+    const gy = entry.gy + dy;
+    const res = this.canPlace(entry.itemId, gx, gy, entry.rotation, idx);
+    if (res.ok) {
+      this.movePlacedItem(idx, gx, gy);
+      this.commitLayout();
+      this.positionSelectionUi();
+    } else {
+      this.flashReject(entry.sprite);
+      this.buzz([20, 40, 20]);
+      this.showRejectTip(entry.sprite.x, entry.sprite.y - entry.sprite.displayHeight, res.reason);
+    }
   }
 
   // ---------- tap-to-place ----------
