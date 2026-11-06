@@ -32,7 +32,10 @@ import {
   type ItemDef,
   type Rotation,
 } from "@/data/items";
-import { buildCharTextures, buildTextures } from "./textures";
+import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
+import { CampusLife } from "./CampusLife";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS } from "@/data/campus";
+import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
 import {
@@ -78,7 +81,7 @@ import {
 
 export const TILE = 32;
 const GRID_W = 88;
-const GRID_H = 40;
+const GRID_H = CAMPUS_H;
 
 const VOID = 0;
 const FLOOR = 1;
@@ -96,7 +99,7 @@ interface Zone extends Rect {
   label: string;
   floor: number;
   wall: number;
-  kind: "hall" | "personal" | "common" | "outdoor";
+  kind: "hall" | "personal" | "common" | "outdoor" | "campus";
   floorStyle?: "planks" | FloorStyle;
 }
 
@@ -135,10 +138,10 @@ const BRICK = 0x7a4334;
 const BRICK_MORTAR = 0x4f2b25;
 const BRICK_HI = 0x985a45;
 /** stone path rows below the building + the spur up to the courtyard */
-const PATH_ROWS = [35, 36];
-const PATH_X: [number, number] = [3, 78];
+const PATH_ROWS = [35, 36, 37];
+const PATH_X: [number, number] = [3, 84];
 const SPUR_COLS = [76, 77];
-const SPUR_ROWS: [number, number] = [29, 34];
+const SPUR_ROWS: [number, number] = [28, 34];
 const HALL_STRIPE = 0x93a8a2;
 
 interface Look {
@@ -444,6 +447,10 @@ export class DormScene extends Phaser.Scene {
   private boxes: Phaser.GameObjects.Image[] = [];
   private tourTimer: Phaser.Time.TimerEvent | null = null;
   private tourDone: (() => void) | null = null;
+  private campus: CampusLife | null = null;
+  private getHourOverride: () => number | null = () => null;
+  private onPetSpot: (near: boolean) => void = () => {};
+  private onPetProfessor: () => void = () => {};
 
 
   constructor() {
@@ -467,6 +474,9 @@ export class DormScene extends Phaser.Scene {
     getMyMood?: () => MoodKey;
     getPlayerName?: () => string;
     getHour?: () => number;
+    getHourOverride?: () => number | null;
+    onPetSpot?: (near: boolean) => void;
+    onPetProfessor?: () => void;
     onKnockSpot?: (id: ResidentId | null) => void;
     onSoldHint?: (h: { itemId: string; x: number; y: number } | null) => void;
     getVisitLine?: (id: ResidentId) => string | null;
@@ -485,6 +495,9 @@ export class DormScene extends Phaser.Scene {
     if (data?.onUndoChange) this.onUndoChange = data.onUndoChange;
     if (data?.onUndoRecolor) this.onUndoRecolor = data.onUndoRecolor;
     if (data?.getHour) this.getHour = data.getHour;
+    if (data?.getHourOverride) this.getHourOverride = data.getHourOverride;
+    if (data?.onPetSpot) this.onPetSpot = data.onPetSpot;
+    if (data?.onPetProfessor) this.onPetProfessor = data.onPetProfessor;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
     if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
     if (data?.getVisitLine) this.getVisitLine = data.getVisitLine;
@@ -509,6 +522,7 @@ export class DormScene extends Phaser.Scene {
 
   preload() {
     buildTextures(this);
+    buildCampusTextures(this);
   }
 
   create() {
@@ -518,7 +532,7 @@ export class DormScene extends Phaser.Scene {
     this.paintFloor(zones);
     this.buildColliders();
     // lighting exists before decor so every prop can register its light where it's created
-    for (const z of zones.filter((zone) => zone.kind !== "outdoor"))
+    for (const z of zones.filter((zone) => zone.kind !== "outdoor" && zone.kind !== "campus"))
       this.zoneClips.set(z.id, { x: t(z.x), y: t(z.y - 1), w: t(z.w), h: t(z.h + 1) });
     this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE, [...this.zoneClips.values()]);
     this.decorate(zones);
@@ -536,6 +550,16 @@ export class DormScene extends Phaser.Scene {
     this.refreshDaily();
     this.applyAvatar();
     this.spawnResidents();
+    this.campus = new CampusLife(this, this.lighting, {
+      findPath: (sx, sy, gx, gy) => this.findPath(sx, sy, gx, gy),
+      getHour: () => this.getHour(), getHourOverride: () => this.getHourOverride(),
+      onPetSpot: (near) => this.onPetSpot(near), onPet: () => this.onPetProfessor(),
+      jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour()).awayNote === "at the library",
+      register: (sprite, payload) => {
+        const ring = this.add.image(sprite.x, sprite.y, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
+        this.interactives.push({ sprite, ring, payload });
+      },
+    });
     this.refreshDoors();
     this.refreshDaily();
     this.scale.on("resize", this.onResize, this);
@@ -569,7 +593,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.myTrim = personal[0]!.wall;
     this.myZone = personal[0]!;
-    return [HALL, ...personal, ...COMMON];
+    return [HALL, ...personal, ...COMMON, { id: "campus", label: "Campus", x: 1, y: 35, w: 86, h: 25, floor: EXT_GROUND, wall: NEUTRAL_WALL, kind: "campus" }];
   }
 
   private buildGrid(zones: Zone[]) {
@@ -579,6 +603,7 @@ export class DormScene extends Phaser.Scene {
         for (let x = z.x; x < z.x + z.w; x++) this.grid[y]![x] = FLOOR;
     // wall ring
     for (const z of zones)
+      if (z.kind !== "campus")
       for (let y = z.y - 1; y <= z.y + z.h; y++)
         for (let x = z.x - 1; x <= z.x + z.w; x++) {
           if (y < 0 || x < 0 || y >= GRID_H || x >= GRID_W) continue;
@@ -603,6 +628,7 @@ export class DormScene extends Phaser.Scene {
         }
       }
     }
+    openCampusGrid(this.grid);
   }
 
   /** wood planks: staggered joints + seeded per-tile grain variation (common rooms, oak, walnut) */
@@ -642,6 +668,7 @@ export class DormScene extends Phaser.Scene {
 
   /** per-tile pixel texture: plank grain, woven tile, grass tufts — hard edges only */
   private paintZoneFloor(g: Phaser.GameObjects.Graphics, z: Zone) {
+    if (z.kind === "campus") return; // campus ground is painted once by paintExterior
     const PX = 2; // art-pixel size, matches the sprite tileset
     const px = (x: number, y: number, w: number, h: number, c: number) => {
       g.fillStyle(c, 1);
@@ -1010,23 +1037,22 @@ export class DormScene extends Phaser.Scene {
     const stone = 0xa59d8c;
     const stoneSh = 0x7d7668;
     const stoneHi = 0xc2bbab;
-    const isPath = (x: number, y: number) =>
-      (PATH_ROWS.includes(y) && x >= PATH_X[0] && x <= PATH_X[1]) ||
-      (SPUR_COLS.includes(x) && y >= SPUR_ROWS[0] && y <= SPUR_ROWS[1]);
+    const isPath = isCampusPath;
     for (let ty = 0; ty < GRID_H; ty++)
       for (let tx = 0; tx < GRID_W; tx++) {
-        if (this.grid[ty]![tx] !== VOID) continue;
+        if (this.grid[ty]?.[tx] !== VOID && !isCampusGround(tx, ty) && !(SPUR_COLS.includes(tx) && ty >= SPUR_ROWS[0] && ty <= SPUR_ROWS[1])) continue;
         const ox = tx * U;
         const oy = ty * U;
         const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
         px(ox, oy, U, U, EXT_GROUND);
         if (isPath(tx, ty)) {
           // two staggered flagstones per tile, 1px seams, hard highlights
-          px(ox, oy, U, U, stone);
+          const walk = PATH_ROWS.includes(ty) && tx >= PATH_X[0] && tx <= PATH_X[1];
+          px(ox, oy, U, U, walk ? BRICK_HI : stone);
           const off = ty % 2 === 0 ? 0 : U / 2;
-          px(ox, oy, U, 1, stoneSh);
-          px(ox + ((off + 7) % U), oy, 1, U, stoneSh);
-          px(ox, oy + 1, U, 1, stoneHi);
+          px(ox, oy, U, 1, walk ? BRICK_MORTAR : stoneSh);
+          px(ox + ((off + 7) % U), oy, 1, U, walk ? BRICK_MORTAR : stoneSh);
+          px(ox, oy + 1, U, 1, walk ? 0xbf7d59 : stoneHi);
           if (seed % 3 === 0) px(ox + 3 + (seed % 5), oy + 6 + (seed % 4), 2, 1, stoneSh);
           // grass creeping into the path edges
           if (!isPath(tx, ty - 1)) px(ox, oy, U, 1, tuftDark);
@@ -1039,7 +1065,7 @@ export class DormScene extends Phaser.Scene {
           }
         }
         // hard 3px contact shadow below the building
-        if (ty > 0 && this.grid[ty - 1]![tx] !== VOID) px(ox, oy, U, 3, shadow);
+        if (ty < 35 && ty > 0 && this.grid[ty - 1]?.[tx] !== VOID) px(ox, oy, U, 3, shadow);
       }
   }
 
@@ -1255,20 +1281,7 @@ export class DormScene extends Phaser.Scene {
       [82, 31.2],
     ] as const)
       this.add.sprite(t(x), t(y), "bush").setDepth(t(y));
-    for (const x of [15, 40, 66]) {
-      // stand on the grass just south of the path, clear of the building wall
-      const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
-      this.add.sprite(t(x), y, "lamppost").setDepth(y);
-      // Only lamps within reach of the building's south wall need its edge.
-      this.light({
-        x: t(x),
-        y: y - 36,
-        color: 0xffd9a0,
-        radius: 80,
-        poolDy: 36,
-        clip: x < 63 ? { x: 0, y: t(34), w: GRID_W * TILE, h: GRID_H * TILE - t(34) } : null,
-      });
-    }
+    // CampusLife owns the repositioned Walk and Quad lamps.
   }
 
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
@@ -1307,7 +1320,7 @@ export class DormScene extends Phaser.Scene {
     this.walls = this.physics.add.staticGroup();
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
-        if (this.grid[y]![x] !== WALL) continue;
+        if (this.grid[y]?.[x] !== WALL && this.grid[y]?.[x] !== BLOCKED) continue;
         const body = this.add.zone(t(x) + TILE / 2, t(y) + TILE / 2, TILE, TILE);
         this.walls.add(body);
       }
@@ -3573,6 +3586,7 @@ export class DormScene extends Phaser.Scene {
     this.refreshDoors();
     this.refreshDaily();
     this.updateAmbient();
+    this.campus?.refresh();
   }
 
   private goToBlock(rt: ResidentRT) {
@@ -3583,10 +3597,17 @@ export class DormScene extends Phaser.Scene {
       const p = this.tileCenter(this.nearestFloor(Math.floor(rt.sprite.x / TILE), Math.floor(rt.sprite.y / TILE) + 1));
       rt.sprite.setAngle(0).setPosition(p.x, p.y);
     }
-    const exit = this.tileCenter([EXIT_TILE.x, EXIT_TILE.y]);
+    const away = awayDestination(rt.def.id, this.getHour());
+    const exit = this.tileCenter([away.x, away.y]);
     if (isAway(b)) {
-      if (here && rt.mode !== "away") this.walkTo(rt, exit, () => this.settle(rt, true));
-      else this.settle(rt, true);
+      if (rt.mode !== "away") {
+        const finish = () => this.settle(rt, true);
+        if (rt.def.id === "jordan" && b.awayNote === "out on a run") {
+          const stops = [WAYPOINTS["gate"], WAYPOINTS["west"], WAYPOINTS["east"], WAYPOINTS["west"], WAYPOINTS["east"]].filter((p): p is { x: number; y: number } => !!p);
+          const next = () => { const stop = stops.shift(); if (stop) this.walkTo(rt, this.tileCenter([stop.x, stop.y]), next); else finish(); };
+          next();
+        } else this.walkTo(rt, exit, finish);
+      } else this.settle(rt, true);
       return;
     }
     const dest = isAsleep(b) ? this.anchorPoint(rt.def, b) : this.anchorPoint(rt.def, b);
@@ -3613,7 +3634,8 @@ export class DormScene extends Phaser.Scene {
           rt.mode = "idle";
           done?.();
         } else {
-          const step = (RESIDENT_SPEED * delta) / 1000;
+          const speed = rt.block.awayNote === "out on a run" ? RESIDENT_SPEED * 2 : RESIDENT_SPEED;
+          const step = (speed * Math.min(delta, 250)) / 1000;
           const dx = target.x - s.x;
           const dy = target.y - s.y;
           const dist = Math.hypot(dx, dy);
@@ -4071,6 +4093,7 @@ export class DormScene extends Phaser.Scene {
     let vy = 0;
 
     this.updateResidents(_time, delta);
+    this.campus?.update(_time, delta, this.player);
     if (this.cinematic) {
       body.setVelocity(0, 0);
       this.lighting.update(_time);

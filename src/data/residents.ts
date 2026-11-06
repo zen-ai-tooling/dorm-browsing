@@ -44,7 +44,10 @@ export interface ResidentDef {
 }
 
 /** courtyard edge where residents leave the building and come back */
-export const EXIT_TILE = { x: 76, y: 27 };
+export const EXIT_TILE = { x: 76, y: 28 };
+/** Away arrival/return portals stay separate from on-floor schedule places. */
+export const awayDestination = (id: ResidentId, hour: number) =>
+  id === "sam" ? { x: 3, y: 36 } : hour >= 6 && hour < 8 ? { x: 84, y: 36 } : { x: 40, y: 50 };
 /** hall tile just outside each resident's doorway (knock spot) */
 export const KNOCK_TILES: Record<ResidentId, Array<[number, number]>> = {
   sam: [
@@ -79,7 +82,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       kitchen: { x: 52, y: 27, facing: "up" },
       study: { x: 29, y: 26, facing: "up" },
       lounge: { x: 9, y: 28, facing: "up" },
-      courtyard: { x: 80, y: 14, facing: "up" },
+      courtyard: { x: 40, y: 54, facing: "up" },
     },
     schedule: [
       { from: 0, to: 1, place: "room", activity: "reading way past bedtime", emote: "book" },
@@ -88,7 +91,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       { from: 8, to: 10, place: "kitchen", activity: "making pour-over before class", emote: "coffee" },
       { from: 10, to: 13, place: "study", activity: "annotating a novel in pencil", emote: "book" },
       { from: 13, to: 17, place: "away", activity: "at the clay studio", emote: "pencil", awayNote: "at the clay studio" },
-      { from: 17, to: 19, place: "courtyard", activity: "sketching on the courtyard bench", emote: "pencil" },
+      { from: 17, to: 19, place: "courtyard", activity: "sketching beneath the oak in the Quad", emote: "pencil" },
       { from: 19, to: 22, place: "lounge", activity: "watching TV on the lounge couch", emote: "tv" },
       { from: 22, to: 24, place: "room", activity: "reading in the papasan", emote: "book" },
     ],

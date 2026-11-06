@@ -32,6 +32,7 @@ import {
   type DailyAnswer,
 } from "@/data/prompts";
 import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
+import { fortuneForDate } from "@/data/campus";
 import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
 import {
@@ -123,6 +124,8 @@ export interface PlayerState {
   doorSeen: Record<ResidentId, number>;
   /** ms timestamp of the last local persist — cloud sync compares against it */
   savedAt: number;
+  lastFountainDate: string | null;
+  professorPetted: boolean;
 }
 
 const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
@@ -180,6 +183,8 @@ const defaultState = (): PlayerState => ({
   doorLastChange: null,
   doorSeen: { sam: 0, jordan: 0 },
   savedAt: 0,
+  lastFountainDate: null,
+  professorPetted: false,
 });
 
 /** Iteration 28 fields: floor, door + who has noticed the latest door change */
@@ -342,6 +347,8 @@ export const normalizeSave = (raw: unknown): PlayerState => {
       doorLastChange: null,
       doorSeen: base.doorSeen,
       savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : 0,
+      lastFountainDate: typeof parsed.lastFountainDate === "string" ? parsed.lastFountainDate : null,
+      professorPetted: parsed.professorPetted === true,
     };
     Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
     // placed colours must be palette colours (Original = no tint)
@@ -542,6 +549,11 @@ export const devActions = {
     set({ coins: 0 });
     writeDev({ ...dev, unlimited: false });
   },
+  resetFountain() {
+    if (!dev.enabled || state.lastFountainDate !== todayKey()) return;
+    const reward = fortuneForDate(todayKey());
+    set({ lastFountainDate: null, coins: Math.max(0, state.coins - reward.coins) });
+  },
   unlockAll() {
     if (!dev.enabled) return;
     set({ ownedItemIds: Array.from(new Set([...state.ownedItemIds, ...Object.keys(ITEM_CATALOG)])) });
@@ -656,6 +668,19 @@ export const pinsWithInterests = (pins: Pin[], stickerIds: string[]): Pin[] => {
 };
 
 export const playerActions = {
+  tossFountain() {
+    const date = todayKey();
+    if (state.lastFountainDate === date) return null;
+    const fortune = fortuneForDate(date);
+    set({ lastFountainDate: date, coins: state.coins + fortune.coins });
+    if (fortune.coins > 0) sfx.coin();
+    return fortune;
+  },
+  petProfessor() {
+    if (state.professorPetted) return false;
+    set({ professorPetted: true });
+    return true;
+  },
   setAvatar(look: AvatarLook) {
     const next = normalizeAvatar(look);
     if (next.outfitItemId && !state.ownedItemIds.includes(next.outfitItemId)) delete next.outfitItemId;
