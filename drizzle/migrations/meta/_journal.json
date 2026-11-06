@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793983879596,
+      "tag": "0000_accounts_saves_profiles_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793983969533,
+      "tag": "0001_handle_available_function",
+      "breakpoints": true
+    }
+  ]
+}

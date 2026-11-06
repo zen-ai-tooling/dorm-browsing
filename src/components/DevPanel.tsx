@@ -3,6 +3,8 @@ import { Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { devActions, useDevMode, usePlayerState } from "@/lib/playerStore";
+import { signOutToGuest, useAuth } from "@/lib/auth";
+import { deleteCloudSave } from "@/lib/saveSync";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
 import { currentHour, setHourOverride, useHourOverride, useTimeOverride } from "@/lib/timeStore";
@@ -39,6 +41,7 @@ export const DevPanel = ({
 }) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
+  const { userId, isAnonymous } = useAuth();
   const timeOverride = useTimeOverride();
   const hourOverride = useHourOverride();
   const shownHour = hourOverride ?? currentHour();
@@ -65,7 +68,8 @@ export const DevPanel = ({
       return;
     }
     toast("Save cleared — reloading");
-    devActions.resetEverything();
+    // wipe the cloud row too, so the new-player flow reruns on this account
+    void deleteCloudSave().finally(() => devActions.resetEverything());
   };
 
   if (!open)
@@ -183,6 +187,18 @@ export const DevPanel = ({
           }}
         >
           Trigger door visit now
+        </DevButton>
+        <DevButton
+          onClick={() =>
+            run(() => {
+              if (userId) void navigator.clipboard?.writeText(userId);
+            }, userId ? "User id copied" : "No session yet")
+          }
+        >
+          Copy user id{isAnonymous ? " (guest)" : ""}
+        </DevButton>
+        <DevButton onClick={() => run(() => void signOutToGuest(), "Signing out to a fresh guest")}>
+          Sign out (dev)
         </DevButton>
         <DevButton danger onClick={resetEverything}>
           {confirmReset ? "Tap again to confirm" : "Reset everything"}

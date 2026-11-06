@@ -119,6 +119,8 @@ export interface PlayerState {
   doorVersion: number;
   doorLastChange: DoorChange | null;
   doorSeen: Record<ResidentId, number>;
+  /** ms timestamp of the last local persist — cloud sync compares against it */
+  savedAt: number;
 }
 
 const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
@@ -175,6 +177,7 @@ const defaultState = (): PlayerState => ({
   doorVersion: 0,
   doorLastChange: null,
   doorSeen: { sam: 0, jordan: 0 },
+  savedAt: 0,
 });
 
 /** Iteration 28 fields: floor, door + who has noticed the latest door change */
@@ -281,12 +284,14 @@ let state: PlayerState = defaultState();
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-const read = (): PlayerState => {
-  if (typeof window === "undefined") return defaultState();
+/**
+ * Pure save normalizer: defaults, catalog filtering, layout migration, recolor
+ * validation, outfit fallback, quest migration. Both localStorage reads and cloud
+ * loads go through it, so a cloud save gets every migration a local save gets.
+ */
+export const normalizeSave = (raw: unknown): PlayerState => {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw) as Partial<PlayerState>;
+    const parsed = (raw ?? {}) as Partial<PlayerState>;
     const base = defaultState();
     const next: PlayerState = {
       coins: typeof parsed.coins === "number" ? parsed.coins : base.coins,
@@ -334,6 +339,7 @@ const read = (): PlayerState => {
       doorVersion: 0,
       doorLastChange: null,
       doorSeen: base.doorSeen,
+      savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : 0,
     };
     Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
     // placed colours must be palette colours (Original = no tint)
@@ -352,13 +358,29 @@ const read = (): PlayerState => {
   }
 };
 
-const persist = () => {
+const read = (): PlayerState => {
+  if (typeof window === "undefined") return defaultState();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    return normalizeSave(JSON.parse(raw));
+  } catch {
+    return defaultState();
+  }
+};
+
+const writeLocal = () => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     /* storage full or blocked — in-memory state still works this session */
   }
+};
+
+const persist = () => {
+  state.savedAt = Date.now();
+  writeLocal();
 };
 
 const set = (next: Partial<PlayerState>) => {
@@ -381,6 +403,29 @@ const subscribe = (l: () => void) => {
 };
 
 export const getPlayerState = () => state;
+
+/** saveSync subscribes here to upload on every change */
+export const subscribePlayerState = subscribe;
+
+/**
+ * Replaces the whole state with a (normalized) cloud save. Keeps this device's
+ * mute preference and does NOT bump savedAt — the cloud timestamp stays the
+ * source of truth for which side is newer.
+ */
+export const applyPlayerState = (next: PlayerState) => {
+  state = { ...next, muted: state.muted };
+  writeLocal();
+  listeners.forEach((l) => l());
+};
+
+/** dev "Reset everything" + sign-out: wipe this device's save key */
+export const clearLocalSave = () => {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+};
 
 /** tests only: forget hydration so each test file starts from its own stubbed storage */
 export const __resetStoreForTests = () => {
@@ -456,6 +501,17 @@ export const isUnlimited = () => dev.enabled && dev.unlimited;
 export const canAfford = (price: number) => isUnlimited() || state.coins >= price;
 
 const defaultOwned = () => defaultState().ownedItemIds;
+
+/**
+ * Conflict rule (Iteration 27): this device has progress worth protecting when the
+ * player finished move-in AND (bought something OR played 3+ days). Fresh or
+ * skipped move-ins silently keep the cloud dorm.
+ */
+export const hasRealProgress = (s: PlayerState) =>
+  s.onboarded && (s.ownedItemIds.length > defaultOwned().length || Object.keys(s.dailyAnswers).length >= 3);
+
+/** how many items a fresh save owns — the nudge/conflict rules compare against it */
+export const defaultOwnedCount = () => defaultOwned().length;
 
 export const devActions = {
   /** hidden triple-tap switch — the only dev action that works while dev mode is off */
@@ -548,11 +604,7 @@ export const devActions = {
   },
   resetEverything() {
     if (!dev.enabled) return;
-    try {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    clearLocalSave();
     window.location.reload();
   },
 };

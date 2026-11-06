@@ -1,5 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleHelp, Coins, Flame, Mail, Pencil, Store, UserRound, Volume2, VolumeX } from "lucide-react";
+import {
+  CircleHelp,
+  Cloud,
+  CloudOff,
+  Coins,
+  Flame,
+  Mail,
+  MessageSquarePlus,
+  Pencil,
+  RefreshCw,
+  Store,
+  UserRound,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { WelcomeQuests } from "./WelcomeQuests";
 import type { PopupPayload } from "@/data/dorm";
 import { buildItemThumb, buildItemThumbs, type ItemThumb } from "@/lib/itemThumbs";
@@ -29,6 +43,11 @@ import {
 } from "@/lib/playerStore";
 import { CoinAmount } from "./CoinAmount";
 import { DevPanel } from "./DevPanel";
+import { SaveDormPanel } from "./SaveDormPanel";
+import { ConflictDialog } from "./ConflictDialog";
+import { FeedbackPanel } from "./FeedbackPanel";
+import { initAuth, signOutToGuest, useAuth } from "@/lib/auth";
+import { startSaveSync, useSaveSync } from "@/lib/saveSync";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
 import { currentHour, currentPhase, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
@@ -37,6 +56,10 @@ import { roomInfoFor } from "@/lib/residentTalk";
 import { PHASE_LABEL } from "@/game/timeOfDay";
 import { PhaseChip, PHASE_GLYPHS } from "./PhaseChip";
 import { PixelIcon } from "./PixelIcon";
+import { defaultOwnedCount } from "@/lib/playerStore";
+
+const meItem =
+  "rounded-[3px] px-2 py-1.5 text-left font-body text-xs font-bold text-panel-foreground hover:bg-panel-foreground/10";
 
 const DormGame = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,11 +111,171 @@ const DormGame = () => {
 
   const devMode = useDevMode();
 
+  // ---------- accounts (Iteration 27) ----------
+  const auth = useAuth();
+  const syncState = useSaveSync();
+  const [meOpen, setMeOpen] = useState(false);
+  const [savePanel, setSavePanel] = useState<"save" | "signin" | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [nudge, setNudge] = useState(false);
+  const wasOnboarded = useRef<boolean | null>(null);
+  const isGuest = auth.ready && auth.isAnonymous;
+
+  // soft "save your dorm" nudge: after move-in, first purchase, 3rd day — at most once a day
+  useEffect(() => {
+    const justOnboarded = wasOnboarded.current === false && onboarded;
+    wasOnboarded.current = onboarded;
+    if (!auth.ready || !auth.isAnonymous || !onboarded) return;
+    const today = todayKey();
+    try {
+      if (window.localStorage.getItem("dorm-vibes-save-nudge") === today) return;
+    } catch {
+      /* storage blocked */
+    }
+    const daysPlayed = Object.keys(dailyAnswers).length;
+    const firstPurchase = ownedItemIds.length > defaultOwnedCount();
+    if (justOnboarded || firstPurchase || daysPlayed >= 3) setNudge(true);
+  }, [auth.ready, auth.isAnonymous, onboarded, ownedItemIds.length, dailyAnswers]);
+
+  const dismissNudge = () => {
+    setNudge(false);
+    try {
+      window.localStorage.setItem("dorm-vibes-save-nudge", todayKey());
+    } catch {
+      /* storage blocked */
+    }
+  };
+
+  /** where/what the tester was doing — attached to every feedback row */
+  const feedbackContext = (): Record<string, unknown> => ({
+    hour: currentHour(),
+    phase: currentPhase(),
+    zone: sceneRef.current?.playerZoneLabel() ?? "",
+    popup: popup ? popupTitle(popup, playerName) : null,
+    editing,
+    shopOpen,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    device: isTouch ? "touch" : "desktop",
+    coins,
+    daysPlayed: Object.keys(dailyAnswers).length,
+    onboarded,
+    buildTime: new Date(document.lastModified).toISOString(),
+  });
+
+  const syncIcon =
+    syncState.status === "offline" ? (
+      <CloudOff className="size-3.5" aria-hidden />
+    ) : syncState.status === "saving" ? (
+      <RefreshCw className="size-3.5 animate-spin" aria-hidden />
+    ) : (
+      <Cloud className="size-3.5" aria-hidden />
+    );
+
+  const openMe = () => {
+    sfx.uiClick();
+    setSignOutConfirm(false);
+    setMeOpen(!meOpen);
+  };
+
+  const meMenu = (placement: "top" | "bottom") =>
+    meOpen ? (
+      <GamePanel
+        className={`absolute right-0 z-50 w-52 p-1.5 ${
+          placement === "top" ? "top-full mt-1" : "bottom-full mb-1"
+        }`}
+      >
+        <div className="flex flex-col gap-1">
+          <button type="button" className={meItem} onClick={() => { setMeOpen(false); openAvatar(); }}>
+            Edit avatar
+          </button>
+          {isGuest ? (
+            <button
+              type="button"
+              className={meItem}
+              onClick={() => {
+                setMeOpen(false);
+                setSavePanel("save");
+              }}
+            >
+              Save your dorm
+            </button>
+          ) : (
+            <div className="flex items-center justify-between px-2 py-1 font-body text-xs font-bold text-panel-foreground">
+              <span>@{auth.handle ?? "…"}</span>
+              <span className="flex items-center gap-1 text-panel-muted" title={`Sync: ${syncState.status}`}>
+                {syncIcon}
+                <span className="text-[10px]">{syncState.status}</span>
+              </span>
+            </div>
+          )}
+          {isGuest ? (
+            <button
+              type="button"
+              className={meItem}
+              onClick={() => {
+                setMeOpen(false);
+                setSavePanel("signin");
+              }}
+            >
+              Sign in
+            </button>
+          ) : signOutConfirm ? (
+            <div className="rounded-[3px] border-2 border-ink bg-panel-foreground/5 p-2">
+              <p className="mb-1.5 font-body text-[11px] leading-snug text-panel-muted">
+                This device will start a fresh guest dorm; yours stays saved.
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  className="flex-1 rounded-[3px] border-2 border-ink bg-destructive px-2 py-1 font-display text-[11px] font-bold text-destructive-foreground"
+                  onClick={() => void signOutToGuest()}
+                >
+                  Sign out
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-[3px] border-2 border-ink bg-panel px-2 py-1 font-display text-[11px] font-bold text-panel-foreground"
+                  onClick={() => setSignOutConfirm(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className={meItem} onClick={() => setSignOutConfirm(true)}>
+              Sign out
+            </button>
+          )}
+          <button
+            type="button"
+            className={meItem}
+            onClick={() => {
+              setMeOpen(false);
+              setFeedbackOpen(true);
+            }}
+          >
+            Send feedback
+          </button>
+        </div>
+      </GamePanel>
+    ) : null;
+
+  const guestDot = isGuest ? (
+    <span
+      aria-label="Guest — save your dorm"
+      className="pointer-events-none absolute -right-1 -top-1 size-3 rounded-full border-2 border-ink bg-primary"
+    />
+  ) : null;
+
   useEffect(() => {
     hydratePlayerState();
     hydrateDevMode();
     hydrateTimeOverride();
     setHydrated(true);
+    // guest-first accounts: silent anonymous session, then cloud-save sync
+    void initAuth();
+    startSaveSync();
   }, []);
 
   // live avatar / room mood / name in the world
@@ -484,16 +667,21 @@ const DormGame = () => {
                   </IconChip>
                 </button>
               ) : null}
-              <button
-                type="button"
-                aria-label="Edit your avatar"
-                onClick={openAvatar}
-                className="flex flex-1 items-center justify-center rounded-[3px] py-0.5"
-              >
-                <IconChip>
-                  <UserRound className="size-3.5" aria-hidden />
-                </IconChip>
-              </button>
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  aria-label="Me menu"
+                  aria-expanded={meOpen}
+                  onClick={openMe}
+                  className="flex w-full items-center justify-center rounded-[3px] py-0.5"
+                >
+                  <IconChip>
+                    <UserRound className="size-3.5" aria-hidden />
+                  </IconChip>
+                </button>
+                {guestDot}
+                {meMenu("bottom")}
+              </div>
               <button
                 type="button"
                 aria-label={muted ? "Unmute sound" : "Mute sound"}
@@ -600,18 +788,23 @@ const DormGame = () => {
                   Edit My Room
                 </Button>
               ) : null}
-              <Button
-                size="sm"
-                variant="secondary"
-                aria-label="Edit your avatar"
-                className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
-                onClick={openAvatar}
-              >
-                <IconChip>
-                  <UserRound className="size-3.5" aria-hidden />
-                </IconChip>
-                Me
-              </Button>
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Me menu"
+                  aria-expanded={meOpen}
+                  className="rounded-[3px] border-2 border-ink bg-panel font-display font-bold text-panel-foreground hover:bg-panel/80"
+                  onClick={openMe}
+                >
+                  <IconChip>
+                    <UserRound className="size-3.5" aria-hidden />
+                  </IconChip>
+                  Me
+                </Button>
+                {guestDot}
+                {meMenu("top")}
+              </div>
               <button
                 type="button"
                 aria-label={muted ? "Unmute sound" : "Mute sound"}
@@ -620,6 +813,20 @@ const DormGame = () => {
                 className="rounded-[3px]"
               >
                 <IconChip>{soundIcon}</IconChip>
+              </button>
+              <button
+                type="button"
+                aria-label="Send feedback"
+                onClick={() => {
+                  sfx.uiClick();
+                  setFeedbackOpen(true);
+                }}
+                className="rounded-[3px]"
+                title="Send feedback"
+              >
+                <IconChip>
+                  <MessageSquarePlus className="size-3.5" aria-hidden />
+                </IconChip>
               </button>
             </div>
           </div>
@@ -703,7 +910,49 @@ const DormGame = () => {
         </button>
       ) : null}
 
-      {moveIn && scene ? <MoveIn scene={scene} onDone={() => setHintOpen(null)} /> : null}
+      {moveIn && scene ? (
+        <MoveIn
+          scene={scene}
+          onDone={() => setHintOpen(null)}
+          onSignIn={() => setSavePanel("signin")}
+        />
+      ) : null}
+
+      {nudge && !moveIn && !editing ? (
+        <GamePanel accent="#7f9c86" className="absolute left-3 top-14 z-40 w-56 p-3">
+          <p className="mb-1 font-display text-sm font-bold text-panel-foreground">Like your dorm?</p>
+          <p className="mb-2 font-body text-[11px] leading-snug text-panel-muted">
+            Save it so it's there on any device.
+          </p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                sfx.uiClick();
+                dismissNudge();
+                setSavePanel("save");
+              }}
+              className="flex-1 rounded-[3px] border-2 border-ink bg-ink px-2 py-1 font-display text-[11px] font-bold text-panel"
+            >
+              Save your dorm
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sfx.uiClick();
+                dismissNudge();
+              }}
+              className="rounded-[3px] border-2 border-ink bg-panel px-2 py-1 font-display text-[11px] font-bold text-panel-foreground"
+            >
+              Not now
+            </button>
+          </div>
+        </GamePanel>
+      ) : null}
+
+      <SaveDormPanel open={savePanel !== null} mode={savePanel ?? "save"} onClose={() => setSavePanel(null)} />
+      {syncState.conflict ? <ConflictDialog conflict={syncState.conflict} /> : null}
+      <FeedbackPanel open={feedbackOpen} onClose={() => setFeedbackOpen(false)} getContext={feedbackContext} />
 
       {avatarOpen && !moveIn ? (
         <div
