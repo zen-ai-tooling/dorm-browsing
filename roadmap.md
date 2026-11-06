@@ -1,3 +1,11 @@
+# Small editor follow-ups
+
+- [x] Phone room fits screen width and meets tray with hallway hidden
+- [x] Touch selection buttons stay 44 screen pixels at any zoom
+- [x] Touch-only coach copy; desktop keyboard copy unchanged
+- [x] Per-tab empty messages and tappable other tabs; compact one-line header under 420px
+- [x] Phone browser checks and existing placement/resident tests
+
 # Room Editor Overhaul (footprints, rug layer, walkability, UX)
 
 - [x] items.ts: measured footprints, layer (rug/floor/wall), solid flags per spec

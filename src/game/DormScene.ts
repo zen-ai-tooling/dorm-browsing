@@ -2498,6 +2498,8 @@ export class DormScene extends Phaser.Scene {
   private positionSelectionUi() {
     const entry = this.placed[this.selectedIdx];
     if (!this.selectionUi || !entry?.sprite.active) return;
+    // Camera zoom must never shrink touch buttons below 44 screen pixels.
+    if (isTouch()) this.selectionUi.setScale(1 / this.cameras.main.zoom);
     const s = entry.sprite;
     const h = s.angle % 180 === 0 ? s.displayHeight : s.displayWidth;
     // base-anchored sprites (originY 1) extend upward from y; centered ones straddle it
@@ -3931,9 +3933,14 @@ export class DormScene extends Phaser.Scene {
     const h = t(r.h + 2);
     const visH = Math.max(120, cam.height - bottomInsetPx - 12);
     // phones: fill the screen width above the tray; desktop: fit both dimensions
-    const zoom = isPhoneWidth() ? (cam.width / w) * 0.98 : Math.min(cam.width / w, visH / h) * 0.96;
-    // shift the center down so the room sits in the visible band above the tray
-    this.glideCamera(x0 + w / 2, y0 + h / 2 + bottomInsetPx / (2 * zoom), zoom, 400);
+    const phone = isPhoneWidth();
+    const zoom = phone ? cam.width / w : Math.min(cam.width / w, visH / h) * 0.96;
+    // On phones align the bottom wall with the tray, not the middle of the free area.
+    const cy = phone
+      // The shared bottom ring is the hallway's back-wall face, not bedroom content.
+      ? t(r.y + r.h) - (cam.height / 2 - bottomInsetPx) / zoom
+      : y0 + h / 2 + bottomInsetPx / (2 * zoom);
+    this.glideCamera(x0 + w / 2, cy, zoom, 400);
   }
 
   restoreCamera() {
