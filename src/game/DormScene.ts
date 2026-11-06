@@ -2000,6 +2000,133 @@ export class DormScene extends Phaser.Scene {
     return canPlaceIn(layout, itemId, gx, gy, rotation, ignoreIdx);
   }
 
+  // ---------- editor feel: tooltips, undo, dust, haptics ----------
+
+  private rejectTip: Phaser.GameObjects.Text | null = null;
+
+  /** short pixel tooltip above a spot, gone after 1.5s — why a move failed */
+  private showRejectTip(x: number, y: number, reason: PlaceRejection) {
+    const msg =
+      reason.kind === "overlap"
+        ? `Overlaps the ${reason.name}`
+        : reason.kind === "door"
+          ? "Keep the doorway clear"
+          : reason.kind === "blocks-path"
+            ? `That would block the path to your ${reason.name}`
+            : reason.kind === "wall-only"
+              ? "That hangs on the wall"
+              : reason.kind === "floor-only"
+                ? "That belongs on the floor"
+                : reason.kind === "window"
+                  ? "Keep the window clear"
+                  : "No room there";
+    this.rejectTip?.destroy();
+    const tip = this.add
+      .text(x, y - 10, msg, {
+        fontFamily: '"Pixelify Sans", sans-serif',
+        fontSize: "10px",
+        color: "#fff6e8",
+        backgroundColor: "#241c26",
+        padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(6600);
+    this.rejectTip = tip;
+    this.time.delayedCall(1500, () => {
+      if (this.rejectTip === tip) this.rejectTip = null;
+      tip.destroy();
+    });
+  }
+
+  /** tiny haptics where supported: place = one tick, reject = two */
+  private buzz(pattern: number | number[]) {
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      /* unsupported */
+    }
+  }
+
+  /** stepped dust puff where an item lands */
+  private dustPuff(x: number, y: number) {
+    for (let i = 0; i < 4; i++) {
+      const p = this.add
+        .rectangle(x + (i - 1.5) * 8, y - 3, 4, 3, 0xf3ead2, 0.9)
+        .setDepth(6450);
+      this.tweens.add({
+        targets: p,
+        y: y - 10 - (i % 2) * 4,
+        alpha: 0,
+        duration: 320,
+        ease: "Stepped",
+        easeParams: [3],
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  // ---------- undo (place / move / rotate / recolor / put away, ~20 steps) ----------
+
+  private undoStack: Array<
+    | { kind: "place"; itemId: string }
+    | { kind: "move"; itemId: string; gx: number; gy: number }
+    | { kind: "rotate"; itemId: string; rotation: Rotation }
+    | { kind: "remove"; item: PlacedItem }
+    | { kind: "recolor"; itemId: string; tint: number | null; refund: number }
+  > = [];
+  private onUndoChange: (n: number) => void = () => {};
+  private onUndoRecolor: (itemId: string, tint: number | null, refund: number) => void = () => {};
+
+  private pushUndo(e: (typeof this.undoStack)[number]) {
+    this.undoStack.push(e);
+    if (this.undoStack.length > 20) this.undoStack.shift();
+    this.onUndoChange(this.undoStack.length);
+  }
+
+  undo() {
+    const e = this.undoStack.pop();
+    this.onUndoChange(this.undoStack.length);
+    if (!e) return;
+    sfx.uiClick();
+    if (e.kind === "remove") {
+      const idx = this.spawnPlaced(e.item.itemId, e.item.gx, e.item.gy, (e.item.rotation ?? 0) as Rotation, e.item.tint);
+      if (idx >= 0) {
+        this.makeDraggable(this.placed[idx]!.sprite);
+        this.commitLayout();
+      }
+      return;
+    }
+    const idx = this.placed.findIndex((p) => p.itemId === e.itemId);
+    if (idx < 0) return;
+    if (e.kind === "place") this.removePlacedItem(idx, true);
+    else if (e.kind === "move") {
+      this.movePlacedItem(idx, e.gx, e.gy, true);
+      this.commitLayout();
+    } else if (e.kind === "rotate") {
+      const entry = this.placed[idx]!;
+      // rotate backward until we're back at the saved angle (silent, no undo push)
+      while (entry.rotation !== e.rotation) {
+        const before = entry.rotation;
+        this.rotatePlacedItem(idx, true);
+        if (entry.rotation === before) break; // rejected — bail
+      }
+    } else {
+      const entry = this.placed[idx]!;
+      if (e.tint === null) delete entry.tint;
+      else entry.tint = e.tint;
+      const def = ITEM_CATALOG[entry.itemId]!;
+      entry.accent?.destroy();
+      this.myObjs = this.myObjs.filter((o) => o !== entry.accent);
+      entry.accent = this.attachAccent(entry.sprite, def, entry.tint);
+      if (entry.accent) this.myObjs.push(entry.accent);
+      if (def.light) {
+        this.dropItemLight(entry.sprite);
+        this.itemLight(entry.itemId, entry.sprite, entry.tint);
+      }
+      this.onUndoRecolor(e.itemId, e.tint, e.refund);
+    }
+  }
+
   /** outlines the wall face or the floor, depending on where the item can go */
   private showMountGuide(itemId: string | null) {
     const item = itemId ? ITEM_CATALOG[itemId] : undefined;
