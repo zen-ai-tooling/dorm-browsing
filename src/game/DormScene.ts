@@ -4009,6 +4009,7 @@ export class DormScene extends Phaser.Scene {
     const [gx, gy] = this.nearestFloor(tile.x, tile.y);
     this.path = this.findPath(Math.floor(this.player.x / TILE), Math.floor(this.player.y / TILE), gx, gy);
     this.target = this.path.shift() ?? null;
+    console.log("QT", dest, gx, gy, this.path.length);
     this.jogPath = !!this.target; this.travelling = !!this.target; this.stuckMs = 0;
   }
 
