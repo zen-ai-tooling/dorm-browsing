@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CAMPUS_H, CAMPUS_W, openCampusGrid, WAYPOINTS, WAYPOINT_GRAPH, libraryOpen, stringLightsOn, clockAt, bellStrikeCount, leafPhaseForMonth, fortuneForDate, flyersForDate, truckForDate, drinkForDate, FORTUNES, FLYERS } from "./campus";
+import { CAMPUS_H, CAMPUS_W, CAMPUS_PROPS, LIBRARY_AXIS, openCampusGrid, WAYPOINTS, WAYPOINT_GRAPH, libraryOpen, stringLightsOn, clockAt, bellStrikeCount, leafPhaseForMonth, fortuneForDate, flyersForDate, truckForDate, drinkForDate, FORTUNES, FLYERS } from "./campus";
 import { densityRange, studentCount, STUDENTS, overheardFor } from "./students";
 import { professorPlace, PROFESSOR_FOLLOW_MS, SQUIRREL_COUNT, PIGEON_COUNT } from "./animals";
 import { awayDestination, RESIDENTS } from "./residents";
@@ -31,8 +31,8 @@ describe("campus reachability", () => {
   });
   test("library, fountain and oak trunk block; canopy and north scenery do not become solid ground", () => {
     expect(grid[39]?.[24]).toBe(3); expect(grid[49]?.[56]).toBe(3);
-    expect(grid[54]?.[33]).toBe(3); expect(grid[55]?.[43]).toBe(3);
-    expect(grid[54]?.[43]).toBe(1); expect(grid[10]?.[1]).toBe(0);
+    expect(grid[54]?.[33]).toBe(3); expect(grid[58]?.[51]).toBe(3);
+    expect(grid[57]?.[51]).toBe(1); expect(grid[10]?.[1]).toBe(0);
   });
 });
 test("seasonal oak phases include orange November", () => {
@@ -82,4 +82,13 @@ test("resident destinations are real: library, west arts exit and east run exit"
   expect(awayDestination("jordan", 7)).toEqual(WAYPOINTS["east"]);
   expect(awayDestination("sam", 14)).toEqual(WAYPOINTS["west"]);
   expect(RESIDENTS.sam.anchors.courtyard).toEqual({ ...WAYPOINTS["bench0"], facing: "up" });
+});
+test("library axis stays clear: no prop or oak canopy covers doors, steps or the walk down the Quad", () => {
+  for (const p of CAMPUS_PROPS) {
+    const canopy = p.id === "oak" ? { x0: p.x - 2, x1: p.x + 3, y0: p.y - 4 } : { x0: p.x, x1: p.x + p.w - 1, y0: p.y };
+    const overlapsX = canopy.x1 >= LIBRARY_AXIS.x0 && canopy.x0 <= LIBRARY_AXIS.x1;
+    expect(overlapsX && p.y + p.h - 1 >= LIBRARY_AXIS.y0).toBe(false);
+  }
+  const oak = CAMPUS_PROPS.find((p) => p.id === "oak");
+  expect(oak && [oak.x, oak.y]).toEqual([51, 58]);
 });

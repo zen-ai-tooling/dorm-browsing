@@ -82,7 +82,7 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       kitchen: { x: 52, y: 27, facing: "up" },
       study: { x: 29, y: 26, facing: "up" },
       lounge: { x: 9, y: 28, facing: "up" },
-      courtyard: { x: 40, y: 54, facing: "up" },
+      courtyard: { x: 32, y: 58, facing: "up" },
     },
     schedule: [
       { from: 0, to: 1, place: "room", activity: "reading way past bedtime", emote: "book" },

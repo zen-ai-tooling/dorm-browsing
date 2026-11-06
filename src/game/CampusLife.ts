@@ -140,7 +140,7 @@ export class CampusLife {
     }
     this.frisbee = s.add.image(0, 0, "campus-frisbee").setVisible(false).setDepth(1850);
     for (const [i, x] of [9, 16].entries()) this.frisbeePair.push(s.add.sprite(x * T, 55 * T, `stu-${i}-right-0`).setOrigin(0.5, 0.85).setDepth(55 * T).setVisible(false));
-    this.squirrels = this.makeAnimals(SQUIRREL_COUNT, "squirrel", [{ x: 40, y: 56 }, { x: 46, y: 54 }, { x: 37, y: 58 }]);
+    this.squirrels = this.makeAnimals(SQUIRREL_COUNT, "squirrel", [{ x: 49, y: 57 }, { x: 54, y: 59 }, { x: 47, y: 56 }]);
     this.pigeons = this.makeAnimals(PIGEON_COUNT, "pigeon", [{ x: 35, y: 54 }, { x: 32, y: 56 }, { x: 36, y: 56 }, { x: 59, y: 41 }, { x: 62, y: 41 }]);
     const catPlace = professorPlace(hooks.getHour());
     const catStart = center(PROFESSOR_ANCHORS[catPlace]);
@@ -251,11 +251,15 @@ export class CampusLife {
       this.frisbeePair.forEach((s) => s.setVisible(pair));
       this.frisbee.setVisible(pair);
       this.students.forEach((st, i) => {
-        const active = i < count - (pair ? 2 : 0);
+        // Lunch: the frisbee pair is extra, so the Quad itself holds the full 8–10.
+        const active = i < count;
         const wasVisible = st.sprite.visible;
         st.sprite.setVisible(active); st.prop.setVisible(active);
-        if (active && !wasVisible) {
-          const start = hour >= 12 ? ["picnic0", "picnic1", "fountain", "bench0", "oak", "truck"][i % 6] ?? "east" : i % 2 ? "east" : "west";
+        // Lunch fills the Quad at once: everyone (new or already walking) starts at a Quad seat.
+        if (active && (!wasVisible || pair)) {
+          const lunchSpots = ["picnic0", "picnic1", "fountain", "bench0", "oak", "truck", "picnic2", "picnic3", "bench1", "bench2"];
+          const start = pair ? lunchSpots[i % lunchSpots.length] ?? "fountain" : hour >= 12 ? lunchSpots[i % 6] ?? "east" : i % 2 ? "east" : "west";
+          if (pair) st.wait = this.scene.time.now + 5000 + i * 600;
           st.node = start; const pos = center(WAYPOINTS[start] ?? { x: 3, y: 36 }); st.sprite.setPosition(pos.x, pos.y); st.path = [];
         }
       });
@@ -313,7 +317,7 @@ export class CampusLife {
     this.fountain.setTexture(`campus-fountain-${Math.floor(time / 320) % 3}`);
     for (const [i, leaf] of this.leaves.entries()) {
       const f = ((time + i * 670) % 5300) / 5300;
-      leaf.setPosition((39 + i * 1.1) * T + Math.floor(Math.sin(f * 7 + i) * 8 / 2) * 2, (49 + f * 7) * T).setAlpha(1 - f * 0.7);
+      leaf.setPosition((49 + i * 0.7) * T + Math.floor(Math.sin(f * 7 + i) * 8 / 2) * 2, (54.5 + f * 4.5) * T).setAlpha(1 - f * 0.7);
     }
     this.updateSquirrels(time, delta, player);
     this.updatePigeons(time, player);
@@ -323,12 +327,12 @@ export class CampusLife {
     for (const a of this.squirrels) {
       if (a.mode === "climb") {
         const f = Math.min(1, (time - (a.until - 5000)) / 800);
-        a.sprite.setPosition(43.5 * T, 56 * T - Math.floor(f * 100 / 6) * 6).setDepth(56 * T + 1);
+        a.sprite.setPosition(51.5 * T, 59 * T - Math.floor(f * 100 / 6) * 6).setDepth(59 * T + 1);
         if (time >= a.until) { a.sprite.setPosition(a.home.x, a.home.y); a.mode = "idle"; a.until = time + 2000; }
         continue;
       }
       if (a.mode === "idle" && Math.hypot(player.x - a.sprite.x, player.y - a.sprite.y) < 64 && time > a.until) {
-        a.mode = "flee"; a.path = this.route(a.sprite, { x: 42, y: 55 });
+        a.mode = "flee"; a.path = this.route(a.sprite, { x: 50, y: 58 });
       }
       if (a.path.length) { this.advance(a.sprite, a.path, a.mode === "flee" ? 230 : 70, delta); a.sprite.setTexture(`campus-squirrel-${Math.floor(time / 130) % 2}`).setDepth(a.sprite.y); }
       else if (a.mode === "flee") { a.mode = "climb"; a.until = time + 5000; }
