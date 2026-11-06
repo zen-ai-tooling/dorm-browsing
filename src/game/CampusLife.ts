@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import {
   CAMPUS_PROPS, WAYPOINTS, WAYPOINT_GRAPH, leafPhaseForMonth, clockAt, libraryOpen,
-  stringLightsOn, truckForDate, drinkForDate, flyersForDate, seededRandom, TRUCKS,
+  stringLightsOn, truckForDate, drinkForDate, flyersForDate, seededRandom, TRUCKS, bellStrikeCount,
 } from "@/data/campus";
 import { STUDENTS, studentCount, overheardFor } from "@/data/students";
 import { SQUIRREL_COUNT, PIGEON_COUNT, PROFESSOR_FOLLOW_MS, professorPlace, PROFESSOR_ANCHORS } from "@/data/animals";
@@ -89,7 +89,7 @@ export class CampusLife {
     this.bell = s.add.container(bx, by, [s.add.rectangle(0, 0, 18, 20, 0xd7b367), s.add.rectangle(0, 10, 26, 4, 0x947341), s.add.rectangle(0, 14, 4, 4, 0x493b32)]).setDepth(50 * T + 1);
     this.clockLight = lighting.add({ ...this.clockCenter, color: 0xf5d392, radius: 32, pool: false, clip: { x: this.clockCenter.x - 34, y: this.clockCenter.y - 34, w: 68, h: 68 } });
     for (const x of [27.3, 31.85, 48.9, 53.5]) {
-      this.windows.push(s.add.rectangle(x * T, 48.2 * T, 64, 40, 0xf3ca79, 0.55).setDepth(4901).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
+      this.windows.push(s.add.rectangle(x * T, 47.6 * T, 64, 68, 0xf3ca79, 0.55).setDepth(4901).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
     }
     const oak = CAMPUS_PROPS.find((p) => p.id === "oak");
     if (oak) s.add.sprite((oak.x + 0.5) * T, (oak.y + 1) * T, `campus-oak-${this.leafPhase}`).setOrigin(0.5, 1).setDepth((oak.y + 1) * T);
@@ -199,7 +199,7 @@ export class CampusLife {
     g.fillStyle(0xab663e).fillRect(x - 2, y - 2, 6, 6);
   }
   private ringHour(hour: number) {
-    const count = Math.min(3, hour % 12 || 12);
+    const count = bellStrikeCount(hour);
     this.scene.tweens.add({ targets: this.bell, angle: 14, duration: 250, yoyo: true, repeat: 3, ease: "Stepped", easeParams: [3] });
     for (let i = 0; i < count; i++) this.scene.time.delayedCall(i * 750, () => this.bubble({ x: this.clockCenter.x, y: this.clockCenter.y - 5 }, "DONG", 650));
   }

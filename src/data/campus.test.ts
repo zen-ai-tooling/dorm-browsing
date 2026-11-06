@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CAMPUS_H, CAMPUS_W, openCampusGrid, WAYPOINTS, WAYPOINT_GRAPH, libraryOpen, stringLightsOn, clockAt, leafPhaseForMonth, fortuneForDate, flyersForDate, truckForDate, drinkForDate, FORTUNES, FLYERS } from "./campus";
+import { CAMPUS_H, CAMPUS_W, openCampusGrid, WAYPOINTS, WAYPOINT_GRAPH, libraryOpen, stringLightsOn, clockAt, bellStrikeCount, leafPhaseForMonth, fortuneForDate, flyersForDate, truckForDate, drinkForDate, FORTUNES, FLYERS } from "./campus";
 import { densityRange, studentCount, STUDENTS, overheardFor } from "./students";
 import { professorPlace, PROFESSOR_FOLLOW_MS, SQUIRREL_COUNT, PIGEON_COUNT } from "./animals";
 import { awayDestination, RESIDENTS } from "./residents";
@@ -46,6 +46,8 @@ test("clock uses local hours/minutes, dev 15 shows 3:00", () => {
   const now = new Date(2026, 10, 6, 19, 23);
   expect(clockAt(now, null)).toEqual({ hour: 19, minute: 23 });
   expect(clockAt(now, 15)).toEqual({ hour: 15, minute: 0 });
+  expect(bellStrikeCount(15)).toBe(3);
+  expect([1, 2, 12, 23].map(bellStrikeCount)).toEqual([1, 2, 3, 3]);
 });
 test("student density matches every requested band, maximum ten stable looks", () => {
   expect(STUDENTS.length).toBe(10);

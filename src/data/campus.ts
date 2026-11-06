@@ -69,6 +69,7 @@ export const leafPhaseForMonth = (month: number): LeafPhase =>
 export const libraryOpen = (hour: number) => hour >= 8 || hour < 2;
 export const stringLightsOn = (hour: number) => hour >= 18 || hour < 1;
 export const clockAt = (now: Date, hourOverride: number | null) => ({ hour: hourOverride ?? now.getHours(), minute: hourOverride === null ? now.getMinutes() : 0 });
+export const bellStrikeCount = (hour: number) => Math.min(3, hour % 12 || 12);
 export const FORTUNES = [
   "Your next group project will have one hero. It's not you.", "A missing sock will return with a better GPA.",
   "The microwave will respect you eventually.", "Your next crush also has 47 unread emails.",
