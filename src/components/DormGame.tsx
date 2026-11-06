@@ -602,7 +602,7 @@ const DormGame = () => {
     popup ? (
       sheetOpen ? (
         <PopupSheetContext.Provider value={{ sheet: true, onClose: () => setSheetOpen(false) }}>
-          <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
+          <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} />
         </PopupSheetContext.Provider>
       ) : (
         <div
@@ -624,7 +624,7 @@ const DormGame = () => {
       )
     ) : null
   ) : (
-    <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} />
+    <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} />
   );
 
   return (

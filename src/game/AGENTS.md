@@ -1,0 +1,2 @@
+- CampusLife renders only outdoor additions and non-solid campus life, using DormScene's grid pathfinder and existing Lighting so player/NPC obstacles and night clipping agree.
+- Campus geometry, rotations, density and animal schedules stay in pure data modules for tests; fountain rewards and first-pet state mutate only through playerActions and survive normalizeSave.

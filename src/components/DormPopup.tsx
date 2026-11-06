@@ -1577,7 +1577,7 @@ const samCommonFor = (
 
 /* ---------------- root ---------------- */
 
-const FountainPopup = () => {
+const FountainPopup = ({ onToss }: { onToss?: () => void }) => {
   const { lastFountainDate } = usePlayerState();
   const [tossing, setTossing] = useState(false);
   const claimed = lastFountainDate === todayKey();
@@ -1595,7 +1595,7 @@ const FountainPopup = () => {
           const result = playerActions.tossFountain();
           if (!result) return;
           setTossing(true);
-          (window as unknown as { __scene?: { tossCampusCoin: () => void } }).__scene?.tossCampusCoin();
+          onToss?.();
           window.setTimeout(() => setTossing(false), 700);
         }}>{tossing ? "Making a wish…" : "Toss a coin · free"}</Button>
       )}
@@ -1607,11 +1607,13 @@ export const DormPopup = ({
   payload,
   thumbnails = {},
   itemThumbnails = {},
+  onFountainToss,
 }: {
   payload: PopupPayload | null;
   thumbnails?: Record<string, string>;
   /** tinted per-item thumbnails keyed by item id (mail finds) */
   itemThumbnails?: Record<string, { src: string }>;
+  onFountainToss?: () => void;
 }) => {
   const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone, playerName } = usePlayerState();
   const [editing, setEditing] = useState(false);
@@ -1644,7 +1646,7 @@ export const DormPopup = ({
   if (!payload) return null;
 
   if (payload.kind === "package") return <PackagePopup itemThumbnails={itemThumbnails} />;
-  if (payload.kind === "fountain") return <FountainPopup />;
+  if (payload.kind === "fountain") return <FountainPopup onToss={onFountainToss} />;
   if (payload.kind === "resident") return <ResidentPopup key={payload.residentId} residentId={payload.residentId} />;
   if (payload.kind === "whiteboard") return <WhiteboardPopup payload={payload} />;
 

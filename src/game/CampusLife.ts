@@ -86,7 +86,7 @@ export class CampusLife {
     this.clock = s.add.graphics().setDepth(50 * T + 1);
     const bx = this.clockCenter.x, by = 40.6 * T;
     this.bell = s.add.container(bx, by, [s.add.rectangle(0, 0, 18, 20, 0xd7b367), s.add.rectangle(0, 10, 26, 4, 0x947341), s.add.rectangle(0, 14, 4, 4, 0x493b32)]).setDepth(50 * T + 1);
-    this.clockLight = lighting.add({ ...this.clockCenter, color: 0xf5d392, radius: 70, pool: false, clip: OUTDOOR_CLIP });
+    this.clockLight = lighting.add({ ...this.clockCenter, color: 0xf5d392, radius: 32, pool: false, clip: { x: this.clockCenter.x - 34, y: this.clockCenter.y - 34, w: 68, h: 68 } });
     for (const x of [27.3, 31.85, 48.9, 53.5]) {
       this.windows.push(s.add.rectangle(x * T, 48.2 * T, 64, 40, 0xf3ca79, 0.55).setDepth(50 * T + 1).setVisible(false));
     }
@@ -226,7 +226,10 @@ export class CampusLife {
       this.windowOn = winOn;
       this.windows.forEach((w) => w.setVisible(winOn));
       this.windowLights.forEach((l) => this.lighting.remove(l)); this.windowLights = [];
-      if (winOn) for (const w of this.windows) this.windowLights.push(this.lighting.add({ x: w.x, y: w.y, color: 0xf4b966, radius: 90, poolDy: 44, clip: OUTDOOR_CLIP }));
+      if (winOn) for (const w of this.windows) {
+        this.windowLights.push(this.lighting.add({ x: w.x, y: w.y, color: 0xf4b966, radius: 32, pool: false, clip: { x: w.x - 32, y: w.y - 20, w: 64, h: 40 } }));
+        this.windowLights.push(this.lighting.add({ x: w.x, y: 50.5 * T, color: 0xf4b966, radius: 90, poolDy: 0, clip: OUTDOOR_CLIP }));
+      }
     }
     const lightsOn = stringLightsOn(hour);
     if (lightsOn !== this.stringsOn) {
