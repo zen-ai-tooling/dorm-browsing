@@ -1,3 +1,12 @@
+# Room Editor Overhaul (footprints, rug layer, walkability, UX)
+
+- [ ] items.ts: measured footprints, layer (rug/floor/wall), solid flags per spec
+- [ ] placement.ts: layered collision, rejection reasons, walkability flood fill, migration
+- [ ] Seed + save migration: rug_woven as a real placed item (3,3)
+- [ ] DormScene: base anchoring, remove myRug, ghost follows pointer, player fade in edit
+- [ ] Editor UX: rejection tooltips, undo (20, Ctrl+Z, recolor refund), grid, keyboard, tap cycling, phone targets/zoom/vibrate, tray counts/coach mark/empty state, feel polish, Saved toast
+- [ ] Tests: placement.test.ts overhaul + residents.test.ts .ok fix; bun test, typecheck, browser check
+
 # Pre-test fixes
 
 - [x] Ownership-aware save decisions, single boot, race-safe sign-out/reset, regression tests
