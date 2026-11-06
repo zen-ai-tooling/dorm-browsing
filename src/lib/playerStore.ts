@@ -21,7 +21,7 @@ import {
   SET_REWARD,
 } from "@/data/items";
 import { doorChange, normalizeDoor, DOOR_DEFAULT, type DoorChange, type DoorState } from "@/data/door";
-import { migrateMountLayout } from "@/data/placement";
+import { migrateMountLayout, nearestSpot } from "@/data/placement";
 import {
   DAILY_COIN_REWARD,
   normalizeDailyAnswers,
@@ -56,6 +56,7 @@ export const DEFAULT_MY_ROOM_LAYOUT: PlacedItem[] = [
   { itemId: "speaker_basic", gx: 1, gy: 2 },
   { itemId: "board_basic", gx: 9, gy: 0 },
   { itemId: "plant_basic", gx: 1, gy: 4 },
+  { itemId: "rug_woven", gx: 3, gy: 3 },
 ];
 
 export interface PlayerState {
