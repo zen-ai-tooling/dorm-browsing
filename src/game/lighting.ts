@@ -1,5 +1,6 @@
 import * as Phaser from "phaser";
 import { DARKNESS_ALPHA, DARKNESS_COLOR } from "./timeOfDay";
+import { saturatedPoolColor } from "./lightColor";
 
 /**
  * Night lighting: one world-sized RenderTexture MULTIPLIED over the world, filled with

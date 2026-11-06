@@ -492,7 +492,7 @@ export class DormScene extends Phaser.Scene {
     this.paintFloor(zones);
     this.buildColliders();
     // lighting exists before decor so every prop can register its light where it's created
-    for (const z of zones)
+    for (const z of zones.filter((zone) => zone.kind !== "outdoor"))
       this.zoneClips.set(z.id, { x: t(z.x), y: t(z.y - 1), w: t(z.w), h: t(z.h + 1) });
     this.lighting = new Lighting(this, GRID_W * TILE, GRID_H * TILE, [...this.zoneClips.values()]);
     this.decorate(zones);
@@ -1233,14 +1233,14 @@ export class DormScene extends Phaser.Scene {
       // stand on the grass just south of the path, clear of the building wall
       const y = t(PATH_ROWS[1]! + 1) + 20 - 46;
       this.add.sprite(t(x), y, "lamppost").setDepth(y);
-      // outdoor: clipped to below the building so the brick never glows
+      // Only lamps within reach of the building's south wall need its edge.
       this.light({
         x: t(x),
         y: y - 36,
         color: 0xffd9a0,
         radius: 80,
         poolDy: 36,
-        clip: { x: 0, y: t(34), w: GRID_W * TILE, h: GRID_H * TILE - t(34) },
+        clip: x < 63 ? { x: 0, y: t(34), w: GRID_W * TILE, h: GRID_H * TILE - t(34) } : null,
       });
     }
   }
