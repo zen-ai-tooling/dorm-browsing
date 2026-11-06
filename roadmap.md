@@ -1,3 +1,11 @@
+# Pre-test fixes
+
+- [ ] Ownership-aware save decisions, single boot, race-safe sign-out/reset, regression tests
+- [ ] Session-only eligibility and once-per-trigger save reminders, tests
+- [ ] Durable offline feedback queue (20 max), reconnect/load retry, tests
+- [ ] Stronger night pools, ambient halo fade, outdoor wall-only clipping
+- [ ] Run tests and verify browser flows; report external-account checks not available
+
 # Iteration 27 — Accounts: Guest-First Sign-In + Cloud Saves
 
 First backend (Lovable Cloud). Gameplay, rendering, economy, dev mode unchanged.
