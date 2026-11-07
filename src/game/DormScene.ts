@@ -443,6 +443,7 @@ export class DormScene extends Phaser.Scene {
   private myZone: Zone | null = null;
   /** Iteration 26: residents, their doors, knocking, the evening visit */
   private getHour: () => number = () => new Date().getHours();
+  private getWeekday: () => number = () => new Date().getDay();
   private onKnockSpot: (id: ResidentId | null) => void = () => {};
   private onSoldHint: (h: { itemId: string; x: number; y: number } | null) => void = () => {};
   private getVisitLine: (id: ResidentId) => string | null = () => null;
@@ -485,6 +486,7 @@ export class DormScene extends Phaser.Scene {
     getPlayerName?: () => string;
     getHour?: () => number;
     getHourOverride?: () => number | null;
+    getWeekday?: () => number;
     onPetSpot?: (near: boolean) => void;
     onPetProfessor?: () => void;
     onKnockSpot?: (id: ResidentId | null) => void;
@@ -506,6 +508,7 @@ export class DormScene extends Phaser.Scene {
     if (data?.onUndoRecolor) this.onUndoRecolor = data.onUndoRecolor;
     if (data?.getHour) this.getHour = data.getHour;
     if (data?.getHourOverride) this.getHourOverride = data.getHourOverride;
+    if (data?.getWeekday) this.getWeekday = data.getWeekday;
     if (data?.onPetSpot) this.onPetSpot = data.onPetSpot;
     if (data?.onPetProfessor) this.onPetProfessor = data.onPetProfessor;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
@@ -1286,7 +1289,8 @@ export class DormScene extends Phaser.Scene {
     const trees: Array<[number, number, number]> = [
       [22.5, 3.3, 0.8],
       [43.5, 3.1, 0.75],
-      [24.5, 28.4, 0.68],
+      // moved out of the front-entrance gap and shrunk so it never overhangs the path
+      [27.2, 31, 0.58],
     ];
     for (const [x, y, s] of trees) this.add.sprite(t(x), t(y), "tree").setScale(s).setDepth(t(y));
     for (const [x, y] of [
@@ -1294,7 +1298,22 @@ export class DormScene extends Phaser.Scene {
       [82, 31.2],
     ] as const)
       this.add.sprite(t(x), t(y), "bush").setDepth(t(y));
+    this.buildFrontEntrance();
     // CampusLife owns the repositioned Walk and Quad lamps.
+  }
+
+  /** the dorm's front door: glass double door in the south wall, awning, plaque, night light */
+  private buildFrontEntrance() {
+    const cx = t((FRONT_PATH.x0 + FRONT_PATH.x1 + 1) / 2); // 24.5 tiles
+    // glass double door set into the wall opening (row 22)
+    this.add.image(cx, t(22) + TILE / 2, "campus-glassdoor").setDepth(t(22) + 2);
+    // awning just outside, over the first path tile
+    this.add.image(cx, t(23) + 4, "campus-awning").setDepth(t(23) + 2);
+    // wall-mounted plaque on the brick face beside the door
+    const plaque = this.wallSign(t(27.6), t(22) + TILE / 2, ["FLOOR 3 · RESIDENTS"], "wood", "center");
+    for (const o of plaque.objs) (o as Phaser.GameObjects.Text | Phaser.GameObjects.Graphics).setDepth(t(23) + 3);
+    // warm light over the door at night, clipped to the entrance
+    this.light({ x: cx, y: t(23.2), color: 0xffd39b, radius: 70, poolDy: 40, clip: { x: t(20), y: t(21), w: t(9), h: t(9) } });
   }
 
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
