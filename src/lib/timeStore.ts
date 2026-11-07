@@ -30,6 +30,16 @@ export const setHourOverride = (h: number | null) => {
 };
 export const getHourOverride = () => hourOverride;
 
+/** dev weekday override (0=Sun … 6=Sat); null = Auto (real weekday). Session only, like the hour slider. */
+let weekdayOverride: number | null = null;
+export const setWeekdayOverride = (d: number | null) => {
+  weekdayOverride = d === null ? null : ((Math.round(d) % 7) + 7) % 7;
+  emit();
+};
+export const getWeekdayOverride = () => weekdayOverride;
+/** the weekday the world runs on right now */
+export const currentWeekday = (now: Date = new Date()): number => weekdayOverride ?? now.getDay();
+
 /** the local hour the world runs on right now */
 export const currentHour = (now: Date = new Date()): number => hourOverride ?? now.getHours();
 
@@ -58,6 +68,7 @@ export const useTimeOverride = () => useSyncExternalStore(subscribe, getTimeOver
 /** changes whenever either override changes */
 export const useTimeVersion = () => useSyncExternalStore(subscribe, () => version, () => 0);
 export const useHourOverride = () => useSyncExternalStore(subscribe, getHourOverride, () => null);
+export const useWeekdayOverride = () => useSyncExternalStore(subscribe, getWeekdayOverride, () => null);
 
 /** current phase for the HUD; null until mounted (no SSR guess), re-checked every minute */
 export const usePhase = (): Phase | null => {
