@@ -32,7 +32,7 @@ import {
   type DailyAnswer,
 } from "@/data/prompts";
 import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
-import { fortuneForDate } from "@/data/campus";
+import { fortuneForDate, bookForDate, type Book } from "@/data/campus";
 import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
 import {
@@ -126,6 +126,9 @@ export interface PlayerState {
   savedAt: number;
   lastFountainDate: string | null;
   professorPetted: boolean;
+  /** books taken from the little free library (newest last) */
+  readingList: Array<Book & { date: string }>;
+  lastBookDate: string | null;
 }
 
 const zeroHearts = (): Record<ResidentId, number> => ({ sam: 0, jordan: 0 });
@@ -185,6 +188,8 @@ const defaultState = (): PlayerState => ({
   savedAt: 0,
   lastFountainDate: null,
   professorPetted: false,
+  readingList: [],
+  lastBookDate: null,
 });
 
 /** Iteration 28 fields: floor, door + who has noticed the latest door change */
@@ -349,6 +354,16 @@ export const normalizeSave = (raw: unknown): PlayerState => {
       savedAt: typeof parsed.savedAt === "number" ? parsed.savedAt : 0,
       lastFountainDate: typeof parsed.lastFountainDate === "string" ? parsed.lastFountainDate : null,
       professorPetted: parsed.professorPetted === true,
+      readingList: Array.isArray(parsed.readingList)
+        ? parsed.readingList
+            .filter(
+              (b): b is Book & { date: string } =>
+                !!b && typeof b.title === "string" && typeof b.author === "string" &&
+                typeof b.blurb === "string" && typeof b.date === "string",
+            )
+            .slice(-30)
+        : [],
+      lastBookDate: typeof parsed.lastBookDate === "string" ? parsed.lastBookDate : null,
     };
     Object.assign(next, normalizeCustomize(parsed, next.ownedItemIds));
     // placed colours must be palette colours (Original = no tint)
@@ -680,6 +695,15 @@ export const playerActions = {
     if (state.professorPetted) return false;
     set({ professorPetted: true });
     return true;
+  },
+  /** little free library: one book per real day, onto the Reading list */
+  takeBook() {
+    const date = todayKey();
+    if (state.lastBookDate === date) return null;
+    const book = bookForDate(date);
+    set({ lastBookDate: date, readingList: [...state.readingList, { ...book, date }].slice(-30) });
+    sfx.placeItem();
+    return book;
   },
   setAvatar(look: AvatarLook) {
     const next = normalizeAvatar(look);

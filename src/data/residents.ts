@@ -12,7 +12,7 @@ export const RESIDENT_IDS: ResidentId[] = ["sam", "jordan"];
 
 export type Facing = "down" | "up" | "left" | "right";
 export type Emote = "coffee" | "book" | "headphones" | "pencil" | "tv" | "game" | "music" | "zz" | "shake";
-export type Place = "room" | "bed" | "kitchen" | "study" | "lounge" | "courtyard" | "away";
+export type Place = "room" | "bed" | "kitchen" | "study" | "lounge" | "courtyard" | "firepit" | "garden" | "away";
 
 export interface Block {
   /** local hours, [from, to) — never wraps; 22–1 is split into 22–24 and 0–1 */
@@ -82,7 +82,9 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       kitchen: { x: 52, y: 27, facing: "up" },
       study: { x: 29, y: 26, facing: "up" },
       lounge: { x: 9, y: 28, facing: "up" },
-      courtyard: { x: 32, y: 58, facing: "up" },
+      courtyard: { x: 32, y: 59, facing: "up" },
+      firepit: { x: 74, y: 15, facing: "right" },
+      garden: { x: 72, y: 10, facing: "up" },
     },
     schedule: [
       { from: 0, to: 1, place: "room", activity: "reading way past bedtime", emote: "book" },
@@ -116,6 +118,8 @@ export const RESIDENTS: Record<ResidentId, ResidentDef> = {
       study: { x: 32, y: 26, facing: "up" },
       lounge: { x: 17, y: 26, facing: "up" },
       courtyard: { x: 78, y: 20, facing: "left" },
+      firepit: { x: 78, y: 15, facing: "left" },
+      garden: { x: 76, y: 10, facing: "up" },
     },
     schedule: [
       { from: 0, to: 1, place: "room", activity: "one more mix on the decks", emote: "music" },
@@ -136,9 +140,23 @@ export const residentByRoom = (roomId: string): ResidentDef | undefined =>
 
 const norm = (h: number) => ((Math.floor(h) % 24) + 24) % 24;
 
-/** the schedule block for a local hour (0–23) */
-export const blockAt = (id: ResidentId, hour: number): Block => {
+/**
+ * Weekend rhythm (real weekday, 0=Sun): Fri/Sat/Sun 20–22 both residents sit at the
+ * backyard fire pit instead of the lounge; Sat/Sun 10–12 Sam tends the garden.
+ */
+const weekendBlock = (id: ResidentId, hour: number, weekday: number): Block | null => {
+  if ((weekday === 5 || weekday === 6 || weekday === 0) && hour >= 20 && hour < 22)
+    return { from: 20, to: 22, place: "firepit", activity: "at the backyard fire pit", emote: "coffee" };
+  if (id === "sam" && (weekday === 6 || weekday === 0) && hour >= 10 && hour < 12)
+    return { from: 10, to: 12, place: "garden", activity: "tending the community garden", emote: "pencil" };
+  return null;
+};
+
+/** the schedule block for a local hour (0–23); weekday defaults to today's real weekday */
+export const blockAt = (id: ResidentId, hour: number, weekday: number = new Date().getDay()): Block => {
   const h = norm(hour);
+  const override = weekendBlock(id, h, ((Math.floor(weekday) % 7) + 7) % 7);
+  if (override) return override;
   const b = RESIDENTS[id].schedule.find((s) => h >= s.from && h < s.to);
   return b ?? RESIDENTS[id].schedule[0]!;
 };
@@ -175,7 +193,9 @@ const PLACE_NAME: Record<Place, string> = {
   kitchen: "the Kitchenette",
   study: "the Study Lounge",
   lounge: "the Common Lounge",
-  courtyard: "the courtyard",
+  courtyard: "the Backyard",
+  firepit: "the fire pit",
+  garden: "the community garden",
   away: "out",
 };
 
@@ -249,6 +269,11 @@ const VOICES: Record<ResidentId, Voice> = {
       ["study", "Study lounge is quiet until Jordan's headphones leak. Then it's a rave."],
       ["courtyard", "I'm sketching the tree. The tree is not cooperating."],
       ["courtyard", "Golden hour makes everyone look like they're in a movie. Even you."],
+      ["firepit", "The fire pit makes every conversation 40% better. That's science."],
+      ["firepit", "I brought marshmallows. I ate them. Bring your own next time."],
+      ["firepit", "This beats the lounge couch. Don't tell the couch."],
+      ["garden", "The tomatoes are in their leafy era. I'm so proud."],
+      ["garden", "I talk to the seedlings. Jordan plays them house music. Balance."],
       ["lounge", "We're watching something slow. You'll hate it. Sit down."],
       ["lounge", "This couch has eaten three of my pencils. It's a tax."],
       ["room", "Reading the same chapter for the third time. It's good every time."],
@@ -291,6 +316,9 @@ const VOICES: Record<ResidentId, Voice> = {
       ["lounge", "I'm one level from the high score. Don't breathe."],
       ["lounge", "Controller 2 drifts left. That's why I always pick controller 1."],
       ["lounge", "Late-night records in the lounge hit different. Pull up a beanbag."],
+      ["firepit", "Fire pit nights hit different. Somebody bring a speaker."],
+      ["firepit", "Weekend rule: no deadlines past the flames."],
+      ["firepit", "I ran here. To sit. That's called balance."],
     ],
     filler: [
       "Ran 8 miles this morning. Ask me how I feel. Amazing.",

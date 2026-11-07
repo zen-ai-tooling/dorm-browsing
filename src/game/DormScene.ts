@@ -34,7 +34,7 @@ import {
 } from "@/data/items";
 import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
 import { CampusLife } from "./CampusLife";
-import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL } from "@/data/campus";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate } from "@/data/campus";
 import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
@@ -222,7 +222,7 @@ const COMMON: Zone[] = [
   },
   {
     id: "courtyard",
-    label: "Courtyard",
+    label: "Backyard",
     x: 69,
     y: 7,
     w: 16,
@@ -252,6 +252,9 @@ const DOORWAYS: Array<[number, number]> = [
   // courtyard <-> hallway (shared wall column x=68)
   [68, 18],
   [68, 19],
+  // front entrance: hallway's south wall into the gap between Lounge and Study
+  [24, 22],
+  [25, 22],
 ];
 
 interface PropDef {
@@ -440,6 +443,7 @@ export class DormScene extends Phaser.Scene {
   private myZone: Zone | null = null;
   /** Iteration 26: residents, their doors, knocking, the evening visit */
   private getHour: () => number = () => new Date().getHours();
+  private getWeekday: () => number = () => new Date().getDay();
   private onKnockSpot: (id: ResidentId | null) => void = () => {};
   private onSoldHint: (h: { itemId: string; x: number; y: number } | null) => void = () => {};
   private getVisitLine: (id: ResidentId) => string | null = () => null;
@@ -482,6 +486,7 @@ export class DormScene extends Phaser.Scene {
     getPlayerName?: () => string;
     getHour?: () => number;
     getHourOverride?: () => number | null;
+    getWeekday?: () => number;
     onPetSpot?: (near: boolean) => void;
     onPetProfessor?: () => void;
     onKnockSpot?: (id: ResidentId | null) => void;
@@ -503,6 +508,7 @@ export class DormScene extends Phaser.Scene {
     if (data?.onUndoRecolor) this.onUndoRecolor = data.onUndoRecolor;
     if (data?.getHour) this.getHour = data.getHour;
     if (data?.getHourOverride) this.getHourOverride = data.getHourOverride;
+    if (data?.getWeekday) this.getWeekday = data.getWeekday;
     if (data?.onPetSpot) this.onPetSpot = data.onPetSpot;
     if (data?.onPetProfessor) this.onPetProfessor = data.onPetProfessor;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
@@ -561,7 +567,7 @@ export class DormScene extends Phaser.Scene {
       findPath: (sx, sy, gx, gy) => this.findPath(sx, sy, gx, gy),
       getHour: () => this.getHour(), getHourOverride: () => this.getHourOverride(),
       onPetSpot: (near) => this.onPetSpot(near), onPet: () => this.onPetProfessor(),
-      jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour()).awayNote === "at the library",
+      jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour(), this.getWeekday()).awayNote === "at the library",
       onPayloadChange: (payload) => { if (this.activePayload === payload) this.onPopup({ ...payload }); },
       register: (sprite, payload) => {
         const ring = this.add.image(sprite.x, sprite.y, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
@@ -601,7 +607,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.myTrim = personal[0]!.wall;
     this.myZone = personal[0]!;
-    return [HALL, ...personal, ...COMMON, { id: "campus", label: "Campus", x: 1, y: 35, w: 86, h: 25, floor: EXT_GROUND, wall: NEUTRAL_WALL, kind: "campus" }];
+    return [HALL, ...personal, ...COMMON, { id: "campus", label: "Campus", x: 1, y: 35, w: 86, h: CAMPUS_H - 35, floor: EXT_GROUND, wall: NEUTRAL_WALL, kind: "campus" }];
   }
 
   private buildGrid(zones: Zone[]) {
@@ -1048,7 +1054,9 @@ export class DormScene extends Phaser.Scene {
     const isPath = isCampusPath;
     for (let ty = 0; ty < GRID_H; ty++)
       for (let tx = 0; tx < GRID_W; tx++) {
-        if (this.grid[ty]?.[tx] !== VOID && !isCampusGround(tx, ty) && !(SPUR_COLS.includes(tx) && ty >= SPUR_ROWS[0] && ty <= SPUR_ROWS[1])) continue;
+        const onSpur = SPUR_COLS.includes(tx) && ty >= SPUR_ROWS[0] && ty <= SPUR_ROWS[1];
+        const onFront = tx >= FRONT_PATH.x0 && tx <= FRONT_PATH.x1 && ty >= FRONT_PATH.y0 && ty <= FRONT_PATH.y1;
+        if (this.grid[ty]?.[tx] !== VOID && !isCampusGround(tx, ty) && !onSpur && !onFront) continue;
         const ox = tx * U;
         const oy = ty * U;
         const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
@@ -1265,7 +1273,7 @@ export class DormScene extends Phaser.Scene {
     this.lighting.setAmbient(ROOMS[0]!.id, this.insideMyRoom ? clip(ROOMS[0]!.id) : null);
     for (const id of RESIDENT_IDS) {
       const roomId = RESIDENTS[id].roomId;
-      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour)) ? clip(roomId) : null);
+      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour, this.getWeekday())) ? clip(roomId) : null);
     }
     const commonsLit = hour >= 18 || hour < 1;
     for (const zid of ["lounge", "study", "kitchen"]) this.lighting.setAmbient(zid, commonsLit ? clip(zid) : null);
@@ -1281,7 +1289,8 @@ export class DormScene extends Phaser.Scene {
     const trees: Array<[number, number, number]> = [
       [22.5, 3.3, 0.8],
       [43.5, 3.1, 0.75],
-      [24.5, 28.4, 0.68],
+      // moved out of the front-entrance gap and shrunk so it never overhangs the path
+      [27.2, 31, 0.58],
     ];
     for (const [x, y, s] of trees) this.add.sprite(t(x), t(y), "tree").setScale(s).setDepth(t(y));
     for (const [x, y] of [
@@ -1289,7 +1298,22 @@ export class DormScene extends Phaser.Scene {
       [82, 31.2],
     ] as const)
       this.add.sprite(t(x), t(y), "bush").setDepth(t(y));
+    this.buildFrontEntrance();
     // CampusLife owns the repositioned Walk and Quad lamps.
+  }
+
+  /** the dorm's front door: glass double door in the south wall, awning, plaque, night light */
+  private buildFrontEntrance() {
+    const cx = t((FRONT_PATH.x0 + FRONT_PATH.x1 + 1) / 2); // 24.5 tiles
+    // glass double door set into the wall opening (row 22)
+    this.add.image(cx, t(22) + TILE / 2, "campus-glassdoor").setDepth(t(22) + 2);
+    // awning just outside, over the first path tile
+    this.add.image(cx, t(23) + 4, "campus-awning").setDepth(t(23) + 2);
+    // wall-mounted plaque on the brick face beside the door
+    const plaque = this.wallSign(t(27.6), t(22) + TILE / 2, ["FLOOR 3 · RESIDENTS"], "wood", "center");
+    for (const o of plaque.objs) (o as Phaser.GameObjects.Text | Phaser.GameObjects.Graphics).setDepth(t(23) + 3);
+    // warm light over the door at night, clipped to the entrance
+    this.light({ x: cx, y: t(23.2), color: 0xffd39b, radius: 70, poolDy: 40, clip: { x: t(20), y: t(21), w: t(9), h: t(9) } });
   }
 
   /** thin woven mat on every doorway; bedroom mats sit on the first hall floor row outside the wall */
@@ -1300,7 +1324,9 @@ export class DormScene extends Phaser.Scene {
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
         : 0xc3b39a;
-      const my = personal ? HALL.y + 1 : y;
+      // the front door's welcome mat sits inside the hall, one row above the doorway
+      const front = y === 22 && x >= FRONT_PATH.x0 && x <= FRONT_PATH.x1;
+      const my = personal ? HALL.y + 1 : front ? y - 1 : y;
       this.add
         .image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat")
         .setTint(tint)
@@ -1515,7 +1541,7 @@ export class DormScene extends Phaser.Scene {
     const hour = this.getHour();
     for (const d of this.doors.values()) {
       const r = residentByRoom(d.room.id);
-      const block = r ? blockAt(r.id, hour) : null;
+      const block = r ? blockAt(r.id, hour, this.getWeekday()) : null;
       const away = block ? (isAway(block) ? block.awayNote ?? "away" : undefined) : d.room.isActive ? undefined : d.room.awayNote;
       const active = block ? isHome(block) : d.room.isActive;
       const key = `${away ?? ""}|${active}`;
@@ -1595,7 +1621,7 @@ export class DormScene extends Phaser.Scene {
       }
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
       const res = residentByRoom(b.residentId);
-      const asleep = !!res && isAsleep(blockAt(res.id, this.getHour()));
+      const asleep = !!res && isAsleep(blockAt(res.id, this.getHour(), this.getWeekday()));
       b.text.setText(asleep ? "asleep" : answer ? boardText(answer) : "?");
       b.text.setFontSize(asleep || answer ? 8 : 14);
       b.sparkle?.setVisible(isMine && !answer);
@@ -3047,20 +3073,57 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "bin", x: t(K.x + 1.8) + 8, y: t(K.y + 8.6), tint: 0x7fa58a });
     this.prop({ key: "plant", x: t(K.x + 11.3), y: t(K.y + 8.5), scale: 0.9 });
 
-    // ---- Courtyard ----
+    // ---- Backyard ----
     const C = COMMON[3]!;
+    // stone path from the dorm door across to the gate
+    const pathG = this.add.graphics().setDepth(1.1);
+    for (let ty = C.y; ty < C.y + C.h; ty++)
+      for (let tx = C.x; tx < C.x + C.w; tx++) {
+        if (!isBackyardPath(tx, ty)) continue;
+        pathG.fillStyle(0xa59d8c, 1).fillRect(t(tx), t(ty), TILE, TILE);
+        pathG.fillStyle(0x7d7668, 1).fillRect(t(tx), t(ty), TILE, 2).fillRect(t(tx) + ((ty % 2) * 16 + 7) % TILE, t(ty), 2, TILE);
+        pathG.fillStyle(0xc2bbab, 1).fillRect(t(tx), t(ty) + 2, TILE, 2);
+      }
+    // two trees 4 tiles apart, hammock slung between them
     this.prop({ key: "tree", x: t(C.x + 3), y: t(C.y + 3.4), solid: true });
-    this.prop({ key: "tree", x: t(C.x + 12.6), y: t(C.y + 16.6), scale: 0.85, solid: true });
+    this.prop({ key: "tree", x: t(C.x + 7), y: t(C.y + 3.4), scale: 0.9, solid: true });
+    this.hammock = this.add.sprite(t(HAMMOCK.x + 0.5), t(HAMMOCK.y) + 6, "campus-hammock-0").setOrigin(0.5, 0).setDepth(t(HAMMOCK.y) + 4);
+    // community garden: 3 raised beds, growth stage per real day (restaged in refreshDaily)
+    this.gardenBeds = GARDEN_BEDS.map(([bx, by], i) => {
+      const s = this.add.sprite(t(bx + 1.5), t(by + 1), `campus-garden-${i % 4}`).setOrigin(0.5, 1).setDepth(t(by + 1));
+      const zone = this.add.zone(t(bx + 1.5), t(by) + TILE / 2, t(3) * 0.85, TILE * 0.7);
+      this.walls.add(zone);
+      for (let gx = bx; gx < bx + 3; gx++) if (this.grid[by]?.[gx] === FLOOR) this.grid[by]![gx] = BLOCKED;
+      return s;
+    });
+    // fire pit + 4 Adirondack chairs (flames + light only 18:00–01:00, see updateBackyard)
+    this.firePit = this.add.sprite(t(FIRE_PIT.x + 0.5), t(FIRE_PIT.y + 1), "campus-firepit-0").setOrigin(0.5, 1).setDepth(t(FIRE_PIT.y + 1));
+    this.prop({ key: "crate", x: t(FIRE_PIT.x + 0.5), y: t(FIRE_PIT.y + 1), scale: 0.01, solid: true }); // collision only
+    for (const [cx, cy, flip] of [[FIRE_PIT.x - 2, FIRE_PIT.y - 1, false], [FIRE_PIT.x + 2, FIRE_PIT.y - 1, true], [FIRE_PIT.x - 1.6, FIRE_PIT.y + 1.6, false], [FIRE_PIT.x + 1.6, FIRE_PIT.y + 1.6, true]] as const)
+      this.add.sprite(t(cx + 0.5), t(cy + 1), "campus-chair").setOrigin(0.5, 1).setDepth(t(cy + 1)).setFlipX(flip);
+    // picnic table (BBQ hub) + grill + volleyball net + little free library + clothesline + bikes
+    this.prop({ key: "campus-picnic", x: t(C.x + 2.5), y: t(C.y + 10), solid: true });
+    this.grill = this.add.sprite(t(C.x + 0.8), t(C.y + 8.6), "campus-grill").setOrigin(0.5, 1).setDepth(t(C.y + 8.6));
+    this.add.sprite(t(C.x + 13), t(C.y + 14), "campus-net").setOrigin(0.5, 1).setDepth(t(C.y + 14));
+    this.prop({
+      key: "campus-littlelib",
+      x: t(C.x + 5),
+      y: t(C.y + 19),
+      payload: { kind: "book" },
+      solid: true,
+    });
+    this.clothesline = this.add.sprite(t(C.x + 2.5), t(C.y + 16), "campus-clothesline-0").setOrigin(0.5, 1).setDepth(t(C.y + 16));
+    this.add.sprite(t(C.x + 10), t(C.y + 20), "campus-bikerack").setOrigin(0.5, 1).setDepth(t(C.y + 20));
     this.prop({
       key: "bench",
       x: t(C.x + 6.6),
       y: t(C.y + 11.6),
       payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard },
     });
-    this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
-    this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
-    this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
-    // string lights across the courtyard: tiny per-bulb cut-outs + one faint strip below
+    // daily chalk drawing on the path (redrawn in refreshDaily)
+    this.chalk = this.add.graphics().setDepth(1.2);
+    // weekend event sprites (BBQ crew / volleyball players) are built lazily in updateBackyard
+    // string lights across the backyard: tiny per-bulb cut-outs + one faint strip below
     for (let i = 0; i < 16; i++) {
       const lx = t(C.x + 0.6) + i * 30;
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
@@ -3077,6 +3140,9 @@ export class DormScene extends Phaser.Scene {
       strip: { w: t(C.w - 1), h: 34 },
       strength: 0.7,
     });
+    // fireflies on summer nights, drifting leaves in autumn
+    for (let i = 0; i < 6; i++)
+      this.backyardMotes.push(this.add.rectangle(0, 0, 3, 3, 0xf0d88f).setDepth(t(C.y + 20)).setVisible(false));
 
 
     // ---- hallway shared props ----
@@ -3499,7 +3565,7 @@ export class DormScene extends Phaser.Scene {
       buildCharTextures(this, prefix, def.look);
       const sprite = this.add.sprite(0, 0, `${prefix}-down-0`).setOrigin(0.5, 0.85).setScale(1.1);
       const ring = this.add.image(0, 0, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
-      const block = blockAt(id, hour);
+      const block = blockAt(id, hour, this.getWeekday());
       const rt: ResidentRT = {
         def,
         prefix,
@@ -3590,7 +3656,7 @@ export class DormScene extends Phaser.Scene {
   refreshResidents() {
     const hour = this.getHour();
     for (const rt of this.residents.values()) {
-      const b = blockAt(rt.def.id, hour);
+      const b = blockAt(rt.def.id, hour, this.getWeekday());
       const key = blockKey(b);
       if (key === rt.key) continue;
       rt.key = key;
@@ -3822,7 +3888,7 @@ export class DormScene extends Phaser.Scene {
         this.onVisitLine(id, line);
         this.time.delayedCall(5400, () => {
           this.visiting = null;
-          rt.block = blockAt(id, this.getHour());
+          rt.block = blockAt(id, this.getHour(), this.getWeekday());
           rt.key = blockKey(rt.block);
           this.goToBlock(rt);
         });

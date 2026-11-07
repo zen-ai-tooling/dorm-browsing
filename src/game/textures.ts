@@ -237,6 +237,114 @@ export const buildCampusTextures = (scene: Phaser.Scene) => {
   make(scene, "campus-frisbee", 12, 5, (g) => panel(g, 0, 1, 12, 3, 0xf0cb65, 0xb37a44, 0xffeaa0));
   make(scene, "campus-skateboard", 18, 6, (g) => { panel(g, 0, 0, 18, 3, 0xb4788d, 0x724e65, 0xe7b0b3); r(g, 3, 4, 3, 2, INK); r(g, 12, 4, 3, 2, INK); });
   make(scene, "campus-backpack", 10, 13, (g) => panel(g, 1, 1, 8, 11, 0xa8614b, 0x714539, 0xca9170));
+  // Bike rack with two bikes (front path + library west path).
+  make(scene, "campus-bikerack", 24, 15, (g) => {
+    for (const x of [2, 10, 18]) { r(g, x, 4, 2, 9, METAL); r(g, x, 4, 6, 2, METAL); }
+    for (const bx of [1, 12]) {
+      r(g, bx, 8, 4, 4, INK); r(g, bx + 1, 9, 2, 2, 0x5b7848);
+      r(g, bx + 7, 8, 4, 4, INK); r(g, bx + 8, 9, 2, 2, 0x5b7848);
+      r(g, bx + 3, 7, 5, 2, 0xb85b4e); r(g, bx + 7, 5, 3, 2, METAL); r(g, bx + 2, 5, 3, 2, INK);
+    }
+  });
+  // Trash + recycling pair.
+  make(scene, "campus-trash", 16, 12, (g) => {
+    panel(g, 1, 3, 6, 8, 0x6c6975, 0x4a4750, 0x8d8a94);
+    panel(g, 9, 3, 6, 8, 0x4a7a8c, 0x33525e, 0x6fa5b5);
+    r(g, 0, 2, 8, 2, INK); r(g, 8, 2, 8, 2, INK);
+    r(g, 10, 5, 3, 1, 0xd7edf0); r(g, 11, 6, 1, 3, 0xd7edf0);
+  });
+  // Campus map signpost.
+  make(scene, "campus-signpost", 14, 20, (g) => {
+    r(g, 6, 8, 2, 12, WOOD_SH);
+    panel(g, 1, 1, 12, 8, 0x54776f, 0x38514f, 0x8ca397);
+    r(g, 3, 3, 8, 1, 0xf4d4a3); r(g, 3, 5, 6, 1, 0xd3cb86); r(g, 3, 7, 7, 1, 0xa5bdcd);
+  });
+  // Fire pit: stone ring + stepped flame frames.
+  for (let frame = 0; frame < 3; frame++) make(scene, `campus-firepit-${frame}`, 22, 14, (g) => {
+    for (const [x, y] of [[2, 8], [6, 6], [12, 6], [16, 8], [2, 11], [16, 11], [6, 12], [12, 12]] as const)
+      panel(g, x ?? 0, y ?? 0, 4, 3, 0x8d8a94, 0x5a5762, 0xb5b2ba);
+    r(g, 6, 8, 10, 4, 0x3a2c26);
+    const f = frame - 1;
+    r(g, 9, 4 + f, 4, 5, 0xd56153); r(g, 10, 2 + f, 2, 3, 0xe9ac54); r(g, 10, 6, 3, 3, 0xf1d467);
+    r(g, 8, 7 - f, 2, 3, 0xe9ac54); r(g, 13, 7 + f, 2, 3, 0xe9ac54);
+  });
+  // Adirondack chair.
+  make(scene, "campus-chair", 14, 15, (g) => {
+    for (let i = 0; i < 4; i++) r(g, 3 + i * 2, 1, 2, 8 - i, i % 2 ? 0x9c6b4f : 0xb57c5c);
+    r(g, 2, 8, 10, 3, 0x9c6b4f); r(g, 1, 7, 3, 2, 0xb57c5c); r(g, 10, 7, 3, 2, 0xb57c5c);
+    r(g, 3, 11, 2, 4, INK); r(g, 9, 11, 2, 4, INK);
+  });
+  // Raised garden bed, 4 growth stages (3×1 tiles).
+  for (let stage = 0; stage < 4; stage++) make(scene, `campus-garden-${stage}`, 48, 16, (g) => {
+    panel(g, 0, 8, 48, 8, WOOD, WOOD_SH, WOOD_HI);
+    r(g, 2, 9, 44, 5, 0x4a3628);
+    for (let i = 0; i < 6; i++) {
+      const x = 4 + i * 7;
+      if (stage === 0) { r(g, x, 7, 2, 2, 0x8fa876); r(g, x + 2, 8, 1, 1, 0x8fa876); }
+      if (stage === 1) { r(g, x, 5, 2, 4, 0x6e9854); r(g, x + 2, 6, 2, 3, 0x9db76b); }
+      if (stage === 2) { r(g, x, 5, 2, 4, 0x6e9854); r(g, x + 2, 6, 2, 3, 0x9db76b); r(g, x + 1, 3, 2, 2, i % 2 ? 0xefb8c8 : 0xf1d467); }
+      if (stage === 3) { r(g, x, 5, 2, 4, 0x6e9854); r(g, x + 2, 6, 2, 3, 0x9db76b); r(g, x, 4, 3, 3, i % 2 ? 0xd56153 : 0xe9ac54); }
+    }
+  });
+  // Hammock slung between two trees, 2 sway frames (4 tiles wide).
+  for (let frame = 0; frame < 2; frame++) make(scene, `campus-hammock-${frame}`, 64, 14, (g) => {
+    const dip = frame * 1;
+    for (let i = 0; i < 15; i++) {
+      const x = 2 + i * 4;
+      const y = 2 + Math.floor(Math.sin((i / 14) * Math.PI) * (6 + dip));
+      r(g, x, y, 4, 3, i % 2 ? 0xd8b48a : 0xc49a6c);
+    }
+    r(g, 0, 1, 4, 2, WOOD_SH); r(g, 60, 1, 4, 2, WOOD_SH);
+  });
+  // Volleyball net (always up in the backyard).
+  make(scene, "campus-net", 6, 22, (g) => {
+    r(g, 0, 0, 2, 22, WOOD_SH); r(g, 4, 0, 2, 22, WOOD_SH);
+    for (let y = 2; y < 20; y += 3) r(g, 1, y, 4, 1, 0xd8cfc2);
+    for (const x of [2, 3]) r(g, x, 2, 1, 18, 0xd8cfc2);
+    r(g, 0, 1, 6, 1, 0xf3ead2);
+  });
+  // BBQ grill.
+  make(scene, "campus-grill", 14, 18, (g) => {
+    panel(g, 2, 4, 10, 7, 0x3c4048, 0x23262c, 0x5a6068);
+    r(g, 3, 2, 8, 2, 0x23262c); r(g, 4, 5, 6, 1, 0xd56153);
+    r(g, 3, 11, 2, 6, INK); r(g, 9, 11, 2, 6, INK); r(g, 6, 11, 2, 4, METAL_SH);
+    r(g, 11, 6, 3, 2, METAL);
+  });
+  // Little free library: wooden box on a post.
+  make(scene, "campus-littlelib", 14, 18, (g) => {
+    r(g, 6, 10, 2, 8, WOOD_SH);
+    panel(g, 1, 2, 12, 9, 0x8a5a34, 0x5e3c22, 0xcf9a66);
+    r(g, 0, 1, 14, 2, 0x5e3c22);
+    panel(g, 3, 4, 8, 5, 0x364f59, 0x243840, 0x68848b);
+    r(g, 4, 5, 2, 3, 0xf4d4a3); r(g, 7, 5, 2, 3, 0xe69b8d);
+  });
+  // Clothesline with 3 laundry pieces, 2 flap frames (4 tiles wide).
+  for (let frame = 0; frame < 2; frame++) make(scene, `campus-clothesline-${frame}`, 64, 18, (g) => {
+    r(g, 0, 0, 2, 18, WOOD_SH); r(g, 62, 0, 2, 18, WOOD_SH);
+    r(g, 2, 2, 60, 1, 0xd8cfc2);
+    const pieces: Array<[number, number, number]> = [[10, 0xe69b8d, 8], [28, 0xa5bdcd, 10], [46, 0xf1d467, 7]];
+    for (const [x, c, h] of pieces) {
+      r(g, x, 3, 6, h + frame, c);
+      r(g, x, 3, 6, 1, INK); r(g, x, 3 + h + frame - 1, 6, 1, INK);
+      r(g, x + (frame ? 1 : 0), 3 + h + frame, 4, 1, c);
+    }
+  });
+  // Front entrance: glass double door set into the hall's south wall (2 tiles wide).
+  make(scene, "campus-glassdoor", 32, 24, (g) => {
+    panel(g, 0, 0, 32, 24, 0x6b5a4a, 0x4a3d33, 0x8a765f);
+    for (const x of [3, 17]) {
+      panel(g, x, 3, 12, 19, 0x7fa8b8, 0x4a6a78, 0xa8ccd8);
+      r(g, x + 2, 5, 3, 2, 0xd8ecf2); r(g, x + 2, 9, 2, 6, 0xd8ecf2);
+    }
+    r(g, 14, 12, 2, 4, 0xe0b858); r(g, 17, 12, 2, 4, 0xe0b858);
+    r(g, 0, 22, 32, 2, 0x4a3d33);
+  });
+  // Entry awning over the front door.
+  make(scene, "campus-awning", 40, 10, (g) => {
+    for (let x = 0; x < 40; x += 8) r(g, x, 0, 8, 7, x % 16 === 0 ? 0xb85b4e : 0xe9dab8);
+    r(g, 0, 7, 40, 2, 0x7a4334);
+    for (let x = 4; x < 40; x += 8) r(g, x, 9, 2, 1, 0x4f2b25);
+  });
   // Prewarm the current month's texture name; all seasonal variants are generated above.
   void leafPhaseForMonth(new Date().getMonth() + 1);
 };
