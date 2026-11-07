@@ -34,7 +34,7 @@ import {
 } from "@/data/items";
 import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
 import { CampusLife } from "./CampusLife";
-import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL } from "@/data/campus";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate } from "@/data/campus";
 import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
@@ -222,7 +222,7 @@ const COMMON: Zone[] = [
   },
   {
     id: "courtyard",
-    label: "Courtyard",
+    label: "Backyard",
     x: 69,
     y: 7,
     w: 16,
@@ -252,6 +252,9 @@ const DOORWAYS: Array<[number, number]> = [
   // courtyard <-> hallway (shared wall column x=68)
   [68, 18],
   [68, 19],
+  // front entrance: hallway's south wall into the gap between Lounge and Study
+  [24, 22],
+  [25, 22],
 ];
 
 interface PropDef {
@@ -601,7 +604,7 @@ export class DormScene extends Phaser.Scene {
     });
     this.myTrim = personal[0]!.wall;
     this.myZone = personal[0]!;
-    return [HALL, ...personal, ...COMMON, { id: "campus", label: "Campus", x: 1, y: 35, w: 86, h: 25, floor: EXT_GROUND, wall: NEUTRAL_WALL, kind: "campus" }];
+    return [HALL, ...personal, ...COMMON, { id: "campus", label: "Campus", x: 1, y: 35, w: 86, h: CAMPUS_H - 35, floor: EXT_GROUND, wall: NEUTRAL_WALL, kind: "campus" }];
   }
 
   private buildGrid(zones: Zone[]) {
@@ -1048,7 +1051,9 @@ export class DormScene extends Phaser.Scene {
     const isPath = isCampusPath;
     for (let ty = 0; ty < GRID_H; ty++)
       for (let tx = 0; tx < GRID_W; tx++) {
-        if (this.grid[ty]?.[tx] !== VOID && !isCampusGround(tx, ty) && !(SPUR_COLS.includes(tx) && ty >= SPUR_ROWS[0] && ty <= SPUR_ROWS[1])) continue;
+        const onSpur = SPUR_COLS.includes(tx) && ty >= SPUR_ROWS[0] && ty <= SPUR_ROWS[1];
+        const onFront = tx >= FRONT_PATH.x0 && tx <= FRONT_PATH.x1 && ty >= FRONT_PATH.y0 && ty <= FRONT_PATH.y1;
+        if (this.grid[ty]?.[tx] !== VOID && !isCampusGround(tx, ty) && !onSpur && !onFront) continue;
         const ox = tx * U;
         const oy = ty * U;
         const seed = Math.abs((tx * 73856093) ^ (ty * 19349663));
@@ -1300,7 +1305,9 @@ export class DormScene extends Phaser.Scene {
       const tint = personal
         ? mix(Phaser.Display.Color.HexStringToColor(personal.accentColor).color, 0xd8c8ad, 0.45)
         : 0xc3b39a;
-      const my = personal ? HALL.y + 1 : y;
+      // the front door's welcome mat sits inside the hall, one row above the doorway
+      const front = y === 22 && x >= FRONT_PATH.x0 && x <= FRONT_PATH.x1;
+      const my = personal ? HALL.y + 1 : front ? y - 1 : y;
       this.add
         .image(t(x) + TILE / 2, t(my) + TILE / 2, "doormat")
         .setTint(tint)
