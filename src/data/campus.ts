@@ -56,10 +56,16 @@ export const openCampusGrid = (grid: number[][]) => {
     const row = grid[y];
     if (row) row[x] = 1;
   }
+  // front entrance: stone path from the hallway's south door down to the Walk
+  for (let y = FRONT_PATH.y0; y <= FRONT_PATH.y1; y++) for (let x = FRONT_PATH.x0; x <= FRONT_PATH.x1; x++) {
+    const row = grid[y];
+    if (row) row[x] = 1;
+  }
 };
 export const isCampusPath = (x: number, y: number) =>
   (y >= 35 && y <= 37 && x >= 3 && x <= 84) ||
   (x >= 76 && x <= 77 && y >= 28 && y <= 34) ||
+  (x >= FRONT_PATH.x0 && x <= FRONT_PATH.x1 && y >= FRONT_PATH.y0 && y <= FRONT_PATH.y1) ||
   (y >= 38 && ((x >= 20 && x <= 22) || (x >= 58 && x <= 60))) ||
   (y >= 50 && y <= 51 && x >= 35 && x <= 46) ||
   (y >= 51 && (Math.abs(y - (51 + (x - 18) / 7)) < 0.65 || Math.abs(y - (51 + (70 - x) / 7)) < 0.65));
@@ -144,8 +150,87 @@ export const drinkForDate = (date: string) => DRINKS[seedFor(`${date}:drink`) % 
 /** Library doors/steps axis that must stay clear of props and canopy all the way down the Quad. */
 export const LIBRARY_AXIS = { x0: 38, x1: 43, y0: 50, y1: CAMPUS_H - 1 };
 /** Outdoor tiles walk faster than rooms. */
-export const isOutdoorTile = (x: number, y: number) => y >= 35 || (y >= 28 && x >= 76 && x <= 77);
+export const isOutdoorTile = (x: number, y: number) =>
+  y >= 35 || (y >= 28 && x >= 76 && x <= 77) ||
+  (x >= FRONT_PATH.x0 && x <= FRONT_PATH.x1 && y >= FRONT_PATH.y0 && y <= FRONT_PATH.y1);
 export const OUTDOOR_SPEED = 1.4;
 export const JOG_SPEED = 1.8;
-/** Quick-travel destinations for the Me menu (tile targets). */
-export const QUICK_TRAVEL = { quad: { x: 41, y: 56 }, library: { x: 40, y: 51 } } as const;
+/** Quick-travel destinations for the Me menu and the campus map (tile targets). */
+export const QUICK_TRAVEL = {
+  quad: { x: 41, y: 57 },
+  library: { x: 40, y: 51 },
+  truck: { x: 65, y: 54 },
+  study: { x: 35, y: 28 },
+  kitchen: { x: 54, y: 28 },
+  backyard: { x: 76, y: 21 },
+} as const;
+
+/* ---------------- the Backyard (courtyard zone x69–84, y7–27) ---------------- */
+
+export const BACKYARD = { x: 69, y: 7, w: 16, h: 21 };
+/** stone path: from the dorm door (x68, rows 18–19) across to the gate spur (x75–76 down to row 27) */
+export const isBackyardPath = (x: number, y: number) =>
+  (y === 19 && x >= 69 && x <= 76) || (x >= 75 && x <= 76 && y >= 19 && y <= 27);
+export const FIRE_PIT = { x: 76, y: 14 };
+export const GARDEN_BEDS = [[70, 9], [74, 9], [78, 9]] as const;
+export const HAMMOCK = { x: 73, y: 12 };
+export const GARDEN_STAGES = ["sprout", "leafy", "flowering", "ready"] as const;
+/** one stage per real day, staggered per bed */
+export const gardenStage = (bed: number, date: string) => {
+  const epoch = Math.floor(new Date(`${date}T12:00:00`).getTime() / 86400000);
+  return GARDEN_STAGES[(((epoch + bed) % 4) + 4) % 4] ?? "sprout";
+};
+export const firePitLit = (hour: number) => hour >= 18 || hour < 1;
+export const bbqOn = (weekday: number, hour: number) => weekday === 6 && hour >= 12 && hour < 18;
+export const volleyballOn = (weekday: number, hour: number) => weekday === 0 && hour >= 13 && hour < 17;
+
+/** daily chalk drawing on the backyard path: light pixel strokes in a 2×2-tile box (64×64 px) */
+export const CHALK_DRAWINGS: Array<{ id: string; text?: string; lines: Array<[number, number, number, number]> }> = [
+  { id: "hopscotch", lines: [[28, 4, 36, 4], [28, 4, 28, 60], [36, 4, 36, 60], [28, 18, 36, 18], [20, 32, 44, 32], [20, 32, 20, 46], [44, 32, 44, 46], [20, 46, 44, 46], [28, 60, 36, 60]] },
+  { id: "heart", lines: [[24, 20, 32, 12], [32, 12, 40, 20], [24, 20, 20, 28], [40, 20, 44, 28], [20, 28, 32, 48], [44, 28, 32, 48]] },
+  { id: "floor-rules", text: "FLOOR 3 RULES", lines: [[8, 44, 56, 44]] },
+  { id: "professor", lines: [[22, 18, 26, 10], [26, 10, 30, 18], [34, 18, 38, 10], [38, 10, 42, 18], [22, 18, 22, 34], [42, 18, 42, 34], [22, 34, 42, 34], [26, 24, 28, 24], [36, 24, 38, 24], [32, 28, 32, 32], [32, 34, 28, 38], [32, 34, 36, 38]] },
+  { id: "sun", lines: [[32, 16, 32, 16], [24, 20, 40, 20], [20, 24, 20, 36], [44, 24, 44, 36], [24, 40, 40, 40], [24, 20, 20, 24], [40, 20, 44, 24], [24, 40, 20, 36], [40, 40, 44, 36], [32, 6, 32, 12], [32, 48, 32, 54], [12, 30, 18, 30], [46, 30, 52, 30], [18, 12, 22, 16], [46, 12, 42, 16], [18, 48, 22, 44], [46, 48, 42, 44]] },
+  { id: "rocket", lines: [[32, 8, 26, 22], [32, 8, 38, 22], [26, 22, 26, 38], [38, 22, 38, 38], [26, 38, 20, 48], [38, 38, 44, 48], [26, 38, 38, 38], [29, 44, 32, 54], [35, 44, 32, 54], [29, 26, 35, 26], [29, 30, 35, 30], [29, 26, 29, 30], [35, 26, 35, 30]] },
+  { id: "tic-tac-toe", lines: [[26, 12, 26, 52], [38, 12, 38, 52], [14, 26, 50, 26], [14, 40, 50, 40], [16, 14, 24, 22], [24, 14, 16, 22], [30, 28, 34, 28], [30, 36, 34, 36], [30, 28, 30, 36], [34, 28, 34, 36], [42, 42, 48, 50], [48, 42, 42, 50]] },
+  { id: "finals", text: "finals: survive", lines: [[8, 44, 56, 44], [8, 48, 40, 48]] },
+];
+export const chalkForDate = (date: string) =>
+  CHALK_DRAWINGS[seedFor(`${date}:chalk`) % CHALK_DRAWINGS.length] ?? CHALK_DRAWINGS[0]!;
+
+/* ---------------- little free library ---------------- */
+
+export interface Book { title: string; author: string; blurb: string }
+export const BOOKS: Book[] = [
+  { title: "The Left Sock of Darkness", author: "Ursula K. Laundry", blurb: "A sock crosses the galaxy to find its pair." },
+  { title: "Mile 9", author: "Jordan's Playlist", blurb: "A runner meets herself at mile 9. Mile 10 is a sequel." },
+  { title: "The Oat Milk Conspiracy", author: "Fridge Collective", blurb: "Someone labeled it. Someone lied." },
+  { title: "Annotations of a Margin", author: "Sam Pencilton", blurb: "The margins were crying. Now they speak." },
+  { title: "A Brief History of Deadlines", author: "Prof. Last Minute", blurb: "Submitted at 11:59. Art." },
+  { title: "The Printer Smells Fear", author: "I. T. Department", blurb: "Approach casually. Bring toner." },
+  { title: "Dumpling Department", author: "Six Credit", blurb: "Intro to dumplings. Advanced chili crisp." },
+  { title: "The Group Project", author: "One Hero", blurb: "It's not you. It was never you." },
+  { title: "Quiet Tables, Warm Windows", author: "Messing Library", blurb: "One very determined printer." },
+  { title: "The Couch Accepts Your Apology", author: "Common Lounge", blurb: "It has eaten three pencils. A tax." },
+  { title: "Professor Is Not Lost", author: "Campus Cat", blurb: "He's networking. Meow." },
+  { title: "The Fountain's Financial Advice", author: "A. Wish", blurb: "Water and a reasonable bedtime." },
+  { title: "Pigeon Credentials", author: "Judge B. Bird", blurb: "Your outfit has been reviewed." },
+  { title: "The Rice Cooker Accord", author: "Roommate Wanted", blurb: "Respect the rice cooker. Article one." },
+  { title: "Lo-Fi Beats to Survive Finals To", author: "Study Lounge", blurb: "Headphones leak. The rave is silent." },
+  { title: "The Sketchbook Tree", author: "Golden Hour", blurb: "The tree is not cooperating." },
+  { title: "Forty-Seven Unread Emails", author: "Your Next Crush", blurb: "A love story. A cautionary tale." },
+  { title: "The Extension Cord", author: "Unknown Problem", blurb: "It solves a problem you didn't know you had." },
+  { title: "Midnight Breakfast", author: "Pancake Society", blurb: "Pancakes beat panic. Every time." },
+  { title: "The Last Pocket You Check", author: "Your Keys", blurb: "A memoir of hiding." },
+  { title: "Clay Under My Nails", author: "Eleven Mugs", blurb: "Some hold liquid. All hold meaning." },
+  { title: "The Walk Back", author: "Japanese Breakfast", blurb: "Mitski for the walk there." },
+  { title: "Warehouse Show Sunday", author: "The List", blurb: "There is no list. Come anyway." },
+  { title: "Disco Grows Toward the Speaker", author: "Plant Science", blurb: "Science. Probably." },
+  { title: "The Laundry Machine's Verdict", author: "Request Pending", blurb: "It is thinking about your request." },
+  { title: "Emotional Support Hoodie", author: "Academic Press", blurb: "Dressed for the library, emotionally at the beach." },
+  { title: "The Kiosk Knows", author: "Thirty Flyers", blurb: "Club fair: find your people, or a free pen." },
+  { title: "Chalk at Dawn", author: "The Backyard", blurb: "Hopscotch is a philosophy." },
+  { title: "The Hammock Semester", author: "Z. Z. Garden", blurb: "Field research, horizontal." },
+  { title: "String Light Theory", author: "Saturday 8pm", blurb: "Every bulb a small warm star." },
+];
+export const bookForDate = (date: string) => BOOKS[seedFor(`${date}:book`) % BOOKS.length] ?? BOOKS[0]!;
