@@ -567,7 +567,7 @@ export class DormScene extends Phaser.Scene {
       findPath: (sx, sy, gx, gy) => this.findPath(sx, sy, gx, gy),
       getHour: () => this.getHour(), getHourOverride: () => this.getHourOverride(),
       onPetSpot: (near) => this.onPetSpot(near), onPet: () => this.onPetProfessor(),
-      jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour()).awayNote === "at the library",
+      jordanInside: () => this.residents.get("jordan")?.mode === "away" && blockAt("jordan", this.getHour(), this.getWeekday()).awayNote === "at the library",
       onPayloadChange: (payload) => { if (this.activePayload === payload) this.onPopup({ ...payload }); },
       register: (sprite, payload) => {
         const ring = this.add.image(sprite.x, sprite.y, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
@@ -1273,7 +1273,7 @@ export class DormScene extends Phaser.Scene {
     this.lighting.setAmbient(ROOMS[0]!.id, this.insideMyRoom ? clip(ROOMS[0]!.id) : null);
     for (const id of RESIDENT_IDS) {
       const roomId = RESIDENTS[id].roomId;
-      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour)) ? clip(roomId) : null);
+      this.lighting.setAmbient(roomId, isHome(blockAt(id, hour, this.getWeekday())) ? clip(roomId) : null);
     }
     const commonsLit = hour >= 18 || hour < 1;
     for (const zid of ["lounge", "study", "kitchen"]) this.lighting.setAmbient(zid, commonsLit ? clip(zid) : null);
@@ -1541,7 +1541,7 @@ export class DormScene extends Phaser.Scene {
     const hour = this.getHour();
     for (const d of this.doors.values()) {
       const r = residentByRoom(d.room.id);
-      const block = r ? blockAt(r.id, hour) : null;
+      const block = r ? blockAt(r.id, hour, this.getWeekday()) : null;
       const away = block ? (isAway(block) ? block.awayNote ?? "away" : undefined) : d.room.isActive ? undefined : d.room.awayNote;
       const active = block ? isHome(block) : d.room.isActive;
       const key = `${away ?? ""}|${active}`;
@@ -1621,7 +1621,7 @@ export class DormScene extends Phaser.Scene {
       }
       const answer = isMine ? mine : residentPick(b.residentId, prompt);
       const res = residentByRoom(b.residentId);
-      const asleep = !!res && isAsleep(blockAt(res.id, this.getHour()));
+      const asleep = !!res && isAsleep(blockAt(res.id, this.getHour(), this.getWeekday()));
       b.text.setText(asleep ? "asleep" : answer ? boardText(answer) : "?");
       b.text.setFontSize(asleep || answer ? 8 : 14);
       b.sparkle?.setVisible(isMine && !answer);
@@ -3525,7 +3525,7 @@ export class DormScene extends Phaser.Scene {
       buildCharTextures(this, prefix, def.look);
       const sprite = this.add.sprite(0, 0, `${prefix}-down-0`).setOrigin(0.5, 0.85).setScale(1.1);
       const ring = this.add.image(0, 0, "glow").setDepth(1).setAlpha(0).setScale(1.1).setTint(0xf2d79a);
-      const block = blockAt(id, hour);
+      const block = blockAt(id, hour, this.getWeekday());
       const rt: ResidentRT = {
         def,
         prefix,
@@ -3616,7 +3616,7 @@ export class DormScene extends Phaser.Scene {
   refreshResidents() {
     const hour = this.getHour();
     for (const rt of this.residents.values()) {
-      const b = blockAt(rt.def.id, hour);
+      const b = blockAt(rt.def.id, hour, this.getWeekday());
       const key = blockKey(b);
       if (key === rt.key) continue;
       rt.key = key;
@@ -3848,7 +3848,7 @@ export class DormScene extends Phaser.Scene {
         this.onVisitLine(id, line);
         this.time.delayedCall(5400, () => {
           this.visiting = null;
-          rt.block = blockAt(id, this.getHour());
+          rt.block = blockAt(id, this.getHour(), this.getWeekday());
           rt.key = blockKey(rt.block);
           this.goToBlock(rt);
         });
