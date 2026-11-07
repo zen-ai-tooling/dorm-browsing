@@ -32,7 +32,7 @@ import {
   type DailyAnswer,
 } from "@/data/prompts";
 import { nextSinceExclusive, rollPackage, type PackageReward } from "@/data/mail";
-import { fortuneForDate } from "@/data/campus";
+import { fortuneForDate, bookForDate, type Book } from "@/data/campus";
 import { autoCompleteQuests, QUEST_BY_ID, type QuestId } from "@/data/quests";
 import { setSfxMuted, sfx } from "@/game/sounds";
 import {
