@@ -1,31 +1,40 @@
 /** Campus geometry and date-seeded flavor; shared by rendering, movement and tests. */
 export const CAMPUS_W = 88;
-export const CAMPUS_H = 60;
+export const CAMPUS_H = 66;
 export type TilePoint = { x: number; y: number };
 export const LIBRARY = { x: 24, y: 39, w: 33, h: 11 };
+/** the dorm's front entrance: hallway door at row 22, stone path down to the Walk */
+export const FRONT_PATH = { x0: 24, x1: 25, y0: 23, y1: 34 };
 export const CAMPUS_PROPS = [
-  { id: "oak", x: 51, y: 58, w: 1, h: 1 },
-  { id: "fountain", x: 33, y: 54, w: 2, h: 2 },
+  { id: "oak", x: 52, y: 61, w: 1, h: 1 },
+  { id: "fountain", x: 33, y: 55, w: 2, h: 2 },
   { id: "truck", x: 64, y: 52, w: 4, h: 2 },
   { id: "kiosk", x: 18, y: 51, w: 1, h: 1 },
   { id: "coffee", x: 60, y: 39, w: 2, h: 1 },
-  ...[[26, 53], [52, 53], [26, 57], [52, 57]].map(([x, y], i) => ({ id: `picnic-${i}`, x: x ?? 0, y: y ?? 0, w: 3, h: 1 })),
-  ...[[31, 57], [47, 58], [49, 55], [17, 56]].map(([x, y], i) => ({ id: `bench-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
+  { id: "mapsign", x: 26, y: 34, w: 1, h: 1 },
+  { id: "trash", x: 57, y: 40, w: 1, h: 1 },
+  ...[[22, 33], [19, 42]].map(([x, y], i) => ({ id: `bikes-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
+  ...[[26, 55], [52, 55], [26, 60], [52, 60]].map(([x, y], i) => ({ id: `picnic-${i}`, x: x ?? 0, y: y ?? 0, w: 3, h: 1 })),
+  ...[[31, 58], [47, 62], [55, 62], [17, 57]].map(([x, y], i) => ({ id: `bench-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
+  // Library Walk benches: south edge, between the lamp posts
+  ...[[12, 38], [30, 38], [44, 38], [68, 38]].map(([x, y], i) => ({ id: `bench-w${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
 ];
 export const WAYPOINTS: Record<string, TilePoint> = {
   west: { x: 3, y: 36 }, east: { x: 84, y: 36 }, gate: { x: 76, y: 28 },
   walkWest: { x: 21, y: 36 }, walkEast: { x: 59, y: 36 },
+  frontDoor: { x: 24, y: 34 },
   library: { x: 40, y: 50 }, steps: { x: 40, y: 51 },
   coffee: { x: 60, y: 40 }, truck: { x: 65, y: 54 }, kiosk: { x: 19, y: 51 },
-  fountain: { x: 35, y: 55 }, oak: { x: 50, y: 58 },
-  picnic0: { x: 27, y: 54 }, picnic1: { x: 53, y: 54 },
-  picnic2: { x: 27, y: 58 }, picnic3: { x: 53, y: 58 },
-  bench0: { x: 32, y: 58 }, bench1: { x: 48, y: 59 },
-  bench2: { x: 50, y: 56 }, bench3: { x: 18, y: 57 },
+  fountain: { x: 35, y: 57 }, oak: { x: 51, y: 62 },
+  picnic0: { x: 27, y: 56 }, picnic1: { x: 53, y: 56 },
+  picnic2: { x: 27, y: 61 }, picnic3: { x: 53, y: 61 },
+  bench0: { x: 32, y: 59 }, bench1: { x: 48, y: 63 },
+  bench2: { x: 54, y: 63 }, bench3: { x: 18, y: 58 },
 };
 export const WAYPOINT_GRAPH: Record<string, string[]> = {
   west: ["walkWest"], east: ["walkEast", "gate"], gate: ["walkEast", "east"],
-  walkWest: ["west", "walkEast", "kiosk"], walkEast: ["east", "gate", "walkWest", "coffee"],
+  walkWest: ["west", "walkEast", "kiosk", "frontDoor"], walkEast: ["east", "gate", "walkWest", "coffee"],
+  frontDoor: ["walkWest"],
   coffee: ["walkEast", "steps", "truck"], kiosk: ["walkWest", "steps", "bench3"],
   library: ["steps"], steps: ["library", "kiosk", "coffee", "fountain", "picnic0", "picnic1"],
   fountain: ["steps", "bench0", "picnic2", "bench2"], oak: ["bench1", "bench2", "picnic3"],
