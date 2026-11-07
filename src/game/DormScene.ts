@@ -3073,20 +3073,57 @@ export class DormScene extends Phaser.Scene {
     this.prop({ key: "bin", x: t(K.x + 1.8) + 8, y: t(K.y + 8.6), tint: 0x7fa58a });
     this.prop({ key: "plant", x: t(K.x + 11.3), y: t(K.y + 8.5), scale: 0.9 });
 
-    // ---- Courtyard ----
+    // ---- Backyard ----
     const C = COMMON[3]!;
+    // stone path from the dorm door across to the gate
+    const pathG = this.add.graphics().setDepth(1.1);
+    for (let ty = C.y; ty < C.y + C.h; ty++)
+      for (let tx = C.x; tx < C.x + C.w; tx++) {
+        if (!isBackyardPath(tx, ty)) continue;
+        pathG.fillStyle(0xa59d8c, 1).fillRect(t(tx), t(ty), TILE, TILE);
+        pathG.fillStyle(0x7d7668, 1).fillRect(t(tx), t(ty), TILE, 2).fillRect(t(tx) + ((ty % 2) * 16 + 7) % TILE, t(ty), 2, TILE);
+        pathG.fillStyle(0xc2bbab, 1).fillRect(t(tx), t(ty) + 2, TILE, 2);
+      }
+    // two trees 4 tiles apart, hammock slung between them
     this.prop({ key: "tree", x: t(C.x + 3), y: t(C.y + 3.4), solid: true });
-    this.prop({ key: "tree", x: t(C.x + 12.6), y: t(C.y + 16.6), scale: 0.85, solid: true });
+    this.prop({ key: "tree", x: t(C.x + 7), y: t(C.y + 3.4), scale: 0.9, solid: true });
+    this.hammock = this.add.sprite(t(HAMMOCK.x + 0.5), t(HAMMOCK.y) + 6, "campus-hammock-0").setOrigin(0.5, 0).setDepth(t(HAMMOCK.y) + 4);
+    // community garden: 3 raised beds, growth stage per real day (restaged in refreshDaily)
+    this.gardenBeds = GARDEN_BEDS.map(([bx, by], i) => {
+      const s = this.add.sprite(t(bx + 1.5), t(by + 1), `campus-garden-${i % 4}`).setOrigin(0.5, 1).setDepth(t(by + 1));
+      const zone = this.add.zone(t(bx + 1.5), t(by) + TILE / 2, t(3) * 0.85, TILE * 0.7);
+      this.walls.add(zone);
+      for (let gx = bx; gx < bx + 3; gx++) if (this.grid[by]?.[gx] === FLOOR) this.grid[by]![gx] = BLOCKED;
+      return s;
+    });
+    // fire pit + 4 Adirondack chairs (flames + light only 18:00–01:00, see updateBackyard)
+    this.firePit = this.add.sprite(t(FIRE_PIT.x + 0.5), t(FIRE_PIT.y + 1), "campus-firepit-0").setOrigin(0.5, 1).setDepth(t(FIRE_PIT.y + 1));
+    this.prop({ key: "crate", x: t(FIRE_PIT.x + 0.5), y: t(FIRE_PIT.y + 1), scale: 0.01, solid: true }); // collision only
+    for (const [cx, cy, flip] of [[FIRE_PIT.x - 2, FIRE_PIT.y - 1, false], [FIRE_PIT.x + 2, FIRE_PIT.y - 1, true], [FIRE_PIT.x - 1.6, FIRE_PIT.y + 1.6, false], [FIRE_PIT.x + 1.6, FIRE_PIT.y + 1.6, true]] as const)
+      this.add.sprite(t(cx + 0.5), t(cy + 1), "campus-chair").setOrigin(0.5, 1).setDepth(t(cy + 1)).setFlipX(flip);
+    // picnic table (BBQ hub) + grill + volleyball net + little free library + clothesline + bikes
+    this.prop({ key: "campus-picnic", x: t(C.x + 2.5), y: t(C.y + 10), solid: true });
+    this.grill = this.add.sprite(t(C.x + 0.8), t(C.y + 8.6), "campus-grill").setOrigin(0.5, 1).setDepth(t(C.y + 8.6));
+    this.add.sprite(t(C.x + 13), t(C.y + 14), "campus-net").setOrigin(0.5, 1).setDepth(t(C.y + 14));
+    this.prop({
+      key: "campus-littlelib",
+      x: t(C.x + 5),
+      y: t(C.y + 19),
+      payload: { kind: "book" },
+      solid: true,
+    });
+    this.clothesline = this.add.sprite(t(C.x + 2.5), t(C.y + 16), "campus-clothesline-0").setOrigin(0.5, 1).setDepth(t(C.y + 16));
+    this.add.sprite(t(C.x + 10), t(C.y + 20), "campus-bikerack").setOrigin(0.5, 1).setDepth(t(C.y + 20));
     this.prop({
       key: "bench",
       x: t(C.x + 6.6),
       y: t(C.y + 11.6),
       payload: { kind: "flavor", ...FLAVOR_PROPS.courtyard },
     });
-    this.prop({ key: "bench", x: t(C.x + 11.2), y: t(C.y + 6.2), scale: 0.95 });
-    this.prop({ key: "plant", x: t(C.x + 2), y: t(C.y + 17.6) });
-    this.prop({ key: "plant", x: t(C.x + 13.6), y: t(C.y + 3.2), scale: 1.1 });
-    // string lights across the courtyard: tiny per-bulb cut-outs + one faint strip below
+    // daily chalk drawing on the path (redrawn in refreshDaily)
+    this.chalk = this.add.graphics().setDepth(1.2);
+    // weekend event sprites (BBQ crew / volleyball players) are built lazily in updateBackyard
+    // string lights across the backyard: tiny per-bulb cut-outs + one faint strip below
     for (let i = 0; i < 16; i++) {
       const lx = t(C.x + 0.6) + i * 30;
       const ly = t(C.y + 1) + Math.sin(i * 0.9) * 7;
@@ -3103,6 +3140,9 @@ export class DormScene extends Phaser.Scene {
       strip: { w: t(C.w - 1), h: 34 },
       strength: 0.7,
     });
+    // fireflies on summer nights, drifting leaves in autumn
+    for (let i = 0; i < 6; i++)
+      this.backyardMotes.push(this.add.rectangle(0, 0, 3, 3, 0xf0d88f).setDepth(t(C.y + 20)).setVisible(false));
 
 
     // ---- hallway shared props ----
