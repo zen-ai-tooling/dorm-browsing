@@ -1336,6 +1336,27 @@ export class DormScene extends Phaser.Scene {
 
   private zones: Zone[] = [];
 
+  // ---- backyard (animated bits, driven by updateBackyard) ----
+  private hammock: Phaser.GameObjects.Sprite | null = null;
+  private gardenBeds: Phaser.GameObjects.Sprite[] = [];
+  private firePit: Phaser.GameObjects.Sprite | null = null;
+  private firePitLight: Light | null = null;
+  private firePitOn = false;
+  private grill: Phaser.GameObjects.Sprite | null = null;
+  private clothesline: Phaser.GameObjects.Sprite | null = null;
+  private chalk: Phaser.GameObjects.Graphics | null = null;
+  private chalkDate = "";
+  private backyardMotes: Phaser.GameObjects.Rectangle[] = [];
+  private eventStudents: Phaser.GameObjects.Sprite[] = [];
+  private volleyBall: Phaser.GameObjects.Image | null = null;
+  private grillSmoke: Phaser.GameObjects.Rectangle[] = [];
+  private eventKey = "";
+  // hammock lounging: player sways with a "z" bubble until any movement
+  private inHammock = false;
+  private hammockNear = false;
+  private hammockSway: Phaser.Tweens.Tween | null = null;
+  private nextHammockZ = 0;
+
   private zoneNear(x: number, y: number, zones: Zone[]): Zone | undefined {
     const hit = (z: Zone) => x >= z.x - 1 && x <= z.x + z.w && y >= z.y - 1 && y <= z.y + z.h;
     // rooms own their trim colour; the hallway only claims walls nobody else touches
