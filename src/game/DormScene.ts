@@ -461,6 +461,7 @@ export class DormScene extends Phaser.Scene {
   private campus: CampusLife | null = null;
   private getHourOverride: () => number | null = () => null;
   private onPetSpot: (near: boolean) => void = () => {};
+  private onHammockSpot: (near: boolean) => void = () => {};
   private onPetProfessor: () => void = () => {};
 
 
@@ -488,6 +489,7 @@ export class DormScene extends Phaser.Scene {
     getHourOverride?: () => number | null;
     getWeekday?: () => number;
     onPetSpot?: (near: boolean) => void;
+    onHammockSpot?: (near: boolean) => void;
     onPetProfessor?: () => void;
     onKnockSpot?: (id: ResidentId | null) => void;
     onSoldHint?: (h: { itemId: string; x: number; y: number } | null) => void;
@@ -510,6 +512,7 @@ export class DormScene extends Phaser.Scene {
     if (data?.getHourOverride) this.getHourOverride = data.getHourOverride;
     if (data?.getWeekday) this.getWeekday = data.getWeekday;
     if (data?.onPetSpot) this.onPetSpot = data.onPetSpot;
+    if (data?.onHammockSpot) this.onHammockSpot = data.onHammockSpot;
     if (data?.onPetProfessor) this.onPetProfessor = data.onPetProfessor;
     if (data?.onKnockSpot) this.onKnockSpot = data.onKnockSpot;
     if (data?.onSoldHint) this.onSoldHint = data.onSoldHint;
