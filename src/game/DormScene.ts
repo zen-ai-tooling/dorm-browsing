@@ -1653,6 +1653,21 @@ export class DormScene extends Phaser.Scene {
     const ready = this.isPackageReady();
     this.mailPackage?.setVisible(ready);
     this.mailSparkle?.setVisible(ready);
+    // daily chalk drawing on the backyard path + garden growth stages
+    const date = todayKey();
+    if (this.chalk && this.chalkDate !== date) {
+      this.chalkDate = date;
+      const drawing = chalkForDate(date);
+      const g = this.chalk.clear().lineStyle(2, 0xe8e2d0, 0.75);
+      const ox = t(71), oy = t(18.4);
+      for (const [x1, y1, x2, y2] of drawing.lines) g.lineBetween(ox + x1 * 1.5, oy + y1 * 1.5, ox + x2 * 1.5, oy + y2 * 1.5);
+      this.chalkText?.destroy();
+      this.chalkText = drawing.text
+        ? this.add.text(ox + 48, oy + 30, drawing.text, { fontFamily: '"Pixelify Sans", sans-serif', fontSize: "11px", color: "#e8e2d0" }).setOrigin(0.5).setDepth(1.2).setAlpha(0.75)
+        : null;
+    }
+    const stages = GARDEN_BEDS.map((_, i) => gardenStage(i, date));
+    this.gardenBeds.forEach((s, i) => s.setTexture(`campus-garden-${["sprout", "leafy", "flowering", "ready"].indexOf(stages[i] ?? "sprout")}`));
   }
 
   /**
@@ -4108,6 +4123,101 @@ export class DormScene extends Phaser.Scene {
 
   petProfessor() { this.campus?.petProfessor(); }
   tossCampusCoin() { this.campus?.tossCoin(); }
+
+  /** "Lie in hammock" pill: park the player in a gentle sway until any movement */
+  lieInHammock() {
+    if (this.editMode || this.cinematic || this.inHammock || !this.hammock) return;
+    this.stopTravel();
+    this.inHammock = true;
+    this.player.setVelocity(0, 0).setPosition(t(HAMMOCK.x + 0.5), t(HAMMOCK.y) + 10).setAngle(-4);
+    this.hammockSway = this.tweens.add({ targets: this.player, angle: 4, duration: 900, yoyo: true, repeat: -1, ease: "Stepped", easeParams: [2] });
+    this.nextHammockZ = 0;
+  }
+
+  private exitHammock() {
+    if (!this.inHammock) return;
+    this.inHammock = false;
+    this.hammockSway?.stop();
+    this.hammockSway = null;
+    this.player.setAngle(0);
+  }
+
+  /** backyard life: fire-pit flames, chalk, garden restage, weekend events, laundry, motes */
+  private updateBackyard(time: number) {
+    const hour = this.getHour();
+    const weekday = this.getWeekday();
+    // fire pit flames 18:00–01:00 + warm flickering light clipped to the backyard
+    const lit = firePitLit(hour);
+    if (this.firePit) this.firePit.setTexture(`campus-firepit-${lit ? Math.floor(time / 280) % 3 : 0}`).setAlpha(lit ? 1 : 0.85);
+    if (lit !== this.firePitOn) {
+      this.firePitOn = lit;
+      if (this.firePitLight) { this.lighting.remove(this.firePitLight); this.firePitLight = null; }
+      if (lit) this.firePitLight = this.light({
+        x: t(FIRE_PIT.x + 0.5), y: t(FIRE_PIT.y + 0.6), color: 0xff9a5c, radius: 90, flicker: true, poolDy: 26,
+        clip: { x: t(BACKYARD.x - 1), y: t(BACKYARD.y - 1), w: t(BACKYARD.w + 2), h: t(BACKYARD.h + 2) },
+      });
+    }
+    // clothesline flap
+    this.clothesline?.setTexture(`campus-clothesline-${Math.floor(time / 600) % 2}`);
+    // weekend events: BBQ Sat 12–18, volleyball Sun 13–17
+    const event = bbqOn(weekday, hour) ? "bbq" : volleyballOn(weekday, hour) ? "volley" : "";
+    if (event !== this.eventKey) {
+      this.eventKey = event;
+      this.buildEventStudents(event);
+    }
+    if (event === "volley" && this.volleyBall) {
+      const f = (time % 1600) / 1600, forward = Math.floor(time / 1600) % 2 === 0;
+      this.volleyBall.setPosition(t(BACKYARD.x + 13) + (forward ? -1 : 1) * f * 60 + (forward ? 30 : -30), t(BACKYARD.y + 12) - Math.sin(f * Math.PI) * 70);
+    }
+    if (event === "bbq") for (const [i, puff] of this.grillSmoke.entries()) {
+      const f = ((time + i * 500) % 2000) / 2000;
+      puff.setPosition(this.grill!.x + i * 3, this.grill!.y - 24 - f * 30).setAlpha(0.5 * (1 - f)).setVisible(true);
+    } else for (const puff of this.grillSmoke) puff.setVisible(false);
+    // fireflies on summer nights; drifting leaves in autumn
+    const summer = leafPhaseForMonth(new Date().getMonth() + 1) === "green";
+    const autumn = leafPhaseForMonth(new Date().getMonth() + 1) === "autumn";
+    const motesOn = (summer && (hour >= 20 || hour < 5)) || autumn;
+    for (const [i, mote] of this.backyardMotes.entries()) {
+      mote.setVisible(motesOn);
+      if (!motesOn) continue;
+      if (summer) {
+        const blink = Math.floor(time / 700 + i) % 3 === 0;
+        mote.setPosition(t(BACKYARD.x + 2 + ((i * 37) % 12)) + Math.sin(time / 900 + i * 2) * 20, t(BACKYARD.y + 8 + ((i * 23) % 10)) + Math.cos(time / 1100 + i) * 14)
+          .setFillStyle(0xf0d88f).setAlpha(blink ? 0.9 : 0.15);
+      } else {
+        const f = ((time + i * 800) % 6000) / 6000;
+        mote.setPosition(t(BACKYARD.x + 1 + ((i * 29) % 13)) + Math.floor(Math.sin(f * 6 + i) * 10 / 2) * 2, t(BACKYARD.y + 4) + f * t(14))
+          .setFillStyle(0xd78b45).setAlpha(1 - f * 0.6);
+      }
+    }
+    // hammock proximity pill + "z" bubbles while lounging
+    const near = !this.inHammock && Math.hypot(this.player.x - t(HAMMOCK.x + 0.5), this.player.y - t(HAMMOCK.y + 0.5)) < 52;
+    if (near !== this.hammockNear) { this.hammockNear = near; this.onHammockSpot(near); }
+    if (this.inHammock) {
+      if (time > this.nextHammockZ) {
+        this.nextHammockZ = time + 1600;
+        const z = this.add.text(this.player.x + 14, this.player.y - 34, "z", { fontFamily: '"Pixelify Sans", sans-serif', fontSize: "12px", color: "#fff3cf" }).setDepth(BUBBLE_DEPTH);
+        this.tweens.add({ targets: z, y: z.y - 16, alpha: 0, duration: 1400, onComplete: () => z.destroy() });
+      }
+      this.hammock?.setTexture(`campus-hammock-${Math.floor(time / 900) % 2}`);
+    } else this.hammock?.setTexture("campus-hammock-0");
+  }
+
+  /** BBQ crew / volleyball players: static posed students, built once textures exist */
+  private buildEventStudents(event: string) {
+    for (const s of this.eventStudents) s.destroy();
+    this.eventStudents = [];
+    this.volleyBall?.destroy(); this.volleyBall = null;
+    if (!event || !this.textures.exists("stu-0-down-0")) { this.eventKey = event || ""; return; }
+    const spots: Array<[number, number, number, string]> = event === "bbq"
+      ? [[BACKYARD.x + 1.6, BACKYARD.y + 9.4, 0, "right"], [BACKYARD.x + 3.4, BACKYARD.y + 9.4, 1, "left"], [BACKYARD.x + 2.5, BACKYARD.y + 10.8, 2, "up"]]
+      : [[BACKYARD.x + 11.5, BACKYARD.y + 11.5, 3, "right"], [BACKYARD.x + 11.5, BACKYARD.y + 14.5, 4, "right"], [BACKYARD.x + 14.5, BACKYARD.y + 11.5, 5, "left"], [BACKYARD.x + 14.5, BACKYARD.y + 14.5, 6, "left"]];
+    for (const [x, y, stu, facing] of spots)
+      this.eventStudents.push(this.add.sprite(t(x), t(y), `stu-${stu}-${facing}-0`).setOrigin(0.5, 0.85).setDepth(t(y)));
+    if (event === "volley") this.volleyBall = this.add.image(0, 0, "campus-frisbee").setTint(0xf3ead2).setDepth(t(BACKYARD.y + 13));
+    if (event === "bbq" && !this.grillSmoke.length)
+      for (let i = 0; i < 3; i++) this.grillSmoke.push(this.add.rectangle(0, 0, 5, 7, 0xe5ddd0, 0.5).setDepth(t(BACKYARD.y + 9)).setVisible(false));
+  }
 
   private setupInput() {
     const kb = this.input.keyboard!;
