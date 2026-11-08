@@ -275,10 +275,10 @@ export class CampusLife {
     }
   }
   tossCoin() {
-    const coin = this.scene.add.rectangle(35.5 * T, 55.5 * T, 6, 6, 0xf1d467).setDepth(4990);
+    const coin = this.scene.add.rectangle(35.5 * T, 56.5 * T, 6, 6, 0xf1d467).setDepth(4990);
     this.scene.tweens.addCounter({ from: 0, to: 1, duration: 650, ease: "Stepped", easeParams: [10], onUpdate: (tw) => {
-      const f = tw.getValue() ?? 0; coin.setPosition((35.5 - f * 1.5) * T, (55.5 - f) * T - Math.sin(f * Math.PI) * 55);
-    }, onComplete: () => { coin.destroy(); this.bubble({ x: 34 * T, y: 55 * T }, "plip!", 900); } });
+      const f = tw.getValue() ?? 0; coin.setPosition((35.5 - f * 1.5) * T, (56.5 - f) * T - Math.sin(f * Math.PI) * 55);
+    }, onComplete: () => { coin.destroy(); this.bubble({ x: 34 * T, y: 56 * T }, "plip!", 900); } });
   }
   petProfessor() {
     if (!this.petNear) return;
