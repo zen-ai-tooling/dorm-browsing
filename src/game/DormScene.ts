@@ -4096,9 +4096,12 @@ export class DormScene extends Phaser.Scene {
     cam.startFollow(this.player, true, 0.16, 0.16);
   }
 
-  teleportCampus(target: "quad" | "library") {
+  teleportCampus(target: "quad" | "library" | "backyard" | "frontdoor") {
     if (this.editMode || this.cinematic) return;
-    const tile = target === "quad" ? WAYPOINTS["fountain"] : WAYPOINTS["steps"];
+    const tile = target === "quad" ? WAYPOINTS["fountain"]
+      : target === "library" ? WAYPOINTS["steps"]
+      : target === "backyard" ? QUICK_TRAVEL.backyard
+      : { x: FRONT_PATH.x0, y: FRONT_PATH.y1 - 1 };
     if (!tile) return;
     const p = this.tileCenter(this.nearestFloor(tile.x, tile.y));
     this.path = []; this.target = null;
@@ -4107,11 +4110,12 @@ export class DormScene extends Phaser.Scene {
     this.trackMyRoom();
   }
 
-  /** Me-menu quick travel: walks there at jog speed (never a teleport); any tap cancels. */
-  quickTravel(dest: "room" | "lounge" | "quad" | "library") {
+  /** Me-menu + campus-map quick travel: walks there at jog speed (never a teleport); any tap cancels. */
+  quickTravel(dest: "room" | "lounge" | "study" | "kitchen" | "backyard" | "quad" | "library" | "truck") {
     if (this.editMode || this.cinematic) return;
-    const z = dest === "room" ? this.myZone : dest === "lounge" ? this.zones.find((q) => q.id === "lounge") : null;
-    const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library"];
+    const zoneId = dest === "room" ? this.myZone.id : dest === "lounge" ? "lounge" : dest === "study" ? "study" : dest === "kitchen" ? "kitchen" : dest === "backyard" ? "courtyard" : null;
+    const z = zoneId ? this.zones.find((q) => q.id === zoneId) : null;
+    const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library" | "truck"];
     const [gx, gy] = this.nearestFloor(tile.x, tile.y);
     this.path = this.findPath(Math.floor(this.player.x / TILE), Math.floor(this.player.y / TILE), gx, gy);
     this.target = this.path.shift() ?? null;
@@ -4253,6 +4257,7 @@ export class DormScene extends Phaser.Scene {
       }
 
       if (this.cinematic) return;
+      if (this.inHammock) { this.exitHammock(); return; } // any tap gets you out of the hammock
       if (this.travelling) { this.stopTravel(); return; } // tap anywhere cancels quick travel
       const wp = this.cameras.main.getWorldPoint(p.x, p.y);
       // tapping yourself opens the avatar creator
