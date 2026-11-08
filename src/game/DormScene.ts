@@ -1350,6 +1350,7 @@ export class DormScene extends Phaser.Scene {
   private chalk: Phaser.GameObjects.Graphics | null = null;
   private chalkDate = "";
   private backyardMotes: Phaser.GameObjects.Rectangle[] = [];
+  private chalkText: Phaser.GameObjects.Text | null = null;
   private eventStudents: Phaser.GameObjects.Sprite[] = [];
   private volleyBall: Phaser.GameObjects.Image | null = null;
   private grillSmoke: Phaser.GameObjects.Rectangle[] = [];
@@ -4344,6 +4345,7 @@ export class DormScene extends Phaser.Scene {
 
     this.updateResidents(_time, delta);
     this.campus?.update(_time, delta, this.player);
+    this.updateBackyard(_time);
     if (this.cinematic) {
       body.setVelocity(0, 0);
       this.lighting.update(_time);
@@ -4365,6 +4367,7 @@ export class DormScene extends Phaser.Scene {
       this.path = [];
       this.stuckMs = 0;
       this.jogPath = false; this.travelling = false;
+      this.exitHammock();
     } else if (this.target) {
       const d = Phaser.Math.Distance.Between(body.x, body.y, this.target.x, this.target.y);
       // faster outdoor/jog speeds overshoot an 8px radius on slow frames: reach = one frame's travel
