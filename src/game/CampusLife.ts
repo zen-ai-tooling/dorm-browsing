@@ -1,6 +1,6 @@
 import * as Phaser from "phaser";
 import {
-  CAMPUS_PROPS, WAYPOINTS, WAYPOINT_GRAPH, leafPhaseForMonth, clockAt, libraryOpen,
+  CAMPUS_H, CAMPUS_PROPS, WAYPOINTS, WAYPOINT_GRAPH, leafPhaseForMonth, clockAt, libraryOpen,
   stringLightsOn, truckForDate, drinkForDate, flyersForDate, seededRandom, TRUCKS, bellStrikeCount,
 } from "@/data/campus";
 import { STUDENTS, studentCount, overheardFor } from "@/data/students";
@@ -32,7 +32,7 @@ interface Hooks {
 }
 const T = 32;
 const center = (p: Point) => ({ x: (p.x + 0.5) * T, y: (p.y + 0.5) * T });
-const OUTDOOR_CLIP = { x: 0, y: 34 * T, w: 88 * T, h: 26 * T };
+const OUTDOOR_CLIP = { x: 0, y: 34 * T, w: 88 * T, h: (CAMPUS_H - 34) * T };
 
 /** Campus-only renderer and non-solid life. Routes always use the dorm's grid. */
 export class CampusLife {
@@ -79,7 +79,7 @@ export class CampusLife {
     const s = scene;
     s.add.sprite(24 * T, 50 * T, "campus-library").setOrigin(0, 1).setDepth(49.5 * T);
     // Labels are mounted on the library face and cart fascia, never on the floor.
-    s.add.text(40.5 * T, 46.8 * T, "HALE LIBRARY", this.textStyle(20)).setOrigin(0.5).setDepth(50 * T);
+    s.add.text(40.5 * T, 46.8 * T, "MESSING LIBRARY", this.textStyle(20)).setOrigin(0.5).setDepth(50 * T);
     const steps = s.add.graphics().setDepth(1);
     for (let y = 50 * T; y < 52 * T; y += 8) {
       steps.fillStyle(0xb6baad).fillRect(35 * T, y, 12 * T, 8);
@@ -93,13 +93,21 @@ export class CampusLife {
       this.windows.push(s.add.rectangle(x * T, 47.6 * T, 64, 68, 0xf3ca79, 0.55).setDepth(4901).setBlendMode(Phaser.BlendModes.ADD).setVisible(false));
     }
     const oak = CAMPUS_PROPS.find((p) => p.id === "oak");
-    if (oak) s.add.sprite((oak.x + 0.5) * T, (oak.y + 1) * T, `campus-oak-${this.leafPhase}`).setOrigin(0.5, 1).setDepth((oak.y + 1) * T);
+    // 65% scale: the canopy stays well below the library steps and off the entrance axis
+    if (oak) s.add.sprite((oak.x + 0.5) * T, (oak.y + 1) * T, `campus-oak-${this.leafPhase}`).setOrigin(0.5, 1).setScale(0.65).setDepth((oak.y + 1) * T);
     for (const p of CAMPUS_PROPS) {
-      const key = p.id.startsWith("picnic") ? "campus-picnic" : p.id.startsWith("bench") ? "campus-bench" : "";
+      const key = p.id.startsWith("picnic") ? "campus-picnic" : p.id.startsWith("bench") ? "campus-bench"
+        : p.id.startsWith("bikes") ? "campus-bikerack" : p.id === "trash" ? "campus-trash" : "";
       if (key) s.add.sprite((p.x + p.w / 2) * T, (p.y + 1) * T, key).setOrigin(0.5, 1).setDepth((p.y + 1) * T);
     }
-    this.fountain = s.add.sprite(34 * T, 56 * T, "campus-fountain-0").setOrigin(0.5, 1).setDepth(56 * T);
-    hooks.register(s.add.sprite(35.5 * T, 55.5 * T, "campus-frisbee").setVisible(false), { kind: "fountain" });
+    // campus map sign at the front-entrance/Walk junction
+    const mapsign = CAMPUS_PROPS.find((p) => p.id === "mapsign");
+    if (mapsign) {
+      const sign = s.add.sprite((mapsign.x + 0.5) * T, (mapsign.y + 1) * T, "campus-signpost").setOrigin(0.5, 1).setDepth((mapsign.y + 1) * T);
+      hooks.register(sign, { kind: "campusmap" });
+    }
+    this.fountain = s.add.sprite(34 * T, 57 * T, "campus-fountain-0").setOrigin(0.5, 1).setDepth(57 * T);
+    hooks.register(s.add.sprite(35.5 * T, 56.5 * T, "campus-frisbee").setVisible(false), { kind: "fountain" });
     // Invisible interaction anchors have their own visible proximity ring.
     const kiosk = s.add.sprite(18.5 * T, 52 * T, "campus-kiosk").setOrigin(0.5, 1).setDepth(52 * T);
     this.kioskPayload = { kind: "flavor", title: "Campus bulletin", lines: [] };
@@ -114,10 +122,10 @@ export class CampusLife {
     hooks.register(cart, this.coffeePayload);
     buildCharTextures(s, "campus-barista", STUDENTS[3]?.look ?? DEFAULT_LOOK);
     this.barista = s.add.sprite(62.5 * T, 39.6 * T, "campus-barista-down-0").setOrigin(0.5, 0.85).setDepth(40 * T);
-    this.libraryPayload = { kind: "flavor", title: "Hale Library", lines: [] };
+    this.libraryPayload = { kind: "flavor", title: "Messing Library", lines: [] };
     hooks.register(s.add.sprite(40.5 * T, 50.5 * T, "campus-frisbee").setVisible(false), this.libraryPayload);
     for (const x of [8, 21, 59, 80]) this.lamp(x, 38.6);
-    for (const [x, y] of [[18, 54], [60, 54], [30, 59], [56, 59]] as const) this.lamp(x, y);
+    for (const [x, y] of [[18, 55], [60, 55], [30, 60], [56, 60]] as const) this.lamp(x, y);
     this.strings = s.add.graphics().setDepth(1900);
     for (const x of [8, 75]) {
       s.add.sprite(x * T, 57 * T, "tree").setOrigin(0.5, 1).setDepth(57 * T);
@@ -139,9 +147,9 @@ export class CampusLife {
       this.students.push({ sprite, prop, node, path: [], wait: s.time.now + i * 700, turn: 0, nextSpeech: 0, facing: "down" });
     }
     this.frisbee = s.add.image(0, 0, "campus-frisbee").setVisible(false).setDepth(1850);
-    for (const [i, x] of [9, 16].entries()) this.frisbeePair.push(s.add.sprite(x * T, 55 * T, `stu-${i}-right-0`).setOrigin(0.5, 0.85).setDepth(55 * T).setVisible(false));
-    this.squirrels = this.makeAnimals(SQUIRREL_COUNT, "squirrel", [{ x: 49, y: 57 }, { x: 54, y: 59 }, { x: 47, y: 56 }]);
-    this.pigeons = this.makeAnimals(PIGEON_COUNT, "pigeon", [{ x: 35, y: 54 }, { x: 32, y: 56 }, { x: 36, y: 56 }, { x: 59, y: 41 }, { x: 62, y: 41 }]);
+    for (const [i, x] of [9, 16].entries()) this.frisbeePair.push(s.add.sprite(x * T, 58 * T, `stu-${i}-right-0`).setOrigin(0.5, 0.85).setDepth(58 * T).setVisible(false));
+    this.squirrels = this.makeAnimals(SQUIRREL_COUNT, "squirrel", [{ x: 50, y: 60 }, { x: 54, y: 62 }, { x: 49, y: 59 }]);
+    this.pigeons = this.makeAnimals(PIGEON_COUNT, "pigeon", [{ x: 35, y: 57 }, { x: 32, y: 58 }, { x: 36, y: 58 }, { x: 59, y: 41 }, { x: 62, y: 41 }]);
     const catPlace = professorPlace(hooks.getHour());
     const catStart = center(PROFESSOR_ANCHORS[catPlace]);
     this.professorLocation = catPlace;
@@ -221,7 +229,7 @@ export class CampusLife {
       this.coffeePayload.lines = ["Drink of the day", drinkForDate(date), hour >= 6 ? "The barista remembers everyone's order. Somehow." : "Back at 6am. The espresso machine is dreaming."];
     }
     this.coffeePayload.lines = ["Drink of the day", drinkForDate(date), hour >= 6 ? "The barista remembers everyone's order. Somehow." : "Back at 6am. The espresso machine is dreaming."];
-    const libraryLines = ["Hale Library — open 8am–2am.", libraryOpen(hour) ? (this.hooks.jordanInside() ? "Jordan is studying here." : "Quiet tables, warm windows, one very determined printer.") : "Closed for a little sleep. Back at 8am."];
+    const libraryLines = ["Messing Library — open 8am–2am.", libraryOpen(hour) ? (this.hooks.jordanInside() ? "Jordan is studying here." : "Quiet tables, warm windows, one very determined printer.") : "Closed for a little sleep. Back at 8am."];
     if (libraryLines.join("|") !== this.libraryPayload.lines.join("|")) {
       this.libraryPayload.lines = libraryLines;
       this.hooks.onPayloadChange(this.libraryPayload);
@@ -312,12 +320,12 @@ export class CampusLife {
     }
     if (this.frisbee.visible) {
       const f = time % 2200 / 2200, forward = Math.floor(time / 2200) % 2 === 0;
-      this.frisbee.setPosition((9 + (forward ? f : 1 - f) * 7) * T, 55 * T - 25 - Math.sin(f * Math.PI) * 90);
+      this.frisbee.setPosition((9 + (forward ? f : 1 - f) * 7) * T, 58 * T - 25 - Math.sin(f * Math.PI) * 90);
     }
     this.fountain.setTexture(`campus-fountain-${Math.floor(time / 320) % 3}`);
     for (const [i, leaf] of this.leaves.entries()) {
       const f = ((time + i * 670) % 5300) / 5300;
-      leaf.setPosition((49 + i * 0.7) * T + Math.floor(Math.sin(f * 7 + i) * 8 / 2) * 2, (54.5 + f * 4.5) * T).setAlpha(1 - f * 0.7);
+      leaf.setPosition((50 + i * 0.7) * T + Math.floor(Math.sin(f * 7 + i) * 8 / 2) * 2, (58.5 + f * 4) * T).setAlpha(1 - f * 0.7);
     }
     this.updateSquirrels(time, delta, player);
     this.updatePigeons(time, player);
@@ -327,12 +335,12 @@ export class CampusLife {
     for (const a of this.squirrels) {
       if (a.mode === "climb") {
         const f = Math.min(1, (time - (a.until - 5000)) / 800);
-        a.sprite.setPosition(51.5 * T, 59 * T - Math.floor(f * 100 / 6) * 6).setDepth(59 * T + 1);
+        a.sprite.setPosition(52.5 * T, 62 * T - Math.floor(f * 66 / 6) * 6).setDepth(62 * T + 1);
         if (time >= a.until) { a.sprite.setPosition(a.home.x, a.home.y); a.mode = "idle"; a.until = time + 2000; }
         continue;
       }
       if (a.mode === "idle" && Math.hypot(player.x - a.sprite.x, player.y - a.sprite.y) < 64 && time > a.until) {
-        a.mode = "flee"; a.path = this.route(a.sprite, { x: 50, y: 58 });
+        a.mode = "flee"; a.path = this.route(a.sprite, { x: 51, y: 61 });
       }
       if (a.path.length) { this.advance(a.sprite, a.path, a.mode === "flee" ? 230 : 70, delta); a.sprite.setTexture(`campus-squirrel-${Math.floor(time / 130) % 2}`).setDepth(a.sprite.y); }
       else if (a.mode === "flee") { a.mode = "climb"; a.until = time + 5000; }
