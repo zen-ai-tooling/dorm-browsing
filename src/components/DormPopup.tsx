@@ -55,7 +55,7 @@ import { GamePanel, IconChip } from "./GamePanel";
 import { PixelIcon } from "./PixelIcon";
 import { sfx } from "@/game/sounds";
 import { Button } from "@/components/ui/button";
-import { fortuneForDate } from "@/data/campus";
+import { fortuneForDate, bookForDate } from "@/data/campus";
 
 const MY_ROOM_ID = "room-1";
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
@@ -1603,17 +1603,90 @@ const FountainPopup = ({ onToss }: { onToss?: (() => void) | undefined }) => {
   );
 };
 
+/** "You are here" campus map: top-down pixel map, tap a label to jog there */
+const CampusMapPopup = ({ onQuickTravel }: { onQuickTravel?: ((dest: string) => void) | undefined }) => {
+  // world is 88×66 tiles; positions are tile coords rendered as percentages
+  const spots: Array<{ dest: string; label: string; x: number; y: number }> = [
+    { dest: "room", label: "My room", x: 12, y: 11 },
+    { dest: "lounge", label: "Lounge", x: 14, y: 27 },
+    { dest: "study", label: "Study", x: 35, y: 27 },
+    { dest: "kitchen", label: "Kitchenette", x: 54, y: 27 },
+    { dest: "backyard", label: "Backyard", x: 76, y: 17 },
+    { dest: "library", label: "Messing Library", x: 40, y: 44 },
+    { dest: "quad", label: "Quad", x: 41, y: 57 },
+    { dest: "truck", label: "Food truck", x: 65, y: 53 },
+  ];
+  const px = (x: number) => `${(x / 88) * 100}%`;
+  const py = (y: number) => `${(y / 66) * 100}%`;
+  return (
+    <Shell accent="#54776f" title="You are here" subtitle="Tap a spot to walk over" interactive>
+      <div className="relative w-full overflow-hidden rounded-[3px] border-2 border-ink" style={{ aspectRatio: "88 / 66", background: "#5b7848" }}>
+        {/* building + backyard + library + walk */}
+        <div className="absolute" style={{ left: px(2), top: py(6), width: px(66), height: py(16), background: "#7a4334" }} />
+        <div className="absolute" style={{ left: px(69), top: py(7), width: px(15), height: py(20), background: "#8fa876" }} />
+        <div className="absolute" style={{ left: px(24), top: py(39), width: px(33), height: py(10), background: "#965f50" }} />
+        <div className="absolute" style={{ left: px(3), top: py(35), width: px(81), height: py(3), background: "#a59d8c" }} />
+        <div className="absolute" style={{ left: px(24), top: py(23), width: px(2), height: py(12), background: "#a59d8c" }} />
+        <div className="absolute" style={{ left: px(76), top: py(28), width: px(2), height: py(7), background: "#a59d8c" }} />
+        {/* blinking you-are-here dot at the sign (front-entrance/Walk junction) */}
+        <div className="absolute size-2 animate-ping" style={{ left: `calc(${px(26)} - 2px)`, top: `calc(${py(35)} - 2px)`, background: "#f1d467" }} />
+        <div className="absolute size-2" style={{ left: `calc(${px(26)} - 2px)`, top: `calc(${py(35)} - 2px)`, background: "#f1d467" }} />
+        {spots.map((s) => (
+          <button
+            key={s.dest}
+            type="button"
+            onClick={() => { sfx.uiClick(); onQuickTravel?.(s.dest); }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-ink bg-panel px-1 py-0.5 font-body text-[9px] font-bold text-panel-foreground shadow-[1px_1px_0_var(--color-ink)] active:translate-y-0"
+            style={{ left: px(s.x), top: py(s.y) }}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </Shell>
+  );
+};
+
+/** little free library: today's book, one per day, onto the Reading list */
+const BookPopup = () => {
+  const { lastBookDate } = usePlayerState();
+  const book = bookForDate(todayKey());
+  const taken = lastBookDate === todayKey();
+  return (
+    <Shell accent="#8a5a34" title="Little free library" subtitle={taken ? "Today's book is yours" : "Take a book, leave a book"} interactive>
+      <div className="space-y-2 font-body text-sm text-panel-foreground">
+        <p className="font-display font-bold">{book.title}</p>
+        <p className="text-xs text-panel-muted">{book.author}</p>
+        <p>{book.blurb}</p>
+        {taken ? (
+          <p className="text-xs text-panel-muted">It's on your Reading list (Me menu). Another book tomorrow.</p>
+        ) : (
+          <Button
+            variant="secondary"
+            className="min-h-11 rounded-[3px] border-2 border-ink font-display font-bold"
+            onClick={() => { if (playerActions.takeBook()) sfx.uiClick(); }}
+          >
+            Take it · free
+          </Button>
+        )}
+      </div>
+    </Shell>
+  );
+};
+
 export const DormPopup = ({
   payload,
   thumbnails = {},
   itemThumbnails = {},
   onFountainToss,
+  onQuickTravel,
 }: {
   payload: PopupPayload | null;
   thumbnails?: Record<string, string>;
   /** tinted per-item thumbnails keyed by item id (mail finds) */
   itemThumbnails?: Record<string, { src: string }>;
   onFountainToss?: () => void;
+  onQuickTravel?: (dest: string) => void;
 }) => {
   const { mySongs, myBulletin, myNowWatching, dailyAnswers, questsDone, playerName } = usePlayerState();
   const [editing, setEditing] = useState(false);
@@ -1647,6 +1720,8 @@ export const DormPopup = ({
 
   if (payload.kind === "package") return <PackagePopup itemThumbnails={itemThumbnails} />;
   if (payload.kind === "fountain") return <FountainPopup onToss={onFountainToss} />;
+  if (payload.kind === "campusmap") return <CampusMapPopup onQuickTravel={onQuickTravel} />;
+  if (payload.kind === "book") return <BookPopup />;
   if (payload.kind === "resident") return <ResidentPopup key={payload.residentId} residentId={payload.residentId} />;
   if (payload.kind === "whiteboard") return <WhiteboardPopup payload={payload} />;
 
@@ -1823,6 +1898,10 @@ export const popupTitle = (p: PopupPayload, playerName: string): string => {
       return "Mail cubby";
     case "fountain":
       return "The Quad fountain";
+    case "campusmap":
+      return "Campus map";
+    case "book":
+      return "Little free library";
     case "whiteboard":
       return p.residentId === MY_ROOM_ID ? "Your door board" : `${p.name}'s door board`;
     case "art":
