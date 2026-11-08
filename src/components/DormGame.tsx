@@ -52,7 +52,7 @@ import { startFeedbackQueue } from "@/lib/feedbackQueue";
 import { markSaveTriggerShown, nextSaveTrigger, shownSaveTriggers } from "@/lib/saveNudge";
 import { sfx } from "@/game/sounds";
 import type { DormScene } from "@/game/DormScene";
-import { currentHour, currentPhase, getHourOverride, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
+import { currentHour, currentPhase, currentWeekday, getHourOverride, hydrateTimeOverride, usePhase, useTimeVersion } from "@/lib/timeStore";
 import { roomRemark, RESIDENTS, type ResidentId } from "@/data/residents";
 import { roomInfoFor } from "@/lib/residentTalk";
 import { PHASE_LABEL } from "@/game/timeOfDay";
@@ -73,6 +73,7 @@ const DormGame = () => {
   const [placingItemId, setPlacingItemId] = useState<string | null>(null);
   const [undoCount, setUndoCount] = useState(0);
   const [petSpot, setPetSpot] = useState(false);
+  const [hammockSpot, setHammockSpot] = useState(false);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   /** per item id, tinted exactly like the room renders it (see displayTintFor) */
   const [itemThumbs, setItemThumbs] = useState<Record<string, ItemThumb>>({});
@@ -95,6 +96,7 @@ const DormGame = () => {
     myFloorId,
     door,
     roomLayout,
+    readingList,
   } = usePlayerState();
   const [trayTab, setTrayTab] = useState<TrayTab>("furniture");
   /** placed colours, so thumbnails only rebuild when a recolor actually changes something */
@@ -188,7 +190,7 @@ const DormGame = () => {
           </button>
           <div className="px-2 pt-0.5 font-body text-[10px] font-bold uppercase tracking-wide text-panel-muted">Go to…</div>
           <div className="grid grid-cols-2 gap-1">
-            {([["room", "My room"], ["lounge", "Lounge"], ["quad", "Quad"], ["library", "Library"]] as const).map(([dest, label]) => (
+            {([["room", "My room"], ["lounge", "Lounge"], ["study", "Study"], ["backyard", "Backyard"], ["quad", "Quad"], ["library", "Library"]] as const).map(([dest, label]) => (
               <button
                 key={dest}
                 type="button"
@@ -261,6 +263,20 @@ const DormGame = () => {
               Sign out
             </button>
           )}
+          {readingList.length > 0 ? (
+            <details className="rounded-[3px] border-2 border-ink bg-panel-foreground/5 px-2 py-1">
+              <summary className="cursor-pointer font-body text-xs font-bold text-panel-foreground">
+                Reading list ({readingList.length})
+              </summary>
+              <div className="mt-1 max-h-32 space-y-1 overflow-y-auto">
+                {[...readingList].reverse().map((b, i) => (
+                  <p key={`${b.date}-${i}`} className="font-body text-[11px] leading-snug text-panel-muted">
+                    <span className="font-bold text-panel-foreground">{b.title}</span> — {b.author}
+                  </p>
+                ))}
+              </div>
+            </details>
+          ) : null}
           <button
             type="button"
             className={meItem}
@@ -411,7 +427,9 @@ const DormGame = () => {
         getPlayerName: () => getPlayerState().playerName,
         getHour: () => currentHour(),
         getHourOverride: () => getHourOverride(),
+        getWeekday: () => currentWeekday(),
         onPetSpot: setPetSpot,
+        onHammockSpot: setHammockSpot,
         onPetProfessor: () => {
           if (playerActions.petProfessor()) toast("Professor approves of you.");
         },
@@ -619,7 +637,7 @@ const DormGame = () => {
     popup ? (
       sheetOpen ? (
         <PopupSheetContext.Provider value={{ sheet: true, onClose: () => setSheetOpen(false) }}>
-          <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} />
+          <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} onQuickTravel={(dest) => { setPopup(null); sceneRef.current?.quickTravel(dest as never); }} />
         </PopupSheetContext.Provider>
       ) : (
         <div
@@ -641,7 +659,7 @@ const DormGame = () => {
       )
     ) : null
   ) : (
-    <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} />
+    <DormPopup payload={popup} thumbnails={thumbs} itemThumbnails={itemThumbs} onFountainToss={() => sceneRef.current?.tossCampusCoin()} onQuickTravel={(dest) => { setPopup(null); sceneRef.current?.quickTravel(dest as never); }} />
   );
 
   return (
@@ -1057,6 +1075,13 @@ const DormGame = () => {
           onClick={() => sceneRef.current?.petProfessor()}
           className={`absolute left-1/2 z-30 min-h-11 -translate-x-1/2 rounded-[3px] border-2 border-ink font-display font-bold ${isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"}`}
         >Pet Professor</Button>
+      ) : null}
+      {hammockSpot && !petSpot && !editing && !moveIn ? (
+        <Button
+          variant="secondary"
+          onClick={() => { setHammockSpot(false); sceneRef.current?.lieInHammock(); }}
+          className={`absolute left-1/2 z-30 min-h-11 -translate-x-1/2 rounded-[3px] border-2 border-ink font-display font-bold ${isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"}`}
+        >Lie in hammock</Button>
       ) : null}
 
       <ShopPanel

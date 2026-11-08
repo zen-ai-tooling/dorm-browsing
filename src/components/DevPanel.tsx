@@ -7,7 +7,7 @@ import { signOutToGuest, useAuth } from "@/lib/auth";
 import { deleteCloudSave } from "@/lib/saveSync";
 import { sfx } from "@/game/sounds";
 import { GamePanel, IconChip } from "./GamePanel";
-import { currentHour, setHourOverride, useHourOverride, useTimeOverride } from "@/lib/timeStore";
+import { currentHour, setHourOverride, setWeekdayOverride, useHourOverride, useTimeOverride, useWeekdayOverride } from "@/lib/timeStore";
 import { PHASE_LABEL, phaseForHour } from "@/game/timeOfDay";
 import { formatHour } from "@/data/residents";
 
@@ -39,13 +39,14 @@ export const DevPanel = ({
 }: {
   onLayoutReset: () => void;
   onTriggerVisit: () => boolean;
-  onCampusTeleport: (target: "quad" | "library") => void;
+  onCampusTeleport: (target: "quad" | "library" | "backyard" | "frontdoor") => void;
 }) => {
   const dev = useDevMode();
   const { coins, currentStreak } = usePlayerState();
   const { userId, isAnonymous } = useAuth();
   const timeOverride = useTimeOverride();
   const hourOverride = useHourOverride();
+  const weekdayOverride = useWeekdayOverride();
   const shownHour = hourOverride ?? currentHour();
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -155,9 +156,33 @@ export const DevPanel = ({
           </button>
         </div>
       </div>
+      <div className="mb-2">
+        <div className="mb-1 font-body text-xs font-bold text-panel-foreground">Weekday</div>
+        <div className="flex flex-wrap gap-1">
+          {(["Auto", "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const).map((label, i) => {
+            const value = i === 0 ? null : i - 1;
+            const active = weekdayOverride === value;
+            return (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={active}
+                onClick={() => run(() => setWeekdayOverride(value), value === null ? "Weekday: Auto" : `Weekday: ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][value]}`)}
+                className={`rounded-[3px] border-2 border-ink px-1.5 py-0.5 font-body text-[11px] font-bold ${
+                  active ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div className="space-y-1.5">
         <DevButton onClick={() => run(() => onCampusTeleport("quad"), "Welcome to the Quad")}>Teleport to Quad</DevButton>
-        <DevButton onClick={() => run(() => onCampusTeleport("library"), "Hale Library steps")}>Teleport to library steps</DevButton>
+        <DevButton onClick={() => run(() => onCampusTeleport("library"), "Messing Library steps")}>Teleport to library steps</DevButton>
+        <DevButton onClick={() => run(() => onCampusTeleport("backyard"), "Welcome to the Backyard")}>Teleport to Backyard</DevButton>
+        <DevButton onClick={() => run(() => onCampusTeleport("frontdoor"), "Front door")}>Teleport to front door</DevButton>
         <DevButton onClick={() => run(devActions.resetFountain, "Today's fountain is ready again")}>Reset today's fountain</DevButton>
         <DevButton onClick={() => run(() => devActions.addCoins(500), "+500 coins")}>+500 coins</DevButton>
         <DevButton onClick={() => run(devActions.zeroCoins, "Coins set to 0 · unlimited off")}>
