@@ -96,6 +96,7 @@ const DormGame = () => {
     myFloorId,
     door,
     roomLayout,
+    readingList,
   } = usePlayerState();
   const [trayTab, setTrayTab] = useState<TrayTab>("furniture");
   /** placed colours, so thumbnails only rebuild when a recolor actually changes something */
@@ -1074,6 +1075,13 @@ const DormGame = () => {
           onClick={() => sceneRef.current?.petProfessor()}
           className={`absolute left-1/2 z-30 min-h-11 -translate-x-1/2 rounded-[3px] border-2 border-ink font-display font-bold ${isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"}`}
         >Pet Professor</Button>
+      ) : null}
+      {hammockSpot && !petSpot && !editing && !moveIn ? (
+        <Button
+          variant="secondary"
+          onClick={() => { setHammockSpot(false); sceneRef.current?.lieInHammock(); }}
+          className={`absolute left-1/2 z-30 min-h-11 -translate-x-1/2 rounded-[3px] border-2 border-ink font-display font-bold ${isPhone ? "bottom-[calc(8.25rem+env(safe-area-inset-bottom))]" : "bottom-5"}`}
+        >Lie in hammock</Button>
       ) : null}
 
       <ShopPanel
