@@ -34,7 +34,7 @@ import {
 } from "@/data/items";
 import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
 import { CampusLife } from "./CampusLife";
-import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate } from "@/data/campus";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate, leafPhaseForMonth } from "@/data/campus";
 import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
@@ -58,7 +58,7 @@ import {
   type ResidentDef,
   type ResidentId,
 } from "@/data/residents";
-import { boardText, promptForToday, residentPick } from "@/data/prompts";
+import { boardText, promptForToday, residentPick, todayKey } from "@/data/prompts";
 import {
   canPlaceIn,
   isDoorLane,
