@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from "bun:test";
-import { fortuneForDate } from "../data/campus";
+import { fortuneForDate, bookForDate } from "../data/campus";
 import { todayKey } from "../data/prompts";
 const saves = new Map<string, string>();
 let m: typeof import("./playerStore");
@@ -28,4 +28,18 @@ test("old saves default safely; first Professor approval is once ever", () => {
   expect(m.playerActions.petProfessor()).toBe(false);
   m.__resetStoreForTests(); m.hydratePlayerState();
   expect(m.playerActions.petProfessor()).toBe(false);
+});
+test("little free library: one book per date, onto the Reading list, safe after reload", () => {
+  reset();
+  expect(m.normalizeSave({}).readingList).toEqual([]);
+  expect(m.normalizeSave({}).lastBookDate).toBe(null);
+  const book = bookForDate(todayKey());
+  expect(m.playerActions.takeBook()).toBe(true);
+  expect(m.getPlayerState().lastBookDate).toBe(todayKey());
+  expect(m.getPlayerState().readingList).toHaveLength(1);
+  expect(m.getPlayerState().readingList[0]?.title).toBe(book.title);
+  expect(m.playerActions.takeBook()).toBe(false);
+  m.__resetStoreForTests(); m.hydratePlayerState();
+  expect(m.playerActions.takeBook()).toBe(false);
+  expect(m.getPlayerState().readingList).toHaveLength(1);
 });
