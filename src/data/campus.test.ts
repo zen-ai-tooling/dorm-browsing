@@ -47,10 +47,10 @@ describe("campus reachability", () => {
         expect(grid[y]?.[x]).toBe(1);
         expect(seen.has(`${x},${y}`)).toBe(true);
       }
-    expect(WAYPOINTS.frontDoor).toEqual({ x: 24, y: 34 });
-    expect(WAYPOINT_GRAPH.frontDoor).toContain("walkWest");
-    expect(WAYPOINT_GRAPH.walkWest).toContain("frontDoor");
-    const route = routeLength(grid, [12, 18], [WAYPOINTS.steps!.x, WAYPOINTS.steps!.y]);
+    expect(WAYPOINTS["frontDoor"]).toEqual({ x: 24, y: 34 });
+    expect(WAYPOINT_GRAPH["frontDoor"]).toContain("walkWest");
+    expect(WAYPOINT_GRAPH["walkWest"]).toContain("frontDoor");
+    const route = routeLength(grid, [12, 18], [WAYPOINTS["steps"]!.x, WAYPOINTS["steps"]!.y]);
     expect(route).toBeLessThanOrEqual(80);
   });
   test("every waypoint/seat is walkable and connected with valid graph neighbors", () => {
@@ -138,7 +138,7 @@ test("daily chalk and little-free-library books are date-seeded and stable", () 
   expect(chalkForDate("2026-11-07")).toEqual(chalkForDate("2026-11-07"));
   expect(BOOKS.length).toBeGreaterThanOrEqual(30);
   expect(bookForDate("2026-11-07")).toEqual(bookForDate("2026-11-07"));
-  expect(BOOKS).toContainEqual(bookForDate("2026-11-07"));
+  expect(BOOKS.some((b) => b.title === bookForDate("2026-11-07").title)).toBe(true);
 });
 test("garden beds advance one stage per real day, staggered per bed", () => {
   expect(GARDEN_STAGES).toEqual(["sprout", "leafy", "flowering", "ready"]);
