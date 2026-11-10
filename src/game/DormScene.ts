@@ -4113,7 +4113,7 @@ export class DormScene extends Phaser.Scene {
   /** Me-menu + campus-map quick travel: walks there at jog speed (never a teleport); any tap cancels. */
   quickTravel(dest: "room" | "lounge" | "study" | "kitchen" | "backyard" | "quad" | "library" | "truck") {
     if (this.editMode || this.cinematic) return;
-    const zoneId = dest === "room" ? this.myZone.id : dest === "lounge" ? "lounge" : dest === "study" ? "study" : dest === "kitchen" ? "kitchen" : dest === "backyard" ? "courtyard" : null;
+    const zoneId = dest === "room" ? this.myZone?.id ?? null : dest === "lounge" ? "lounge" : dest === "study" ? "study" : dest === "kitchen" ? "kitchen" : dest === "backyard" ? "courtyard" : null;
     const z = zoneId ? this.zones.find((q) => q.id === zoneId) : null;
     const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library" | "truck"];
     const [gx, gy] = this.nearestFloor(tile.x, tile.y);
