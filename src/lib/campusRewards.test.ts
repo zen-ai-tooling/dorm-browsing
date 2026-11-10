@@ -34,12 +34,12 @@ test("little free library: one book per date, onto the Reading list, safe after 
   expect(m.normalizeSave({}).readingList).toEqual([]);
   expect(m.normalizeSave({}).lastBookDate).toBe(null);
   const book = bookForDate(todayKey());
-  expect(m.playerActions.takeBook()).toBe(true);
+  expect(m.playerActions.takeBook()?.title).toBe(book.title);
   expect(m.getPlayerState().lastBookDate).toBe(todayKey());
   expect(m.getPlayerState().readingList).toHaveLength(1);
   expect(m.getPlayerState().readingList[0]?.title).toBe(book.title);
-  expect(m.playerActions.takeBook()).toBe(false);
+  expect(m.playerActions.takeBook()).toBe(null);
   m.__resetStoreForTests(); m.hydratePlayerState();
-  expect(m.playerActions.takeBook()).toBe(false);
+  expect(m.playerActions.takeBook()).toBe(null);
   expect(m.getPlayerState().readingList).toHaveLength(1);
 });
