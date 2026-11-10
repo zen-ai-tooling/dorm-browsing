@@ -34,7 +34,7 @@ import {
 } from "@/data/items";
 import { buildCharTextures, buildTextures, buildCampusTextures } from "./textures";
 import { CampusLife } from "./CampusLife";
-import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate } from "@/data/campus";
+import { CAMPUS_H, openCampusGrid, isCampusGround, isCampusPath, WAYPOINTS, isOutdoorTile, OUTDOOR_SPEED, JOG_SPEED, QUICK_TRAVEL, FRONT_PATH, BACKYARD, isBackyardPath, FIRE_PIT, GARDEN_BEDS, HAMMOCK, gardenStage, firePitLit, bbqOn, volleyballOn, chalkForDate, leafPhaseForMonth } from "@/data/campus";
 import { awayDestination } from "@/data/residents";
 import { DEFAULT_LOOK, lookHash, roomNameFor, type AvatarLook } from "@/data/avatar";
 import type { MoodKey } from "@/data/dorm";
@@ -58,7 +58,7 @@ import {
   type ResidentDef,
   type ResidentId,
 } from "@/data/residents";
-import { boardText, promptForToday, residentPick } from "@/data/prompts";
+import { boardText, promptForToday, residentPick, todayKey } from "@/data/prompts";
 import {
   canPlaceIn,
   isDoorLane,
@@ -4113,7 +4113,7 @@ export class DormScene extends Phaser.Scene {
   /** Me-menu + campus-map quick travel: walks there at jog speed (never a teleport); any tap cancels. */
   quickTravel(dest: "room" | "lounge" | "study" | "kitchen" | "backyard" | "quad" | "library" | "truck") {
     if (this.editMode || this.cinematic) return;
-    const zoneId = dest === "room" ? this.myZone.id : dest === "lounge" ? "lounge" : dest === "study" ? "study" : dest === "kitchen" ? "kitchen" : dest === "backyard" ? "courtyard" : null;
+    const zoneId = dest === "room" ? this.myZone?.id ?? null : dest === "lounge" ? "lounge" : dest === "study" ? "study" : dest === "kitchen" ? "kitchen" : dest === "backyard" ? "courtyard" : null;
     const z = zoneId ? this.zones.find((q) => q.id === zoneId) : null;
     const tile = z ? { x: z.x + Math.floor(z.w / 2), y: z.y + Math.floor(z.h / 2) } : QUICK_TRAVEL[dest as "quad" | "library" | "truck"];
     const [gx, gy] = this.nearestFloor(tile.x, tile.y);

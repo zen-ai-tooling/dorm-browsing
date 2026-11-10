@@ -14,7 +14,7 @@ export const CAMPUS_PROPS = [
   { id: "mapsign", x: 26, y: 34, w: 1, h: 1 },
   { id: "trash", x: 57, y: 40, w: 1, h: 1 },
   ...[[22, 33], [19, 42]].map(([x, y], i) => ({ id: `bikes-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
-  ...[[26, 55], [52, 55], [26, 60], [52, 60]].map(([x, y], i) => ({ id: `picnic-${i}`, x: x ?? 0, y: y ?? 0, w: 3, h: 1 })),
+  ...[[26, 55], [52, 55], [26, 60], [55, 60]].map(([x, y], i) => ({ id: `picnic-${i}`, x: x ?? 0, y: y ?? 0, w: 3, h: 1 })),
   ...[[31, 58], [47, 62], [55, 62], [17, 57]].map(([x, y], i) => ({ id: `bench-${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
   // Library Walk benches: south edge, between the lamp posts
   ...[[12, 38], [30, 38], [44, 38], [68, 38]].map(([x, y], i) => ({ id: `bench-w${i}`, x: x ?? 0, y: y ?? 0, w: 2, h: 1 })),
