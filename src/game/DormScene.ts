@@ -4196,7 +4196,7 @@ export class DormScene extends Phaser.Scene {
       }
     }
     // hammock proximity pill + "z" bubbles while lounging
-    const near = !this.inHammock && Math.hypot(this.player.x - t(HAMMOCK.x + 0.5), this.player.y - t(HAMMOCK.y + 0.5)) < 52;
+    const near = !this.inHammock && Math.hypot(this.player.x - t(HAMMOCK.x + 0.5), this.player.y - t(HAMMOCK.y + 0.5)) < 70;
     if (near !== this.hammockNear) { this.hammockNear = near; this.onHammockSpot(near); }
     if (this.inHammock) {
       if (time > this.nextHammockZ) {
